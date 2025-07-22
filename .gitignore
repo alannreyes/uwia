@@ -23,8 +23,10 @@ coverage
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 config-corrected.env
 production.env
+CREDENCIALES_PRIVADAS.txt
 
 # Test files and logs
 test_results_*.log

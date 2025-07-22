@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: uwia-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5015}:5015"
+    environment:
+      - NODE_ENV=production
+      - PORT=5015
+      # Database
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - OPENAI_ENABLED=${OPENAI_ENABLED}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE}
+      - OPENAI_MAX_TOKENS=${OPENAI_MAX_TOKENS}
+      - OPENAI_MAX_TEXT_LENGTH=${OPENAI_MAX_TEXT_LENGTH}
+      - OPENAI_USE_FOR_SIMPLE_PDFS_ONLY=${OPENAI_USE_FOR_SIMPLE_PDFS_ONLY}
+      - OPENAI_FALLBACK_TO_LOCAL=${OPENAI_FALLBACK_TO_LOCAL}
+      # Rate Limiting
+      - THROTTLE_TTL=${THROTTLE_TTL}
+      - THROTTLE_LIMIT=${THROTTLE_LIMIT}
+      - OPENAI_RATE_LIMIT_RPM=${OPENAI_RATE_LIMIT_RPM}
+      - OPENAI_RATE_LIMIT_TPM=${OPENAI_RATE_LIMIT_TPM}
+      - OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}
+      - OPENAI_RETRY_DELAY=${OPENAI_RETRY_DELAY}
+      # File Upload
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE}
+      # Processing
+      - LOCAL_PROCESSING_DEFAULT=${LOCAL_PROCESSING_DEFAULT}
+      - LOCAL_PROCESSING_FOR_COMPLEX_PDFS=${LOCAL_PROCESSING_FOR_COMPLEX_PDFS}
+      # Application
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - LOG_LEVEL=${LOG_LEVEL}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5015/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - uwia-network
+
+networks:
+  uwia-network:
+    driver: bridge
