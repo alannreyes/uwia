@@ -104,7 +104,8 @@ export class UnderwritingService {
     });
 
     if (prompts.length === 0) {
-      throw new Error(`No prompts configured for document: ${filename}`);
+      this.logger.warn(`No prompts configured for document: ${filename}`);
+      return []; // Return empty array silently
     }
 
     // Extract text from PDF
