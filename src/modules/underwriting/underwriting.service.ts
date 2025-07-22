@@ -108,8 +108,8 @@ export class UnderwritingService {
       return []; // Return empty array silently
     }
 
-    // Extract text from PDF
-    const extractedText = await this.pdfParserService.extractText(fileContent);
+    // Extract text from PDF (fileContent is base64 string)
+    const extractedText = await this.pdfParserService.extractTextFromBase64(fileContent);
     
     // Process each prompt
     for (const prompt of prompts) {
