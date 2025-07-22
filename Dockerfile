@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar TODAS las dependencias (necesarias para build)
-RUN npm ci && npm cache clean --force
+RUN npm install --production=false && npm cache clean --force
 
 # Copiar código fuente
 COPY . .
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # Instalar solo dependencias de producción
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # Crear usuario no-root para seguridad
 RUN addgroup -g 1001 -S nodejs
