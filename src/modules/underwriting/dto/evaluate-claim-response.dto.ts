@@ -1,27 +1,26 @@
 export class EvaluationResultDto {
-  prompt: string;
-  expected_type: string;
+  question: string;
   response: string;
   confidence: number;
-  validation_response: string;
-  validation_confidence: number;
-  final_confidence: number;
+  error?: string;
 }
 
 export class DocumentResultDto {
   filename: string;
-  document_type?: string;
-  extraction_success: boolean;
   evaluations: EvaluationResultDto[];
-  processing_time_ms: number;
+  error?: string;
 }
 
 export class EvaluateClaimResponseDto {
-  success: boolean;
   claim_reference: string;
-  claim_id: string;
-  processing_time_ms: number;
-  documents: DocumentResultDto[];
-  error?: string;
-  metadata?: any;
+  status: 'success' | 'partial' | 'error';
+  results: Record<string, EvaluationResultDto[]>; // Keyed by filename
+  summary: {
+    total_documents: number;
+    processed_documents: number;
+    total_questions: number;
+    answered_questions: number;
+  };
+  errors?: string[];
+  created_at: Date;
 }
