@@ -3,7 +3,7 @@ import { UnderwritingService } from './underwriting.service';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
 
-@Controller('api')
+@Controller('underwriting')
 export class UnderwritingController {
   constructor(private readonly underwritingService: UnderwritingService) {}
 
