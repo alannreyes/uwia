@@ -7,6 +7,9 @@ export class DocumentPrompt {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ name: 'pmc_field', length: 255 })
+  pmcField: string;
+
   @Column({ name: 'document_name', length: 255 })
   @Index()
   documentName: string;
