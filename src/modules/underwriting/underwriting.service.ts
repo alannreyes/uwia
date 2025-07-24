@@ -155,10 +155,10 @@ export class UnderwritingService {
           this.logger.log(`Question: ${processedQuestion}`);
 
           // Llamar a OpenAI
-          const aiResponse = await this.openAiService.processDocumentQuestion(
+          const aiResponse = await this.openAiService.evaluateWithValidation(
             extractedText,
             processedQuestion,
-            prompt.expectedType
+            prompt.expectedType as any
           );
 
           const processingTime = Date.now() - startTime;
@@ -203,8 +203,8 @@ export class UnderwritingService {
     filename: string,
     fileContent: string,
     variables?: Record<string, string>
-  ): Promise<EvaluationResultDto[]> {
-    const results: EvaluationResultDto[] = [];
+  ): Promise<PMCFieldResultDto[]> {
+    const results: PMCFieldResultDto[] = [];
 
     // Get prompts for this document type
     const prompts = await this.documentPromptRepository.find({
