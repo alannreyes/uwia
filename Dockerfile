@@ -37,9 +37,5 @@ EXPOSE 5015
 ENV NODE_ENV=production
 ENV PORT=5015
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:5015/api/health || exit 1
-
 # Comando para iniciar la aplicación
 CMD ["node", "dist/main"] 
