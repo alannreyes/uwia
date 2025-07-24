@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
 import { UnderwritingService } from './underwriting.service';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
@@ -12,7 +12,8 @@ export class UnderwritingController {
   @Post('evaluate-claim')
   @HttpCode(HttpStatus.OK)
   async evaluateClaim(
-    @Body() body: any
+    @Body() body: any,
+    @Req() req: any
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('🔍 Raw request body received:');
     this.logger.log(JSON.stringify(body, null, 2));
@@ -21,6 +22,23 @@ export class UnderwritingController {
     Object.keys(body || {}).forEach(key => {
       this.logger.log(`${key}: ${typeof body[key]} = ${body[key]}`);
     });
+
+    // File data debugging
+    console.log('🔍 File data debug:');
+    console.log('File data length:', req.body?.file_data?.length || body.file_data?.length);
+    console.log('File data type:', typeof (req.body?.file_data || body.file_data));
+    console.log('File data starts with:', (req.body?.file_data || body.file_data)?.substring(0, 50));
+    console.log('Is valid base64?', /^[A-Za-z0-9+/=]+$/.test((req.body?.file_data || body.file_data) || ''));
+
+    // PDF files debugging
+    console.log('🔍 PDF files debug:');
+    console.log('LOP PDF length:', (body.lop_pdf || req.body?.lop_pdf)?.length);
+    console.log('LOP PDF type:', typeof (body.lop_pdf || req.body?.lop_pdf));
+    console.log('LOP PDF starts with:', (body.lop_pdf || req.body?.lop_pdf)?.substring(0, 50));
+    
+    console.log('POLICY PDF length:', (body.policy_pdf || req.body?.policy_pdf)?.length);
+    console.log('POLICY PDF type:', typeof (body.policy_pdf || req.body?.policy_pdf));
+    console.log('POLICY PDF starts with:', (body.policy_pdf || req.body?.policy_pdf)?.substring(0, 50));
     
     // Cast to DTO for validation
     const dto = body as EvaluateClaimRequestDto;
