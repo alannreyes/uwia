@@ -1,23 +1,27 @@
-import { IsString, IsArray, ValidateNested, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
-
-export class DocumentDto {
-  @IsString()
-  filename: string;
-
-  @IsString()
-  file_content: string; // Base64 encoded
-}
+import { IsString, IsOptional } from 'class-validator';
 
 export class EvaluateClaimRequestDto {
   @IsString()
-  claim_reference: string;
+  insured_name: string;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DocumentDto)
-  documents: DocumentDto[];
+  @IsString()
+  insurance_company: string;
 
-  @IsOptional()
-  variables?: Record<string, string>; // Para reemplazar placeholders como %CMS insured%
+  @IsString()
+  insured_address: string;
+
+  @IsString()
+  insured_street: string;
+
+  @IsString()
+  insured_city: string;
+
+  @IsString()
+  insured_zip: string;
+
+  @IsString()
+  record_id: string;
+
+  @IsString()
+  carpeta_id: string; // Google Drive folder ID
 }

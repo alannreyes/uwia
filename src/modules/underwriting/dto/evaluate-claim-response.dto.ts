@@ -1,26 +1,28 @@
-export class EvaluationResultDto {
+export class PMCFieldResultDto {
+  pmc_field: string;
   question: string;
-  response: string;
+  answer: string;
   confidence: number;
+  expected_type: string;
   error?: string;
 }
 
 export class DocumentResultDto {
-  filename: string;
-  evaluations: EvaluationResultDto[];
+  document_name: string;
+  fields: PMCFieldResultDto[];
   error?: string;
 }
 
 export class EvaluateClaimResponseDto {
-  claim_reference: string;
+  record_id: string;
   status: 'success' | 'partial' | 'error';
-  results: Record<string, EvaluationResultDto[]>; // Keyed by filename
+  results: Record<string, PMCFieldResultDto[]>; // Keyed by document name (LOP.pdf, POLICY.pdf)
   summary: {
     total_documents: number;
     processed_documents: number;
-    total_questions: number;
-    answered_questions: number;
+    total_fields: number;
+    answered_fields: number;
   };
   errors?: string[];
-  created_at: Date;
+  processed_at: Date;
 }
