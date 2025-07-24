@@ -261,9 +261,11 @@ export class UnderwritingService {
         });
 
         results.push({
+          pmc_field: prompt.pmcField || prompt.question,
           question,
-          response: evaluation.response,
+          answer: evaluation.response,
           confidence: evaluation.final_confidence,
+          expected_type: prompt.expectedType,
         });
 
       } catch (error) {
@@ -280,9 +282,11 @@ export class UnderwritingService {
         });
 
         results.push({
+          pmc_field: prompt.pmcField || prompt.question,
           question: prompt.question,
-          response: null,
+          answer: null,
           confidence: 0,
+          expected_type: prompt.expectedType,
           error: error.message,
         });
       }
