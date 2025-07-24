@@ -42,28 +42,36 @@ export class UnderwritingService {
         'insured_zip': dto.insured_zip
       };
 
-      // Procesar documentos específicos
-      const documentsToProcess = ['LOP.pdf', 'POLICY.pdf'];
+      // Procesar documentos enviados por n8n
+      const documentsToProcess = [
+        { name: 'LOP.pdf', content: dto.lop_pdf },
+        { name: 'POLICY.pdf', content: dto.policy_pdf }
+      ];
       
-      for (const documentName of documentsToProcess) {
+      for (const document of documentsToProcess) {
+        if (!document.content) {
+          this.logger.warn(`${document.name} not provided, skipping`);
+          continue;
+        }
+
         try {
-          this.logger.log(`Processing document: ${documentName}`);
+          this.logger.log(`Processing document: ${document.name}`);
           
-          const documentResults = await this.processDocumentFromGoogleDrive(
+          const documentResults = await this.processDocumentWithContent(
             dto.record_id,
-            documentName,
-            dto.carpeta_id,
+            document.name,
+            document.content,
             variables
           );
           
-          results[documentName] = documentResults;
+          results[document.name] = documentResults;
           totalFields += documentResults.length;
           answeredFields += documentResults.filter(r => !r.error).length;
           
         } catch (error) {
-          this.logger.error(`Error processing document ${documentName}:`, error);
-          errors.push(`${documentName}: ${error.message}`);
-          results[documentName] = [];
+          this.logger.error(`Error processing document ${document.name}:`, error);
+          errors.push(`${document.name}: ${error.message}`);
+          results[document.name] = [];
         }
       }
 
@@ -82,7 +90,7 @@ export class UnderwritingService {
         status,
         results,
         summary: {
-          total_documents: documentsToProcess.length,
+          total_documents: documentsToProcess.filter(d => d.content).length,
           processed_documents: Object.keys(results).filter(k => results[k].length > 0).length,
           total_fields: totalFields,
           answered_fields: answeredFields,
@@ -100,10 +108,10 @@ export class UnderwritingService {
     }
   }
 
-  private async processDocumentFromGoogleDrive(
+  private async processDocumentWithContent(
     recordId: string,
     documentName: string,
-    carpetaId: string,
+    pdfContent: string,
     variables: Record<string, string>
   ): Promise<any[]> {
     const results: any[] = [];
@@ -127,10 +135,7 @@ export class UnderwritingService {
 
       this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
 
-      // 2. Descargar PDF de Google Drive (por ahora simular)
-      const pdfContent = await this.downloadPdfFromGoogleDrive(carpetaId, documentName);
-      
-      // 3. Extraer texto del PDF
+      // 2. Extraer texto del PDF
       const extractedText = await this.pdfParserService.extractTextFromBase64(pdfContent);
       this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
 
@@ -192,14 +197,6 @@ export class UnderwritingService {
     }
   }
 
-  private async downloadPdfFromGoogleDrive(carpetaId: string, filename: string): Promise<string> {
-    // TODO: Implementar descarga real de Google Drive
-    // Por ahora devolver un PDF de ejemplo en base64
-    this.logger.warn(`Simulating download of ${filename} from Google Drive folder ${carpetaId}`);
-    
-    // Esto es temporal - necesitas implementar la integración real con Google Drive
-    throw new Error(`Google Drive integration not implemented yet. Cannot download ${filename} from folder ${carpetaId}`);
-  }
 
   private async processDocument(
     claimReference: string,
