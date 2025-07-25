@@ -41,4 +41,9 @@ export class EvaluateClaimRequestDto {
   @IsOptional()
   @IsString()
   policy_pdf?: string; // POLICY.pdf en base64
+
+  // Campo genérico para archivo (para compatibilidad)
+  @IsOptional()
+  @IsString()
+  file_data?: string; // Archivo genérico en base64
 }

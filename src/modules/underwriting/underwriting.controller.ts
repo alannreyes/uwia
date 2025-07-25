@@ -1,4 +1,6 @@
-import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus, Logger, Req, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
+import { Express } from 'express';
 import { UnderwritingService } from './underwriting.service';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
@@ -62,5 +64,58 @@ export class UnderwritingController {
       timestamp: new Date().toISOString(),
       service: 'uwia',
     };
+  }
+
+  // Nuevo endpoint para multipart/form-data
+  @Post('evaluate-claim-multipart')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'lop_pdf', maxCount: 1 },
+    { name: 'policy_pdf', maxCount: 1 },
+    { name: 'file_data', maxCount: 1 }  // Para compatibilidad
+  ]))
+  @HttpCode(HttpStatus.OK)
+  async evaluateClaimMultipart(
+    @UploadedFiles() files: { 
+      lop_pdf?: Express.Multer.File[],
+      policy_pdf?: Express.Multer.File[],
+      file_data?: Express.Multer.File[]
+    },
+    @Body() body: any
+  ): Promise<EvaluateClaimResponseDto> {
+    this.logger.log('📥 Received multipart/form-data request');
+    this.logger.log('Body fields:', body);
+    this.logger.log('Files received:', Object.keys(files || {}));
+
+    // Convertir archivos a base64
+    const lop_pdf = files?.lop_pdf?.[0] ? files.lop_pdf[0].buffer.toString('base64') : undefined;
+    const policy_pdf = files?.policy_pdf?.[0] ? files.policy_pdf[0].buffer.toString('base64') : undefined;
+    const file_data = files?.file_data?.[0] ? files.file_data[0].buffer.toString('base64') : undefined;
+
+    if (lop_pdf) {
+      this.logger.log(`LOP PDF: ${files.lop_pdf[0].originalname} (${files.lop_pdf[0].size} bytes)`);
+    }
+    if (policy_pdf) {
+      this.logger.log(`POLICY PDF: ${files.policy_pdf[0].originalname} (${files.policy_pdf[0].size} bytes)`);
+    }
+    if (file_data) {
+      this.logger.log(`FILE DATA: ${files.file_data[0].originalname} (${files.file_data[0].size} bytes)`);
+    }
+
+    // Crear DTO combinando body fields y archivos convertidos
+    const dto: EvaluateClaimRequestDto = {
+      ...body,
+      lop_pdf: lop_pdf || body.lop_pdf,
+      policy_pdf: policy_pdf || body.policy_pdf,
+      file_data: file_data || body.file_data
+    };
+
+    this.logger.log('DTO created:', {
+      ...dto,
+      lop_pdf: dto.lop_pdf ? `[BASE64 - ${dto.lop_pdf.length} chars]` : undefined,
+      policy_pdf: dto.policy_pdf ? `[BASE64 - ${dto.policy_pdf.length} chars]` : undefined,
+      file_data: dto.file_data ? `[BASE64 - ${dto.file_data.length} chars]` : undefined
+    });
+
+    return this.underwritingService.evaluateClaim(dto);
   }
 }
