@@ -46,4 +46,8 @@ export class EvaluateClaimRequestDto {
   @IsOptional()
   @IsString()
   file_data?: string; // Archivo genérico en base64
+
+  // Context con toda la información del caso
+  @IsOptional()
+  context?: any; // Puede ser string JSON o objeto
 }

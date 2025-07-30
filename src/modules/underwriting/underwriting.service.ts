@@ -33,13 +33,23 @@ export class UnderwritingService {
       this.logger.log(`Processing claim for record_id: ${dto.record_id}`);
       
       // Variables dinámicas para reemplazar en los prompts
+      // Extraer del context si está disponible
+      let contextData: any = {};
+      if (dto.context) {
+        try {
+          contextData = typeof dto.context === 'string' ? JSON.parse(dto.context) : dto.context;
+        } catch (e) {
+          this.logger.warn('Failed to parse context:', e);
+        }
+      }
+      
       const variables = {
-        'CMS insured': dto.insured_name,
-        'Insurance Company': dto.insurance_company,
-        'insured_address': dto.insured_address,
-        'insured_street': dto.insured_street,
-        'insured_city': dto.insured_city,
-        'insured_zip': dto.insured_zip
+        'CMS insured': dto.insured_name || contextData.insured_name,
+        'Insurance Company': dto.insurance_company || contextData.insurance_company,
+        'insured_address': dto.insured_address || contextData.insured_address,
+        'insured_street': dto.insured_street || contextData.insured_street,
+        'insured_city': dto.insured_city || contextData.insured_city,
+        'insured_zip': dto.insured_zip || contextData.insured_zip
       };
 
       // Procesar documentos enviados por n8n
@@ -341,23 +351,37 @@ export class UnderwritingService {
     processor: (item: T) => Promise<R>,
     concurrencyLimit: number
   ): Promise<R[]> {
-    const results: R[] = [];
+    const results: (R | null)[] = new Array(items.length).fill(null);
     const executing: Promise<void>[] = [];
 
-    for (const item of items) {
-      const promise = processor(item).then(result => {
-        results.push(result);
-      });
+    for (let i = 0; i < items.length; i++) {
+      const index = i; // Capturar índice para mantener orden
+      const item = items[index];
+      
+      const promise = processor(item).then(
+        result => {
+          results[index] = result; // Guardar en posición correcta
+        },
+        error => {
+          this.logger.error(`Error processing item at index ${index}:`, error);
+          results[index] = null; // Marcar error pero mantener posición
+        }
+      );
 
       executing.push(promise);
 
       if (executing.length >= concurrencyLimit) {
         await Promise.race(executing);
-        executing.splice(executing.findIndex(p => p === promise), 1);
+        // Limpiar promesas completadas
+        for (let j = executing.length - 1; j >= 0; j--) {
+          if (await Promise.race([executing[j], Promise.resolve('pending')]) !== 'pending') {
+            executing.splice(j, 1);
+          }
+        }
       }
     }
 
     await Promise.all(executing);
-    return results;
+    return results.filter(r => r !== null) as R[]; // Retornar solo resultados válidos
   }
 }
