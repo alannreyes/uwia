@@ -104,14 +104,16 @@ export class OpenAiService {
     const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext);
     const userPrompt = this.buildUserPrompt(documentText, prompt);
 
-    const completion = await this.openai.chat.completions.create({
-      model: openaiConfig.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: openaiConfig.temperature,
-      max_tokens: openaiConfig.maxTokens,
+    const completion = await this.retryWithBackoff(async () => {
+      return await this.openai.chat.completions.create({
+        model: openaiConfig.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: openaiConfig.temperature,
+        max_tokens: openaiConfig.maxTokens,
+      });
     });
 
     const response = completion.choices[0].message.content.trim();
@@ -136,14 +138,16 @@ export class OpenAiService {
     const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext, true);
     const userPrompt = this.buildUserPrompt(documentText, validationPrompt);
 
-    const completion = await this.openai.chat.completions.create({
-      model: openaiConfig.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: openaiConfig.temperature,
-      max_tokens: openaiConfig.maxTokens,
+    const completion = await this.retryWithBackoff(async () => {
+      return await this.openai.chat.completions.create({
+        model: openaiConfig.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: openaiConfig.temperature,
+        max_tokens: openaiConfig.maxTokens,
+      });
     });
 
     const response = completion.choices[0].message.content.trim();
@@ -273,5 +277,47 @@ Be very careful and thorough in your analysis.`;
     } else {
       return Math.round(conservative * 100) / 100;
     }
+  }
+
+  private async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = openaiConfig.maxRetries
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        
+        // Si es error 429 (rate limit) o 503 (service unavailable), reintentar
+        const isRetryableError = error?.status === 429 || 
+                                error?.status === 503 || 
+                                error?.code === 'rate_limit_exceeded' ||
+                                error?.message?.includes('rate limit') ||
+                                error?.message?.includes('Rate limit');
+        
+        if (!isRetryableError || attempt === maxRetries) {
+          throw error;
+        }
+        
+        // Calcular delay con exponential backoff
+        const baseDelay = openaiConfig.retryDelay;
+        const exponentialDelay = baseDelay * Math.pow(2, attempt);
+        const jitter = Math.random() * 1000; // 0-1000ms de jitter
+        const totalDelay = exponentialDelay + jitter;
+        
+        this.logger.warn(`Rate limit hit, retrying in ${Math.round(totalDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
+        
+        await this.sleep(totalDelay);
+      }
+    }
+    
+    throw lastError;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
