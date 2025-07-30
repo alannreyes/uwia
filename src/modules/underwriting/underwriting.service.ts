@@ -139,8 +139,9 @@ export class UnderwritingService {
       const extractedText = await this.pdfParserService.extractTextFromBase64(pdfContent);
       this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
 
-      // 4. Procesar cada prompt
-      for (const prompt of prompts) {
+      // 4. Procesar prompts en paralelo con límite de concurrencia
+      const concurrencyLimit = 3; // Máximo 3 requests simultáneos
+      const processPromise = async (prompt: any) => {
         const startTime = Date.now();
         
         try {
@@ -163,7 +164,7 @@ export class UnderwritingService {
 
           const processingTime = Date.now() - startTime;
 
-          // Guardar resultado
+          // Crear resultado
           const result = {
             pmc_field: prompt.pmcField,
             question: processedQuestion,
@@ -173,21 +174,25 @@ export class UnderwritingService {
             processing_time_ms: processingTime,
           };
 
-          results.push(result);
           this.logger.log(`✅ ${prompt.pmcField}: ${aiResponse.response} (${aiResponse.confidence}% confidence)`);
+          return result;
 
         } catch (error) {
           this.logger.error(`Error processing field ${prompt.pmcField}:`, error);
-          results.push({
+          return {
             pmc_field: prompt.pmcField,
             question: prompt.question,
             answer: null,
             confidence: 0,
             expected_type: prompt.expectedType,
             error: error.message,
-          });
+          };
         }
-      }
+      };
+
+      // Procesar en batches con límite de concurrencia
+      const promptResults = await this.processConcurrently(prompts, processPromise, concurrencyLimit);
+      results.push(...promptResults);
 
       return results;
 
@@ -329,5 +334,30 @@ export class UnderwritingService {
         createdAt: 'DESC',
       },
     });
+  }
+
+  private async processConcurrently<T, R>(
+    items: T[],
+    processor: (item: T) => Promise<R>,
+    concurrencyLimit: number
+  ): Promise<R[]> {
+    const results: R[] = [];
+    const executing: Promise<void>[] = [];
+
+    for (const item of items) {
+      const promise = processor(item).then(result => {
+        results.push(result);
+      });
+
+      executing.push(promise);
+
+      if (executing.length >= concurrencyLimit) {
+        await Promise.race(executing);
+        executing.splice(executing.findIndex(p => p === promise), 1);
+      }
+    }
+
+    await Promise.all(executing);
+    return results;
   }
 }

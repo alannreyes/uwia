@@ -1,6 +1,6 @@
 export const openaiConfig = {
   apiKey: process.env.OPENAI_API_KEY,
-  model: process.env.OPENAI_MODEL || 'gpt-4o',
+  model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   enabled: process.env.OPENAI_ENABLED === 'true',
   timeout: parseInt(process.env.OPENAI_TIMEOUT) || 30000,
   maxRetries: parseInt(process.env.OPENAI_MAX_RETRIES) || 3,

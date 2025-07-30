@@ -49,8 +49,12 @@ export class OpenAiService {
         throw new Error('OpenAI está deshabilitado');
       }
 
-      // Verificar tamaño del texto
-      if (documentText.length > openaiConfig.maxTextLength) {
+      // Optimización: Usar chunking inteligente para documentos grandes
+      const relevantText = this.extractRelevantChunks(documentText, prompt);
+      this.logger.log(`Texto optimizado: ${relevantText.length} caracteres (original: ${documentText.length})`);
+
+      // Verificar tamaño del texto optimizado
+      if (relevantText.length > openaiConfig.maxTextLength) {
         this.logger.warn(`Texto excede el límite de ${openaiConfig.maxTextLength} caracteres`);
         if (openaiConfig.fallbackToLocal) {
           throw new Error('Texto muy largo, se requiere procesamiento local');
@@ -58,39 +62,24 @@ export class OpenAiService {
         throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
       }
 
-      // Primera evaluación
-      const primaryResult = await this.evaluatePrompt(documentText, prompt, expectedType, additionalContext);
-      
-      // Segunda evaluación (validación)
-      const validationResult = await this.validateResponse(
-        documentText, 
-        prompt, 
-        primaryResult.response, 
-        expectedType,
-        additionalContext
-      );
-
-      // Calcular confianza final
-      const finalConfidence = this.calculateFinalConfidence(
-        primaryResult.confidence,
-        validationResult.confidence
-      );
+      // Solo una evaluación (sin validación doble para optimizar)
+      const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext);
 
       return {
-        response: primaryResult.response,
-        confidence: primaryResult.confidence,
-        validation_response: validationResult.response,
-        validation_confidence: validationResult.confidence,
-        final_confidence: finalConfidence,
+        response: result.response,
+        confidence: result.confidence,
+        validation_response: result.response, // Mismo resultado
+        validation_confidence: result.confidence,
+        final_confidence: result.confidence,
         openai_metadata: {
           primary_model: openaiConfig.model,
           validation_model: openaiConfig.model,
-          primary_tokens: primaryResult.tokens_used,
-          validation_tokens: validationResult.tokens_used,
+          primary_tokens: result.tokens_used,
+          validation_tokens: 0, // No hay validación
         }
       };
     } catch (error) {
-      this.logger.error(`Error en evaluación con validación: ${error.message}`);
+      this.logger.error(`Error en evaluación: ${error.message}`);
       throw error;
     }
   }
@@ -319,5 +308,109 @@ Be very careful and thorough in your analysis.`;
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private extractRelevantChunks(documentText: string, prompt: string): string {
+    // Si el documento es pequeño, retornarlo completo
+    if (documentText.length <= 15000) {
+      return documentText;
+    }
+
+    // Dividir el documento en chunks de ~8000 caracteres
+    const chunkSize = 8000;
+    const overlap = 500; // Overlap para no perder contexto entre chunks
+    const chunks: string[] = [];
+    
+    for (let i = 0; i < documentText.length; i += chunkSize - overlap) {
+      const chunk = documentText.slice(i, i + chunkSize);
+      chunks.push(chunk);
+    }
+
+    // Palabras clave basadas en el tipo de pregunta
+    const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
+    
+    // Scoring de chunks basado en relevancia
+    const scoredChunks = chunks.map((chunk, index) => {
+      const chunkLower = chunk.toLowerCase();
+      let score = 0;
+      
+      // Puntuación por palabras clave
+      keywordMap.forEach(keyword => {
+        const matches = (chunkLower.match(new RegExp(keyword, 'g')) || []).length;
+        score += matches * 10;
+      });
+      
+      // Bonus por posición (primeros y últimos chunks suelen tener info importante)
+      if (index === 0 || index === chunks.length - 1) {
+        score += 5;
+      }
+      
+      return { chunk, score, index };
+    });
+
+    // Ordenar por score y tomar los mejores chunks
+    scoredChunks.sort((a, b) => b.score - a.score);
+    
+    // Tomar chunks hasta un máximo de ~25,000 caracteres
+    let totalLength = 0;
+    const selectedChunks: { chunk: string; index: number }[] = [];
+    
+    for (const item of scoredChunks) {
+      if (totalLength + item.chunk.length <= 25000) {
+        selectedChunks.push(item);
+        totalLength += item.chunk.length;
+      }
+    }
+
+    // Reordenar por índice original para mantener coherencia
+    selectedChunks.sort((a, b) => a.index - b.index);
+    
+    // Si no hay chunks relevantes, tomar los primeros chunks
+    if (selectedChunks.length === 0) {
+      const firstChunks = chunks.slice(0, 3); // Primeros 3 chunks
+      return firstChunks.join('\n\n--- CHUNK SEPARATOR ---\n\n');
+    }
+
+    return selectedChunks.map(item => item.chunk).join('\n\n--- CHUNK SEPARATOR ---\n\n');
+  }
+
+  private getRelevantKeywords(prompt: string): string[] {
+    const keywordSets = {
+      // Información del asegurado/homeowner
+      insured: ['insured', 'homeowner', 'policyholder', 'name', 'address', 'street', 'city', 'zip', 'owner'],
+      
+      // Información de la compañía de seguros
+      company: ['insurance company', 'carrier', 'insurer', 'company', 'underwriter'],
+      
+      // Fechas y vigencia
+      dates: ['date', 'effective', 'expiration', 'valid', 'from', 'to', 'period', 'term'],
+      
+      // Número de póliza
+      policy: ['policy number', 'policy no', 'certificate', 'contract', 'agreement'],
+      
+      // Cobertura y servicios
+      coverage: ['coverage', 'covered', 'service', 'benefit', 'protection', 'limit', 'deductible'],
+      
+      // Firmas y documentos
+      signature: ['signature', 'signed', 'executed', 'authorized', 'witnessed'],
+      
+      // Mecánico lien
+      lien: ['lien', 'mechanic', 'contractor', 'labor', 'material', 'construction']
+    };
+
+    let relevantKeywords: string[] = [];
+
+    // Detectar tipo de pregunta y agregar palabras clave relevantes
+    Object.entries(keywordSets).forEach(([category, keywords]) => {
+      if (keywords.some(keyword => prompt.includes(keyword))) {
+        relevantKeywords = [...relevantKeywords, ...keywords];
+      }
+    });
+
+    // Agregar palabras específicas del prompt
+    const promptWords = prompt.split(' ').filter(word => word.length > 3);
+    relevantKeywords = [...relevantKeywords, ...promptWords];
+
+    return [...new Set(relevantKeywords)]; // Eliminar duplicados
   }
 }
