@@ -62,22 +62,26 @@ export class OpenAiService {
         throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
       }
 
-      // Solo una evaluación (sin validación doble para optimizar)
-      const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext);
-
-      return {
-        response: result.response,
-        confidence: result.confidence,
-        validation_response: result.response, // Mismo resultado
-        validation_confidence: result.confidence,
-        final_confidence: result.confidence,
-        openai_metadata: {
-          primary_model: openaiConfig.model,
-          validation_model: openaiConfig.model,
-          primary_tokens: result.tokens_used,
-          validation_tokens: 0, // No hay validación
-        }
-      };
+      // Estrategia dual-model para máxima precisión
+      if (openaiConfig.dualValidation) {
+        return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext);
+      } else {
+        // Fallback a evaluación simple
+        const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext);
+        return {
+          response: result.response,
+          confidence: result.confidence,
+          validation_response: result.response,
+          validation_confidence: result.confidence,
+          final_confidence: result.confidence,
+          openai_metadata: {
+            primary_model: openaiConfig.model,
+            validation_model: 'none',
+            primary_tokens: result.tokens_used,
+            validation_tokens: 0,
+          }
+        };
+      }
     } catch (error) {
       this.logger.error(`Error en evaluación: ${error.message}`);
       throw error;
@@ -88,14 +92,16 @@ export class OpenAiService {
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
-    additionalContext?: string
+    additionalContext?: string,
+    modelOverride?: string
   ): Promise<{ response: string; confidence: number; tokens_used: number }> {
     const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext);
     const userPrompt = this.buildUserPrompt(documentText, prompt);
+    const modelToUse = modelOverride || openaiConfig.model;
 
     const completion = await this.retryWithBackoff(async () => {
       return await this.openai.chat.completions.create({
-        model: openaiConfig.model,
+        model: modelToUse,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -412,5 +418,136 @@ Be very careful and thorough in your analysis.`;
     relevantKeywords = [...relevantKeywords, ...promptWords];
 
     return [...new Set(relevantKeywords)]; // Eliminar duplicados
+  }
+
+  private async evaluateWithDualValidation(
+    documentText: string,
+    prompt: string,
+    expectedType: ResponseType,
+    additionalContext?: string
+  ): Promise<EvaluationResult> {
+    this.logger.log(`🔄 Usando validación dual: ${openaiConfig.model} + ${openaiConfig.validationModel}`);
+
+    // 1. Evaluación inicial con modelo rápido
+    const primaryResult = await this.evaluatePrompt(
+      documentText, 
+      prompt, 
+      expectedType, 
+      additionalContext,
+      openaiConfig.model // gpt-4o-mini
+    );
+
+    // 2. Validación con modelo premium
+    const validationResult = await this.validateResponse(
+      documentText, 
+      prompt, 
+      primaryResult.response, 
+      expectedType,
+      additionalContext,
+      openaiConfig.validationModel // gpt-4o
+    );
+
+    // 3. Análisis de consensus
+    const consensus = this.analyzeConsensus(primaryResult, validationResult, expectedType);
+    
+    this.logger.log(`📊 Consensus: ${consensus.agreement ? 'ACUERDO' : 'DISCREPANCIA'} - Confianza final: ${consensus.finalConfidence}`);
+
+    return {
+      response: consensus.finalResponse,
+      confidence: primaryResult.confidence,
+      validation_response: validationResult.response,
+      validation_confidence: validationResult.confidence,
+      final_confidence: consensus.finalConfidence,
+      openai_metadata: {
+        primary_model: openaiConfig.model,
+        validation_model: openaiConfig.validationModel,
+        primary_tokens: primaryResult.tokens_used,
+        validation_tokens: validationResult.tokens_used,
+        consensus_agreement: consensus.agreement,
+        consensus_reason: consensus.reason
+      }
+    };
+  }
+
+  private async validateResponse(
+    documentText: string,
+    originalPrompt: string,
+    originalResponse: string,
+    expectedType: ResponseType,
+    additionalContext?: string,
+    modelOverride?: string
+  ): Promise<{ response: string; confidence: number; tokens_used: number }> {
+    const validationPrompt = this.buildValidationPrompt(originalPrompt, originalResponse, expectedType);
+    const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext, true);
+    const userPrompt = this.buildUserPrompt(documentText, validationPrompt);
+    const modelToUse = modelOverride || openaiConfig.validationModel;
+
+    const completion = await this.retryWithBackoff(async () => {
+      return await this.openai.chat.completions.create({
+        model: modelToUse,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: openaiConfig.temperature,
+        max_tokens: openaiConfig.maxTokens,
+      });
+    });
+
+    const response = completion.choices[0].message.content.trim();
+    const confidence = this.extractConfidence(response);
+    const cleanResponse = this.cleanResponse(response, expectedType);
+
+    return {
+      response: cleanResponse,
+      confidence: confidence,
+      tokens_used: completion.usage?.total_tokens || 0
+    };
+  }
+
+  private analyzeConsensus(
+    primary: { response: string; confidence: number },
+    validation: { response: string; confidence: number },
+    expectedType: ResponseType
+  ): { finalResponse: string; finalConfidence: number; agreement: boolean; reason: string } {
+    
+    // Normalizar respuestas para comparación
+    const normalizedPrimary = this.normalizeResponse(primary.response, expectedType);
+    const normalizedValidation = this.normalizeResponse(validation.response, expectedType);
+    
+    const agreement = normalizedPrimary === normalizedValidation;
+    
+    if (agreement) {
+      // Ambos modelos están de acuerdo - alta confianza
+      const avgConfidence = (primary.confidence + validation.confidence) / 2;
+      return {
+        finalResponse: primary.response,
+        finalConfidence: Math.min(0.98, avgConfidence + 0.1), // Bonus por consensus
+        agreement: true,
+        reason: 'Both models agree'
+      };
+    } else {
+      // Discrepancia - usar el modelo más confiable (premium por defecto)
+      const useValidation = validation.confidence > primary.confidence;
+      return {
+        finalResponse: useValidation ? validation.response : primary.response,
+        finalConfidence: Math.max(primary.confidence, validation.confidence) * 0.85, // Penalty por discrepancia
+        agreement: false,
+        reason: `Disagreement - used ${useValidation ? 'validation' : 'primary'} model (higher confidence)`
+      };
+    }
+  }
+
+  private normalizeResponse(response: string, expectedType: ResponseType): string {
+    switch (expectedType) {
+      case ResponseType.BOOLEAN:
+        return response.toLowerCase().includes('yes') ? 'yes' : 'no';
+      case ResponseType.DATE:
+        // Extraer solo la fecha en formato MM-DD-YYYY
+        const dateMatch = response.match(/\d{2}-\d{2}-\d{4}/);
+        return dateMatch ? dateMatch[0] : response.toLowerCase();
+      default:
+        return response.toLowerCase().trim();
+    }
   }
 }
