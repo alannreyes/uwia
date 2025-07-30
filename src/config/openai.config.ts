@@ -7,7 +7,7 @@ export const openaiConfig = {
   retryDelay: parseInt(process.env.OPENAI_RETRY_DELAY) || 2000,
   temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.3,
   maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
-  maxTextLength: parseInt(process.env.OPENAI_MAX_TEXT_LENGTH) || 30000,
+  maxTextLength: parseInt(process.env.OPENAI_MAX_TEXT_LENGTH) || 500000,
   useForSimplePdfsOnly: process.env.OPENAI_USE_FOR_SIMPLE_PDFS_ONLY === 'true',
   fallbackToLocal: process.env.OPENAI_FALLBACK_TO_LOCAL === 'true',
   rateLimits: {
