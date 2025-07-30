@@ -66,54 +66,71 @@ export class UnderwritingController {
     };
   }
 
-  // Nuevo endpoint para multipart/form-data
+  // Nuevo endpoint para multipart/form-data - Flexible
   @Post('evaluate-claim-multipart')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'lop_pdf', maxCount: 1 },
-    { name: 'policy_pdf', maxCount: 1 },
-    { name: 'file_data', maxCount: 1 }  // Para compatibilidad
-  ]))
+  @UseInterceptors(FilesInterceptor('file', 10)) // Acepta cualquier archivo con nombre 'file'
   @HttpCode(HttpStatus.OK)
   async evaluateClaimMultipart(
-    @UploadedFiles() files: { 
-      lop_pdf?: Express.Multer.File[],
-      policy_pdf?: Express.Multer.File[],
-      file_data?: Express.Multer.File[]
-    },
+    @UploadedFiles() files: Express.Multer.File[],
     @Body() body: any
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('📥 Received multipart/form-data request');
     this.logger.log('Body fields:', body);
-    this.logger.log('Files received:', Object.keys(files || {}));
+    this.logger.log('Files received:', files?.length || 0);
 
-    // Convertir archivos a base64
-    const lop_pdf = files?.lop_pdf?.[0] ? files.lop_pdf[0].buffer.toString('base64') : undefined;
-    const policy_pdf = files?.policy_pdf?.[0] ? files.policy_pdf[0].buffer.toString('base64') : undefined;
-    const file_data = files?.file_data?.[0] ? files.file_data[0].buffer.toString('base64') : undefined;
+    // Log cada archivo recibido
+    files?.forEach((file, index) => {
+      this.logger.log(`File ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
+    });
 
-    if (lop_pdf) {
-      this.logger.log(`LOP PDF: ${files.lop_pdf[0].originalname} (${files.lop_pdf[0].size} bytes)`);
-    }
-    if (policy_pdf) {
-      this.logger.log(`POLICY PDF: ${files.policy_pdf[0].originalname} (${files.policy_pdf[0].size} bytes)`);
-    }
-    if (file_data) {
-      this.logger.log(`FILE DATA: ${files.file_data[0].originalname} (${files.file_data[0].size} bytes)`);
+    // Procesar el archivo (tomar el primero si hay varios)
+    const uploadedFile = files?.[0];
+    let fileBase64: string | undefined;
+    let document_name = body.document_name;
+
+    if (uploadedFile) {
+      fileBase64 = uploadedFile.buffer.toString('base64');
+      this.logger.log(`File converted to base64: ${fileBase64.length} characters`);
+      
+      // Si no hay document_name en el body, extraerlo del nombre del archivo
+      if (!document_name && uploadedFile.originalname) {
+        document_name = uploadedFile.originalname.replace(/\.pdf$/i, '');
+        this.logger.log(`Document name extracted from file: ${document_name}`);
+      }
     }
 
-    // Crear DTO combinando body fields y archivos convertidos
-    const dto: EvaluateClaimRequestDto = {
-      ...body,
-      lop_pdf: lop_pdf || body.lop_pdf,
-      policy_pdf: policy_pdf || body.policy_pdf,
-      file_data: file_data || body.file_data
+    // Extraer context si viene como string JSON
+    let context = body.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+        this.logger.log('Context parsed from JSON string');
+      } catch (e) {
+        this.logger.warn('Failed to parse context as JSON, using as string');
+      }
+    }
+
+    // Crear DTO flexible basado en document_name
+    const dto: any = {
+      record_id: body.record_id,
+      carpeta_id: body.carpeta_id,
+      document_name: document_name,
+      context: context,
+      // Asignar el archivo según el document_name
+      ...(document_name === 'LOP' && { lop_pdf: fileBase64 }),
+      ...(document_name === 'POLICY' && { policy_pdf: fileBase64 }),
+      // Fallback para cualquier archivo
+      file_data: fileBase64,
+      // Incluir todos los demás campos del body
+      ...body
     };
 
     this.logger.log('DTO created:', {
       ...dto,
       lop_pdf: dto.lop_pdf ? `[BASE64 - ${dto.lop_pdf.length} chars]` : undefined,
       policy_pdf: dto.policy_pdf ? `[BASE64 - ${dto.policy_pdf.length} chars]` : undefined,
-      file_data: dto.file_data ? `[BASE64 - ${dto.file_data.length} chars]` : undefined
+      file_data: dto.file_data ? `[BASE64 - ${dto.file_data.length} chars]` : undefined,
+      context: typeof dto.context
     });
 
     return this.underwritingService.evaluateClaim(dto);
