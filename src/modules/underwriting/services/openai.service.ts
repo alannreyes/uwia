@@ -122,39 +122,6 @@ export class OpenAiService {
     };
   }
 
-  private async validateResponse(
-    documentText: string,
-    originalPrompt: string,
-    originalResponse: string,
-    expectedType: ResponseType,
-    additionalContext?: string
-  ): Promise<{ response: string; confidence: number; tokens_used: number }> {
-    const validationPrompt = this.buildValidationPrompt(originalPrompt, originalResponse, expectedType);
-    const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext, true);
-    const userPrompt = this.buildUserPrompt(documentText, validationPrompt);
-
-    const completion = await this.retryWithBackoff(async () => {
-      return await this.openai.chat.completions.create({
-        model: openaiConfig.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: openaiConfig.temperature,
-        max_tokens: openaiConfig.maxTokens,
-      });
-    });
-
-    const response = completion.choices[0].message.content.trim();
-    const confidence = this.extractConfidence(response);
-    const cleanResponse = this.cleanResponse(response, expectedType);
-
-    return {
-      response: cleanResponse,
-      confidence: confidence,
-      tokens_used: completion.usage?.total_tokens || 0
-    };
-  }
 
   private buildSystemPrompt(expectedType: ResponseType, additionalContext?: string, isValidation = false): string {
     let basePrompt = `You are a precise document analyzer for underwriting purposes. `;
