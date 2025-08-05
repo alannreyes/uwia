@@ -39,7 +39,8 @@ export class OpenAiService {
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
-    additionalContext?: string
+    additionalContext?: string,
+    pmcField?: string
   ): Promise<EvaluationResult> {
     try {
       this.logger.log(`Evaluando prompt: "${prompt.substring(0, 50)}..."`);
@@ -64,10 +65,10 @@ export class OpenAiService {
 
       // Estrategia dual-model para máxima precisión
       if (openaiConfig.dualValidation) {
-        return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext);
+        return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext, pmcField);
       } else {
         // Fallback a evaluación simple
-        const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext);
+        const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext, undefined, pmcField);
         return {
           response: result.response,
           confidence: result.confidence,
@@ -93,9 +94,10 @@ export class OpenAiService {
     prompt: string,
     expectedType: ResponseType,
     additionalContext?: string,
-    modelOverride?: string
+    modelOverride?: string,
+    pmcField?: string
   ): Promise<{ response: string; confidence: number; tokens_used: number }> {
-    const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext);
+    const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext, false, pmcField);
     const userPrompt = this.buildUserPrompt(documentText, prompt);
     const modelToUse = modelOverride || openaiConfig.model;
 
@@ -123,7 +125,7 @@ export class OpenAiService {
   }
 
 
-  private buildSystemPrompt(expectedType: ResponseType, additionalContext?: string, isValidation = false): string {
+  private buildSystemPrompt(expectedType: ResponseType, additionalContext?: string, isValidation = false, pmcField?: string): string {
     let basePrompt = `You are a precise document analyzer for underwriting purposes. `;
     
     if (isValidation) {
@@ -135,31 +137,40 @@ export class OpenAiService {
 RESPONSE FORMAT REQUIREMENTS:
 `;
 
-    switch (expectedType) {
-      case ResponseType.BOOLEAN:
-        basePrompt += `- Respond with ONLY "YES" or "NO" (uppercase)
+    // Formato especial para el campo 'state'
+    if (pmcField === 'state') {
+      basePrompt += `- Respond with state in format "XX StateName" (e.g., "CA California", "TX Texas", "FL Florida")
+- Use the 2-letter state code followed by space and full state name
+- If no state found, respond "not found"
+- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+    } else {
+      // Formatos normales para otros campos
+      switch (expectedType) {
+        case ResponseType.BOOLEAN:
+          basePrompt += `- Respond with ONLY "YES" or "NO" (uppercase)
 - Do NOT use lowercase "yes" or "no"
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
-        break;
-      case ResponseType.DATE:
-        basePrompt += `- Respond with date in YYYY-MM-DD format only
+          break;
+        case ResponseType.DATE:
+          basePrompt += `- Respond with date in MM-DD-YY format only (e.g., 12-25-24 for December 25, 2024)
 - If no date found, respond "not found"
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
-        break;
-      case ResponseType.TEXT:
-        basePrompt += `- Provide concise, factual response
+          break;
+        case ResponseType.TEXT:
+          basePrompt += `- Provide concise, factual response
 - Maximum 100 characters
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
-        break;
-      case ResponseType.NUMBER:
-        basePrompt += `- Respond with number only (no currency symbols or units unless specified)
+          break;
+        case ResponseType.NUMBER:
+          basePrompt += `- Respond with number only (no currency symbols or units unless specified)
 - If no number found, respond "not found"
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
-        break;
-      case ResponseType.JSON:
-        basePrompt += `- Respond with valid JSON only
+          break;
+        case ResponseType.JSON:
+          basePrompt += `- Respond with valid JSON only
 - Include confidence level inside JSON as "confidence": 0.XX`;
-        break;
+          break;
+      }
     }
 
     if (additionalContext) {
@@ -209,9 +220,42 @@ Be very careful and thorough in your analysis.`;
         return cleanResponse.toUpperCase();
       
       case ResponseType.DATE:
-        // Buscar fecha en formato YYYY-MM-DD o MM-DD-YYYY
-        const dateMatch = cleanResponse.match(/\d{4}-\d{2}-\d{2}/) || cleanResponse.match(/\d{2}-\d{2}-\d{4}/);
-        return dateMatch ? dateMatch[0] : cleanResponse;
+        // Buscar fecha en varios formatos y convertir a MM-DD-YY
+        const datePatterns = [
+          /\d{2}-\d{2}-\d{2}/, // MM-DD-YY
+          /\d{2}-\d{2}-\d{4}/, // MM-DD-YYYY
+          /\d{4}-\d{2}-\d{2}/, // YYYY-MM-DD
+          /\d{2}\/\d{2}\/\d{2}/, // MM/DD/YY
+          /\d{2}\/\d{2}\/\d{4}/ // MM/DD/YYYY
+        ];
+        
+        let dateFound = null;
+        for (const pattern of datePatterns) {
+          const match = cleanResponse.match(pattern);
+          if (match) {
+            dateFound = match[0];
+            break;
+          }
+        }
+        
+        if (dateFound) {
+          // Convertir a MM-DD-YY si es necesario
+          const parts = dateFound.split(/[-\/]/);
+          if (parts.length === 3) {
+            // Si el año tiene 4 dígitos, tomar solo los últimos 2
+            if (parts[0].length === 4) {
+              // YYYY-MM-DD -> MM-DD-YY
+              return `${parts[1]}-${parts[2]}-${parts[0].slice(-2)}`;
+            } else if (parts[2].length === 4) {
+              // MM-DD-YYYY -> MM-DD-YY
+              return `${parts[0]}-${parts[1]}-${parts[2].slice(-2)}`;
+            }
+            // Ya está en MM-DD-YY
+            return dateFound.replace(/\//g, '-');
+          }
+        }
+        
+        return cleanResponse;
       
       case ResponseType.JSON:
         try {
@@ -393,7 +437,8 @@ Be very careful and thorough in your analysis.`;
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
-    additionalContext?: string
+    additionalContext?: string,
+    pmcField?: string
   ): Promise<EvaluationResult> {
     this.logger.log(`🔄 Usando validación dual: ${openaiConfig.model} + ${openaiConfig.validationModel}`);
 
@@ -403,7 +448,8 @@ Be very careful and thorough in your analysis.`;
       prompt, 
       expectedType, 
       additionalContext,
-      openaiConfig.model // gpt-4o-mini
+      openaiConfig.model, // gpt-4o-mini
+      pmcField
     );
 
     // 2. Validación con modelo premium
@@ -512,9 +558,42 @@ Be very careful and thorough in your analysis.`;
       case ResponseType.BOOLEAN:
         return response.toUpperCase().includes('YES') ? 'YES' : 'NO';
       case ResponseType.DATE:
-        // Extraer fecha en formato YYYY-MM-DD o MM-DD-YYYY
-        const dateMatch = response.match(/\d{4}-\d{2}-\d{2}/) || response.match(/\d{2}-\d{2}-\d{4}/);
-        return dateMatch ? dateMatch[0] : response.toLowerCase();
+        // Buscar fecha en varios formatos y convertir a MM-DD-YY
+        const datePatterns = [
+          /\d{2}-\d{2}-\d{2}/, // MM-DD-YY
+          /\d{2}-\d{2}-\d{4}/, // MM-DD-YYYY  
+          /\d{4}-\d{2}-\d{2}/, // YYYY-MM-DD
+          /\d{2}\/\d{2}\/\d{2}/, // MM/DD/YY
+          /\d{2}\/\d{2}\/\d{4}/ // MM/DD/YYYY
+        ];
+        
+        let dateFound = null;
+        for (const pattern of datePatterns) {
+          const match = response.match(pattern);
+          if (match) {
+            dateFound = match[0];
+            break;
+          }
+        }
+        
+        if (dateFound) {
+          // Convertir a MM-DD-YY si es necesario
+          const parts = dateFound.split(/[-\/]/);
+          if (parts.length === 3) {
+            // Si el año tiene 4 dígitos, tomar solo los últimos 2
+            if (parts[0].length === 4) {
+              // YYYY-MM-DD -> MM-DD-YY
+              return `${parts[1]}-${parts[2]}-${parts[0].slice(-2)}`;
+            } else if (parts[2].length === 4) {
+              // MM-DD-YYYY -> MM-DD-YY
+              return `${parts[0]}-${parts[1]}-${parts[2].slice(-2)}`;
+            }
+            // Ya está en MM-DD-YY
+            return dateFound.replace(/\//g, '-');
+          }
+        }
+        
+        return response.toLowerCase();
       default:
         return response.toLowerCase().trim();
     }

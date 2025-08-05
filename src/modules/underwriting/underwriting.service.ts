@@ -242,7 +242,9 @@ export class UnderwritingService {
           const aiResponse = await this.openAiService.evaluateWithValidation(
             extractedText,
             processedQuestion,
-            prompt.expectedType as any
+            prompt.expectedType as any,
+            undefined,
+            prompt.pmc_field
           );
 
           const processingTime = Date.now() - startTime;
