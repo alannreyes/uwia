@@ -57,36 +57,78 @@ export class UnderwritingService {
         'type_of_job': dto.type_of_job || contextData.type_of_job
       };
 
-      // Procesar documentos enviados por n8n
-      const documentsToProcess = [
-        { name: 'LOP.pdf', content: dto.lop_pdf },
-        { name: 'POLICY.pdf', content: dto.policy_pdf }
-      ];
-      
-      for (const document of documentsToProcess) {
-        if (!document.content) {
-          this.logger.warn(`${document.name} not provided, skipping`);
-          continue;
+      // Obtener todos los documentos únicos de la BD
+      const uniqueDocuments = await this.documentPromptRepository
+        .createQueryBuilder('dp')
+        .select('DISTINCT dp.document_name', 'document_name')
+        .where('dp.active = :active', { active: true })
+        .getRawMany();
+
+      this.logger.log(`Found ${uniqueDocuments.length} unique documents in DB to process`);
+
+      // Procesar cada documento encontrado en la BD
+      for (const doc of uniqueDocuments) {
+        const documentName = doc.document_name;
+        
+        // Buscar el contenido del PDF en el DTO
+        let pdfContent = null;
+        
+        // Mapeo dinámico basado en el nombre del documento
+        const docNameLower = documentName.toLowerCase().replace('.pdf', '');
+        
+        // Buscar en el DTO por nombre de propiedad
+        if (dto[`${docNameLower}_pdf`]) {
+          pdfContent = dto[`${docNameLower}_pdf`];
+        } else if (dto.file_data && dto.document_name === documentName) {
+          // Si viene de multipart con document_name específico
+          pdfContent = dto.file_data;
+        }
+        
+        // Si no hay contenido para este documento, continuar (algunas preguntas no requieren PDF)
+        if (!pdfContent) {
+          this.logger.log(`No PDF content for ${documentName}, checking if questions require document...`);
+          
+          // Verificar si este documento tiene preguntas que NO requieren PDF
+          const prompts = await this.documentPromptRepository.find({
+            where: { document_name: documentName, active: true }
+          });
+          
+          // Si no hay prompts o todos requieren PDF, saltar
+          if (prompts.length === 0) {
+            this.logger.warn(`${documentName} not provided and has no questions, skipping`);
+            continue;
+          }
+          
+          // Verificar si alguna pregunta es de tipo matching (no requiere PDF)
+          const hasNonPdfQuestions = prompts.some(p => 
+            p.pmc_field.includes('_match') || 
+            p.pmc_field.includes('matching_')
+          );
+          
+          if (!hasNonPdfQuestions) {
+            this.logger.warn(`${documentName} not provided and all questions require PDF, skipping`);
+            continue;
+          }
         }
 
         try {
-          this.logger.log(`Processing document: ${document.name}`);
+          this.logger.log(`Processing document: ${documentName}`);
           
           const documentResults = await this.processDocumentWithContent(
             dto.record_id,
-            document.name,
-            document.content,
+            documentName,
+            pdfContent,
             variables
           );
           
-          results[document.name] = documentResults;
+          results[documentName] = documentResults;
           totalFields += documentResults.length;
           answeredFields += documentResults.filter(r => !r.error).length;
           
         } catch (error) {
-          this.logger.error(`Error processing document ${document.name}:`, error);
-          errors.push(`${document.name}: ${error.message}`);
-          results[document.name] = [];
+          this.logger.error(`Error processing document ${documentName}:`, error);
+          errors.push(`${documentName}: ${error.message}`);
+          results[documentName] = [];
         }
       }
 
@@ -126,7 +168,7 @@ export class UnderwritingService {
   private async processDocumentWithContent(
     recordId: string,
     documentName: string,
-    pdfContent: string,
+    pdfContent: string | null,
     variables: Record<string, string>
   ): Promise<any[]> {
     const results: any[] = [];
@@ -150,9 +192,14 @@ export class UnderwritingService {
 
       this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
 
-      // 2. Extraer texto del PDF
-      const extractedText = await this.pdfParserService.extractTextFromBase64(pdfContent);
-      this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
+      // 2. Extraer texto del PDF (si está disponible)
+      let extractedText = '';
+      if (pdfContent) {
+        extractedText = await this.pdfParserService.extractTextFromBase64(pdfContent);
+        this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
+      } else {
+        this.logger.log(`No PDF content for ${documentName}, will process questions that don't require document`);
+      }
 
       // 4. Procesar prompts en paralelo con límite de concurrencia
       const concurrencyLimit = 3; // Máximo 3 requests simultáneos
@@ -169,6 +216,27 @@ export class UnderwritingService {
 
           this.logger.log(`Processing field: ${prompt.pmcField}`);
           this.logger.log(`Question: ${processedQuestion}`);
+
+          // Para preguntas que no requieren documento (matching, etc)
+          if (!extractedText && (prompt.pmc_field.includes('_match') || prompt.pmc_field.includes('matching_'))) {
+            // Estas preguntas ya tienen las variables reemplazadas, no necesitan PDF
+            this.logger.log(`Processing matching question without PDF: ${prompt.pmc_field}`);
+            // Dar una respuesta por defecto ya que no podemos comparar sin el documento
+            return {
+              pmc_field: prompt.pmc_field,
+              question: processedQuestion,
+              answer: 'NO',
+              confidence: 0.0,
+              expected_type: prompt.expectedType,
+              processing_time_ms: 1,
+              error: 'No document provided for comparison'
+            };
+          }
+
+          // Si no hay texto y la pregunta lo requiere, error
+          if (!extractedText) {
+            throw new Error(`Document text required but not available for: ${prompt.pmc_field}`);
+          }
 
           // Llamar a OpenAI
           const aiResponse = await this.openAiService.evaluateWithValidation(
