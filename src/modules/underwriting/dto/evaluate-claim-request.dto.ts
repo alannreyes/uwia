@@ -50,4 +50,21 @@ export class EvaluateClaimRequestDto {
   // Context con toda la información del caso
   @IsOptional()
   context?: any; // Puede ser string JSON o objeto
+
+  // Nuevos campos para matching
+  @IsOptional()
+  @IsString()
+  date_of_loss?: string;
+
+  @IsOptional()
+  @IsString()
+  policy_number?: string;
+
+  @IsOptional()
+  @IsString()
+  claim_number?: string;
+
+  @IsOptional()
+  @IsString()
+  type_of_job?: string;
 }
