@@ -67,4 +67,9 @@ export class EvaluateClaimRequestDto {
   @IsOptional()
   @IsString()
   type_of_job?: string;
+
+  // Campo para identificar el documento en multipart
+  @IsOptional()
+  @IsString()
+  document_name?: string;
 }

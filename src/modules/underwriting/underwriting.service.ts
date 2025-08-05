@@ -90,7 +90,7 @@ export class UnderwritingService {
           
           // Verificar si este documento tiene preguntas que NO requieren PDF
           const prompts = await this.documentPromptRepository.find({
-            where: { document_name: documentName, active: true }
+            where: { documentName: documentName, active: true }
           });
           
           // Si no hay prompts o todos requieren PDF, saltar
@@ -101,8 +101,8 @@ export class UnderwritingService {
           
           // Verificar si alguna pregunta es de tipo matching (no requiere PDF)
           const hasNonPdfQuestions = prompts.some(p => 
-            p.pmc_field.includes('_match') || 
-            p.pmc_field.includes('matching_')
+            p.pmcField.includes('_match') || 
+            p.pmcField.includes('matching_')
           );
           
           if (!hasNonPdfQuestions) {
@@ -147,7 +147,7 @@ export class UnderwritingService {
         status,
         results,
         summary: {
-          total_documents: documentsToProcess.filter(d => d.content).length,
+          total_documents: uniqueDocuments.length,
           processed_documents: Object.keys(results).filter(k => results[k].length > 0).length,
           total_fields: totalFields,
           answered_fields: answeredFields,
@@ -218,12 +218,12 @@ export class UnderwritingService {
           this.logger.log(`Question: ${processedQuestion}`);
 
           // Para preguntas que no requieren documento (matching, etc)
-          if (!extractedText && (prompt.pmc_field.includes('_match') || prompt.pmc_field.includes('matching_'))) {
+          if (!extractedText && (prompt.pmcField.includes('_match') || prompt.pmcField.includes('matching_'))) {
             // Estas preguntas ya tienen las variables reemplazadas, no necesitan PDF
-            this.logger.log(`Processing matching question without PDF: ${prompt.pmc_field}`);
+            this.logger.log(`Processing matching question without PDF: ${prompt.pmcField}`);
             // Dar una respuesta por defecto ya que no podemos comparar sin el documento
             return {
-              pmc_field: prompt.pmc_field,
+              pmc_field: prompt.pmcField,
               question: processedQuestion,
               answer: 'NO',
               confidence: 0.0,
@@ -235,7 +235,7 @@ export class UnderwritingService {
 
           // Si no hay texto y la pregunta lo requiere, error
           if (!extractedText) {
-            throw new Error(`Document text required but not available for: ${prompt.pmc_field}`);
+            throw new Error(`Document text required but not available for: ${prompt.pmcField}`);
           }
 
           // Llamar a OpenAI
@@ -244,7 +244,7 @@ export class UnderwritingService {
             processedQuestion,
             prompt.expectedType as any,
             undefined,
-            prompt.pmc_field
+            prompt.pmcField
           );
 
           const processingTime = Date.now() - startTime;
