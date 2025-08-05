@@ -49,7 +49,12 @@ export class UnderwritingService {
         'insured_address': dto.insured_address || contextData.insured_address,
         'insured_street': dto.insured_street || contextData.insured_street,
         'insured_city': dto.insured_city || contextData.insured_city,
-        'insured_zip': dto.insured_zip || contextData.insured_zip
+        'insured_zip': dto.insured_zip || contextData.insured_zip,
+        // Nuevas variables para las preguntas de matching
+        'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
+        'policy_number': dto.policy_number || contextData.policy_number,
+        'claim_number': dto.claim_number || contextData.claim_number,
+        'type_of_job': dto.type_of_job || contextData.type_of_job
       };
 
       // Procesar documentos enviados por n8n

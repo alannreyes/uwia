@@ -137,11 +137,12 @@ RESPONSE FORMAT REQUIREMENTS:
 
     switch (expectedType) {
       case ResponseType.BOOLEAN:
-        basePrompt += `- Respond with ONLY "yes" or "no" (lowercase)
+        basePrompt += `- Respond with ONLY "YES" or "NO" (uppercase)
+- Do NOT use lowercase "yes" or "no"
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
         break;
       case ResponseType.DATE:
-        basePrompt += `- Respond with date in MM-DD-YYYY format only
+        basePrompt += `- Respond with date in YYYY-MM-DD format only
 - If no date found, respond "not found"
 - Include confidence level: [CONFIDENCE: 0.XX] at the end`;
         break;
@@ -202,13 +203,14 @@ Be very careful and thorough in your analysis.`;
     
     switch (expectedType) {
       case ResponseType.BOOLEAN:
-        const boolMatch = cleanResponse.toLowerCase();
-        if (boolMatch.includes('yes')) return 'yes';
-        if (boolMatch.includes('no')) return 'no';
-        return cleanResponse.toLowerCase();
+        const boolMatch = cleanResponse.toUpperCase();
+        if (boolMatch.includes('YES')) return 'YES';
+        if (boolMatch.includes('NO')) return 'NO';
+        return cleanResponse.toUpperCase();
       
       case ResponseType.DATE:
-        const dateMatch = cleanResponse.match(/\d{2}-\d{2}-\d{4}/);
+        // Buscar fecha en formato YYYY-MM-DD o MM-DD-YYYY
+        const dateMatch = cleanResponse.match(/\d{4}-\d{2}-\d{2}/) || cleanResponse.match(/\d{2}-\d{2}-\d{4}/);
         return dateMatch ? dateMatch[0] : cleanResponse;
       
       case ResponseType.JSON:
@@ -508,10 +510,10 @@ Be very careful and thorough in your analysis.`;
   private normalizeResponse(response: string, expectedType: ResponseType): string {
     switch (expectedType) {
       case ResponseType.BOOLEAN:
-        return response.toLowerCase().includes('yes') ? 'yes' : 'no';
+        return response.toUpperCase().includes('YES') ? 'YES' : 'NO';
       case ResponseType.DATE:
-        // Extraer solo la fecha en formato MM-DD-YYYY
-        const dateMatch = response.match(/\d{2}-\d{2}-\d{4}/);
+        // Extraer fecha en formato YYYY-MM-DD o MM-DD-YYYY
+        const dateMatch = response.match(/\d{4}-\d{2}-\d{2}/) || response.match(/\d{2}-\d{2}-\d{4}/);
         return dateMatch ? dateMatch[0] : response.toLowerCase();
       default:
         return response.toLowerCase().trim();
