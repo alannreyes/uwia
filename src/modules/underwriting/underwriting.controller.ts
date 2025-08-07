@@ -4,6 +4,7 @@ import { Express } from 'express';
 import { UnderwritingService } from './underwriting.service';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
+import { EvaluateClaimBatchRequestDto } from './dto/evaluate-claim-batch-request.dto';
 
 @Controller('underwriting')
 export class UnderwritingController {
@@ -134,5 +135,49 @@ export class UnderwritingController {
     });
 
     return this.underwritingService.evaluateClaim(dto);
+  }
+
+  // Nuevo endpoint batch para procesar múltiples documentos de una vez
+  @Post('evaluate-claim-batch')
+  @HttpCode(HttpStatus.OK)
+  async evaluateClaimBatch(
+    @Body() batchDto: EvaluateClaimBatchRequestDto
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    this.logger.log('📦 Received batch request');
+    this.logger.log(`Record ID: ${batchDto.record_id}`);
+    this.logger.log(`Carpeta ID: ${batchDto.carpeta_id}`);
+    this.logger.log(`Documents: ${batchDto.documents?.length || 0}`);
+    
+    // Log documentos recibidos
+    batchDto.documents?.forEach((doc, index) => {
+      this.logger.log(`Document ${index + 1}: ${doc.document_name} (${doc.file_data?.length || 0} chars)`);
+    });
+
+    // Crear DTOs individuales para cada documento y procesarlos todos juntos
+    const dto: EvaluateClaimRequestDto = {
+      record_id: batchDto.record_id,
+      carpeta_id: batchDto.carpeta_id,
+      context: batchDto.context,
+      // Pasar campos del contexto
+      insured_name: batchDto.insured_name,
+      insurance_company: batchDto.insurance_company,
+      insured_address: batchDto.insured_address,
+      insured_street: batchDto.insured_street,
+      insured_city: batchDto.insured_city,
+      insured_zip: batchDto.insured_zip,
+      date_of_loss: batchDto.date_of_loss,
+      policy_number: batchDto.policy_number,
+      claim_number: batchDto.claim_number,
+      type_of_job: batchDto.type_of_job,
+    };
+
+    // Procesar con lógica batch
+    const result = await this.underwritingService.evaluateClaimBatch(dto, batchDto.documents);
+    
+    const processingTime = Date.now() - startTime;
+    this.logger.log(`✅ Batch processing completed in ${processingTime}ms`);
+    
+    return result;
   }
 }

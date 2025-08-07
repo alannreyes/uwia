@@ -5,6 +5,7 @@ import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto, PMCFieldResultDto } from './dto/evaluate-claim-response.dto';
+import { DocumentDto } from './dto/evaluate-claim-batch-request.dto';
 import { OpenAiService } from './services/openai.service';
 import { PdfParserService } from './services/pdf-parser.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
@@ -458,5 +459,169 @@ export class UnderwritingService {
 
     await Promise.all(executing);
     return results.filter(r => r !== null) as R[]; // Retornar solo resultados válidos
+  }
+
+  async evaluateClaimBatch(
+    dto: EvaluateClaimRequestDto, 
+    documents: DocumentDto[]
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    const results: Record<string, any[]> = {};
+    const errors: string[] = [];
+    let totalFields = 0;
+    let answeredFields = 0;
+
+    try {
+      this.logger.log(`🚀 Processing batch claim for record_id: ${dto.record_id}`);
+      this.logger.log(`📄 Documents to process: ${documents.length}`);
+      
+      // Variables dinámicas para reemplazar en los prompts
+      let contextData: any = {};
+      if (dto.context) {
+        try {
+          contextData = typeof dto.context === 'string' ? JSON.parse(dto.context) : dto.context;
+        } catch (e) {
+          this.logger.warn('Failed to parse context:', e);
+        }
+      }
+      
+      const variables = {
+        'CMS insured': dto.insured_name || contextData.insured_name,
+        'Insurance Company': dto.insurance_company || contextData.insurance_company,
+        'insured_address': dto.insured_address || contextData.insured_address,
+        'insured_street': dto.insured_street || contextData.insured_street,
+        'insured_city': dto.insured_city || contextData.insured_city,
+        'insured_zip': dto.insured_zip || contextData.insured_zip,
+        'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
+        'policy_number': dto.policy_number || contextData.policy_number,
+        'claim_number': dto.claim_number || contextData.claim_number,
+        'type_of_job': dto.type_of_job || contextData.type_of_job
+      };
+
+      // Crear un mapa de documentos para acceso rápido
+      const documentMap = new Map<string, string>();
+      documents.forEach(doc => {
+        const docName = doc.document_name.endsWith('.pdf') 
+          ? doc.document_name 
+          : `${doc.document_name}.pdf`;
+        documentMap.set(docName, doc.file_data);
+      });
+
+      // Obtener todas las preguntas únicas de la BD para los documentos proporcionados
+      const documentNames = Array.from(documentMap.keys());
+      const prompts = await this.documentPromptRepository
+        .createQueryBuilder('dp')
+        .where('dp.active = :active', { active: true })
+        .andWhere('dp.document_name IN (:...documentNames)', { documentNames })
+        .orderBy('dp.document_name', 'ASC')
+        .addOrderBy('dp.prompt_order', 'ASC')
+        .getMany();
+
+      // Agrupar prompts por documento
+      const promptsByDocument = new Map<string, any[]>();
+      prompts.forEach(prompt => {
+        if (!promptsByDocument.has(prompt.documentName)) {
+          promptsByDocument.set(prompt.documentName, []);
+        }
+        promptsByDocument.get(prompt.documentName).push(prompt);
+      });
+
+      this.logger.log(`📋 Found ${prompts.length} total prompts across ${promptsByDocument.size} documents`);
+
+      // Procesar cada documento con sus preguntas
+      const documentPromises = Array.from(promptsByDocument.entries()).map(
+        async ([documentName, documentPrompts]) => {
+          const pdfContent = documentMap.get(documentName);
+          
+          if (!pdfContent) {
+            this.logger.warn(`No PDF content provided for ${documentName}`);
+            return {
+              documentName,
+              results: documentPrompts.map(prompt => ({
+                pmc_field: prompt.pmcField,
+                question: prompt.question,
+                answer: null,
+                confidence: 0,
+                expected_type: prompt.expectedType,
+                error: 'Document not provided in batch'
+              }))
+            };
+          }
+
+          try {
+            this.logger.log(`Processing document: ${documentName} with ${documentPrompts.length} prompts`);
+            
+            const documentResults = await this.processDocumentWithContent(
+              dto.record_id,
+              documentName,
+              pdfContent,
+              variables
+            );
+            
+            return {
+              documentName,
+              results: documentResults
+            };
+          } catch (error) {
+            this.logger.error(`Error processing document ${documentName}:`, error);
+            return {
+              documentName,
+              results: [],
+              error: error.message
+            };
+          }
+        }
+      );
+
+      // Procesar todos los documentos en paralelo
+      const processedDocuments = await Promise.all(documentPromises);
+
+      // Consolidar resultados
+      processedDocuments.forEach(({ documentName, results: docResults, error }) => {
+        if (error) {
+          errors.push(`${documentName}: ${error}`);
+          results[documentName] = [];
+        } else {
+          results[documentName] = docResults;
+          totalFields += docResults.length;
+          answeredFields += docResults.filter(r => !r.error).length;
+        }
+      });
+
+      // Determine overall status
+      let status: 'success' | 'partial' | 'error';
+      if (errors.length === 0) {
+        status = 'success';
+      } else if (answeredFields > 0) {
+        status = 'partial';
+      } else {
+        status = 'error';
+      }
+
+      const processingTime = Date.now() - startTime;
+      this.logger.log(`✅ Batch processing completed in ${processingTime}ms`);
+      this.logger.log(`📊 Processed ${Object.keys(results).length} documents, ${answeredFields}/${totalFields} fields answered`);
+
+      return {
+        record_id: dto.record_id,
+        status,
+        results,
+        summary: {
+          total_documents: documents.length,
+          processed_documents: Object.keys(results).filter(k => results[k].length > 0).length,
+          total_fields: totalFields,
+          answered_fields: answeredFields,
+        },
+        errors: errors.length > 0 ? errors : undefined,
+        processed_at: new Date(),
+      };
+
+    } catch (error) {
+      this.logger.error('Error in evaluateClaimBatch:', error);
+      throw new HttpException(
+        'Failed to process batch claim evaluation',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 }
