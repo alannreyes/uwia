@@ -58,79 +58,64 @@ export class UnderwritingService {
         'type_of_job': dto.type_of_job || contextData.type_of_job
       };
 
-      // Obtener todos los documentos únicos de la BD
-      const uniqueDocuments = await this.documentPromptRepository
-        .createQueryBuilder('dp')
-        .select('DISTINCT dp.document_name', 'document_name')
-        .where('dp.active = :active', { active: true })
-        .getRawMany();
-
-      this.logger.log(`Found ${uniqueDocuments.length} unique documents in DB to process`);
-
-      // Procesar cada documento encontrado en la BD
-      for (const doc of uniqueDocuments) {
-        const documentName = doc.document_name;
-        
-        // Buscar el contenido del PDF en el DTO
-        let pdfContent = null;
-        
-        // Mapeo dinámico basado en el nombre del documento
-        const docNameLower = documentName.toLowerCase().replace('.pdf', '');
-        
-        // Buscar en el DTO por nombre de propiedad
-        if (dto[`${docNameLower}_pdf`]) {
-          pdfContent = dto[`${docNameLower}_pdf`];
-        } else if (dto.file_data && dto.document_name === documentName) {
-          // Si viene de multipart con document_name específico
-          pdfContent = dto.file_data;
+      // MODIFICACIÓN: Procesar SOLO el documento específico enviado
+      let documentToProcess: string;
+      let pdfContent: string | null = null;
+      
+      // Determinar qué documento se está enviando
+      if (dto.document_name) {
+        // Si viene con document_name explícito (multipart)
+        documentToProcess = dto.document_name.endsWith('.pdf') 
+          ? dto.document_name 
+          : `${dto.document_name}.pdf`;
+        pdfContent = dto.file_data || null;
+      } else {
+        // Buscar por campos específicos (lop_pdf, policy_pdf, etc.)
+        if (dto.lop_pdf) {
+          documentToProcess = 'LOP.pdf';
+          pdfContent = dto.lop_pdf;
+        } else if (dto.policy_pdf) {
+          documentToProcess = 'POLICY.pdf';
+          pdfContent = dto.policy_pdf;
+        } else if (dto.file_data) {
+          // Si solo hay file_data sin document_name, no podemos determinar el documento
+          throw new Error('document_name is required when sending file_data');
+        } else {
+          throw new Error('No document provided in request');
         }
-        
-        // Si no hay contenido para este documento, continuar (algunas preguntas no requieren PDF)
-        if (!pdfContent) {
-          this.logger.log(`No PDF content for ${documentName}, checking if questions require document...`);
-          
-          // Verificar si este documento tiene preguntas que NO requieren PDF
-          const prompts = await this.documentPromptRepository.find({
-            where: { documentName: documentName, active: true }
-          });
-          
-          // Si no hay prompts o todos requieren PDF, saltar
-          if (prompts.length === 0) {
-            this.logger.warn(`${documentName} not provided and has no questions, skipping`);
-            continue;
-          }
-          
-          // Verificar si alguna pregunta es de tipo matching (no requiere PDF)
-          const hasNonPdfQuestions = prompts.some(p => 
-            p.pmcField.includes('_match') || 
-            p.pmcField.includes('matching_')
-          );
-          
-          if (!hasNonPdfQuestions) {
-            this.logger.warn(`${documentName} not provided and all questions require PDF, skipping`);
-            continue;
-          }
-        }
+      }
 
-        try {
-          this.logger.log(`Processing document: ${documentName}`);
-          
-          const documentResults = await this.processDocumentWithContent(
-            dto.record_id,
-            documentName,
-            pdfContent,
-            variables
-          );
-          
-          results[documentName] = documentResults;
-          totalFields += documentResults.length;
-          answeredFields += documentResults.filter(r => !r.error).length;
-          
-        } catch (error) {
-          this.logger.error(`Error processing document ${documentName}:`, error);
-          errors.push(`${documentName}: ${error.message}`);
-          results[documentName] = [];
-        }
+      this.logger.log(`Processing ONLY document: ${documentToProcess}`);
+      
+      // Verificar si el documento tiene preguntas en la BD
+      const documentPrompts = await this.documentPromptRepository.find({
+        where: { documentName: documentToProcess, active: true },
+        order: { promptOrder: 'ASC' }
+      });
+      
+      if (documentPrompts.length === 0) {
+        throw new Error(`No questions configured for document: ${documentToProcess}`);
+      }
+      
+      this.logger.log(`Found ${documentPrompts.length} questions for ${documentToProcess}`);
+      
+      // Procesar SOLO este documento
+      try {
+        const documentResults = await this.processDocumentWithContent(
+          dto.record_id,
+          documentToProcess,
+          pdfContent,
+          variables
+        );
+        
+        results[documentToProcess] = documentResults;
+        totalFields += documentResults.length;
+        answeredFields += documentResults.filter(r => !r.error).length;
+        
+      } catch (error) {
+        this.logger.error(`Error processing document ${documentToProcess}:`, error);
+        errors.push(`${documentToProcess}: ${error.message}`);
+        results[documentToProcess] = [];
       }
 
       // Determine overall status
@@ -148,7 +133,7 @@ export class UnderwritingService {
         status,
         results,
         summary: {
-          total_documents: uniqueDocuments.length,
+          total_documents: 1, // Solo procesamos el documento enviado
           processed_documents: Object.keys(results).filter(k => results[k].length > 0).length,
           total_fields: totalFields,
           answered_fields: answeredFields,
