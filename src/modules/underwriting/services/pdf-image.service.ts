@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { pdf2png } from 'pdf-to-png-converter';
+import { pdfToPng } from 'pdf-to-png-converter';
 
 @Injectable()
 export class PdfImageService {
@@ -19,26 +19,24 @@ export class PdfImageService {
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
       const pdfBuffer = Buffer.from(cleanBase64, 'base64');
       
-      // Configuración de conversión
+      // Configuración de conversión para pdf-to-png-converter
       const options = {
-        density: 150,           // DPI para buena calidad sin ser excesivo
-        width: 1200,           // Ancho fijo para consistencia
-        height: 1600,          // Alto máximo
-        quality: 85,           // Calidad JPEG
-        outputFormat: 'png',   // PNG para mejor calidad en firmas
-        pages: pageNumbers     // Páginas específicas
+        viewportScale: 2.0,           // Escala para buena resolución
+        pagesToProcess: pageNumbers,  // Páginas específicas a convertir
+        strictPagesToProcess: false,  // Permisivo con páginas no existentes
+        verbosityLevel: 0            // Sin logs verbosos
       };
       
-      // Convertir páginas
-      const images = await pdf2png(pdfBuffer, options);
+      // Convertir páginas usando pdfToPng
+      const pngPages = await pdfToPng(pdfBuffer, options);
       
       // Crear mapa de página -> imagen base64
       const imageMap = new Map<number, string>();
       
-      images.forEach((image, index) => {
-        const pageNum = pageNumbers[index];
-        // La librería devuelve el buffer, convertir a base64
-        const base64 = image.toString('base64');
+      pngPages.forEach((page) => {
+        // La librería devuelve objetos con propiedades pageNumber y content (Buffer)
+        const pageNum = page.pageNumber;
+        const base64 = page.content.toString('base64');
         imageMap.set(pageNum, base64);
         this.logger.log(`Page ${pageNum} converted: ${base64.length} chars`);
       });
