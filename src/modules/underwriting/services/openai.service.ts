@@ -520,6 +520,111 @@ Be very careful and thorough in your analysis.`;
     };
   }
 
+  /**
+   * Evalúa usando GPT-4 Vision para preguntas que requieren análisis visual
+   */
+  async evaluateWithVision(
+    imageBase64: string,
+    prompt: string,
+    expectedType: ResponseType,
+    pmcField?: string,
+    pageNumber: number = 1
+  ): Promise<EvaluationResult> {
+    try {
+      this.logger.log(`🎯 Vision API for: ${pmcField} (page ${pageNumber})`);
+      
+      if (!openaiConfig.enabled) {
+        throw new Error('OpenAI está deshabilitado');
+      }
+
+      // Construir prompt específico para análisis visual
+      const visionPrompt = this.buildVisionPrompt(prompt, expectedType, pmcField);
+      
+      const completion = await this.retryWithBackoff(async () => {
+        return await this.openai.chat.completions.create({
+          model: "gpt-4-vision-preview",
+          messages: [{
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: visionPrompt
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/png;base64,${imageBase64}`,
+                  detail: "high" // Alta resolución para detectar firmas
+                }
+              }
+            ]
+          }],
+          max_tokens: 300,
+          temperature: 0.1 // Más determinístico para detección visual
+        });
+      });
+
+      const response = completion.choices[0].message.content.trim();
+      const confidence = this.extractConfidence(response);
+      const cleanResponse = this.cleanResponse(response, expectedType);
+
+      // Para Vision, no usamos validación dual (ya es el modelo más avanzado)
+      return {
+        response: cleanResponse,
+        confidence: confidence,
+        validation_response: cleanResponse,
+        validation_confidence: confidence,
+        final_confidence: confidence,
+        openai_metadata: {
+          primary_model: 'gpt-4-vision-preview',
+          validation_model: 'none',
+          primary_tokens: completion.usage?.total_tokens || 0,
+          validation_tokens: 0,
+          visual_analysis: true,
+          page_analyzed: pageNumber
+        }
+      };
+
+    } catch (error) {
+      this.logger.error(`Error en evaluación con Vision:`, error);
+      throw error;
+    }
+  }
+
+  private buildVisionPrompt(prompt: string, expectedType: ResponseType, pmcField?: string): string {
+    const typeInstructions = {
+      boolean: 'Answer with ONLY "YES" or "NO".',
+      date: 'Answer with ONLY the date in MM-DD-YY format.',
+      text: 'Provide a brief, specific answer.',
+      number: 'Answer with ONLY the numeric value.',
+      json: 'Provide a valid JSON object.'
+    };
+
+    // Prompts específicos para análisis visual
+    const visualHints = {
+      signature: 'Look for handwritten signatures, signature lines, "X" marks, or any indication of signing.',
+      stamp: 'Look for official stamps, seals, or embossed marks.',
+      checkbox: 'Look for checkboxes, tickmarks, or selection indicators.',
+      handwriting: 'Look for handwritten text or filled form fields.'
+    };
+
+    let hint = '';
+    const lowerField = (pmcField || '').toLowerCase();
+    
+    if (lowerField.includes('sign')) hint = visualHints.signature;
+    else if (lowerField.includes('stamp') || lowerField.includes('seal')) hint = visualHints.stamp;
+    else if (lowerField.includes('check') || lowerField.includes('mark')) hint = visualHints.checkbox;
+    else if (lowerField.includes('handwrit') || lowerField.includes('filled')) hint = visualHints.handwriting;
+
+    return `You are analyzing a document image. ${hint}
+
+QUESTION: ${prompt}
+
+${typeInstructions[expectedType] || ''}
+
+Important: Base your answer ONLY on what you can visually see in the image. If you cannot clearly determine the answer from the visual evidence, respond with "NO" for boolean questions or "NOT FOUND" for other types.`;
+  }
+
   private analyzeConsensus(
     primary: { response: string; confidence: number },
     validation: { response: string; confidence: number },

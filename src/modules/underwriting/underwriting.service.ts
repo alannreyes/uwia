@@ -8,6 +8,7 @@ import { EvaluateClaimResponseDto, PMCFieldResultDto } from './dto/evaluate-clai
 import { DocumentDto } from './dto/evaluate-claim-batch-request.dto';
 import { OpenAiService } from './services/openai.service';
 import { PdfParserService } from './services/pdf-parser.service';
+import { PdfImageService } from './services/pdf-image.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class UnderwritingService {
     private claimEvaluationRepository: Repository<ClaimEvaluation>,
     private openAiService: OpenAiService,
     private pdfParserService: PdfParserService,
+    private pdfImageService: PdfImageService,
   ) {}
 
   async evaluateClaim(dto: EvaluateClaimRequestDto): Promise<EvaluateClaimResponseDto> {
@@ -178,13 +180,17 @@ export class UnderwritingService {
 
       this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
 
-      // 2. Extraer texto del PDF (si está disponible)
-      let extractedText = '';
-      if (pdfContent) {
-        extractedText = await this.pdfParserService.extractTextFromBase64(pdfContent);
+      // 2. NUEVO: Analizar qué tipo de procesamiento necesita el documento
+      const documentNeeds = this.analyzeDocumentRequirements(prompts);
+      this.logger.log(`Document analysis: needsText=${documentNeeds.needsText}, needsVisual=${documentNeeds.needsVisual}`);
+
+      // 3. Preparar el documento según las necesidades detectadas
+      const preparedDocument = await this.prepareDocument(pdfContent, documentNeeds);
+
+      // Mantener compatibilidad con código existente
+      let extractedText = preparedDocument.text || '';
+      if (extractedText) {
         this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
-      } else {
-        this.logger.log(`No PDF content for ${documentName}, will process questions that don't require document`);
       }
 
       // 4. Procesar prompts en paralelo con límite de concurrencia
@@ -224,14 +230,41 @@ export class UnderwritingService {
             throw new Error(`Document text required but not available for: ${prompt.pmcField}`);
           }
 
-          // Llamar a OpenAI
-          const aiResponse = await this.openAiService.evaluateWithValidation(
-            extractedText,
-            processedQuestion,
-            prompt.expectedType as any,
-            undefined,
-            prompt.pmcField
-          );
+          // NUEVO: Determinar si esta pregunta específica necesita análisis visual
+          const needsVisual = this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
+          
+          let aiResponse;
+          
+          if (needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
+            // Usar Vision API para preguntas visuales
+            this.logger.log(`📸 Using Vision API for: ${prompt.pmcField}`);
+            
+            // Seleccionar la mejor página para análisis (primera por defecto)
+            const pageImage = preparedDocument.images.get(1) || 
+                            preparedDocument.images.get(preparedDocument.images.size) || 
+                            '';
+            
+            if (pageImage) {
+              aiResponse = await this.openAiService.evaluateWithVision(
+                pageImage,
+                processedQuestion,
+                prompt.expectedType as any,
+                prompt.pmcField,
+                1 // página analizada
+              );
+            } else {
+              throw new Error('No image available for visual analysis');
+            }
+          } else {
+            // Usar análisis de texto normal
+            aiResponse = await this.openAiService.evaluateWithValidation(
+              extractedText,
+              processedQuestion,
+              prompt.expectedType as any,
+              undefined,
+              prompt.pmcField
+            );
+          }
 
           const processingTime = Date.now() - startTime;
 
@@ -608,5 +641,155 @@ export class UnderwritingService {
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
+  }
+
+  // NUEVOS MÉTODOS PARA ANÁLISIS DINÁMICO
+
+  /**
+   * Analiza las preguntas de un documento para determinar qué tipo de procesamiento necesita
+   */
+  private analyzeDocumentRequirements(prompts: DocumentPrompt[]): {
+    needsText: boolean;
+    needsVisual: boolean;
+    visualPages: number[];
+    visualKeywords: string[];
+  } {
+    const VISUAL_INDICATORS = {
+      signatures: ['signed', 'signature', 'firma', 'autograph', 'endorsement', 'signed by'],
+      stamps: ['stamp', 'seal', 'sello', 'timbre', 'stamped'],
+      checkboxes: ['marked', 'checked', 'selected', 'ticked', 'checkbox', 'check box'],
+      handwriting: ['handwritten', 'filled by hand', 'manuscrito', 'written'],
+      visual_elements: ['logo', 'image', 'photo', 'diagram', 'chart', 'visual']
+    };
+
+    const requirements = {
+      needsText: false,
+      needsVisual: false,
+      visualPages: [] as number[],
+      visualKeywords: [] as string[]
+    };
+
+    for (const prompt of prompts) {
+      const questionLower = prompt.question.toLowerCase();
+      const fieldLower = (prompt.pmcField || '').toLowerCase();
+      
+      // Verificar si necesita análisis visual
+      let foundVisual = false;
+      for (const [category, keywords] of Object.entries(VISUAL_INDICATORS)) {
+        if (keywords.some(keyword => 
+          questionLower.includes(keyword) || fieldLower.includes(keyword)
+        )) {
+          requirements.needsVisual = true;
+          requirements.visualKeywords.push(category);
+          foundVisual = true;
+          
+          // Inferir páginas según el tipo
+          if (category === 'signatures') {
+            // Las firmas suelen estar en primera y última página
+            requirements.visualPages.push(1, -1);
+          } else if (category === 'stamps') {
+            // Los sellos suelen estar en primera página
+            requirements.visualPages.push(1);
+          }
+        }
+      }
+      
+      // La mayoría de preguntas también necesitan texto
+      if (!foundVisual || questionLower.includes('date') || questionLower.includes('text') || 
+          questionLower.includes('content') || questionLower.includes('amount')) {
+        requirements.needsText = true;
+      }
+    }
+
+    // Eliminar duplicados en páginas
+    requirements.visualPages = [...new Set(requirements.visualPages)];
+    
+    return requirements;
+  }
+
+  /**
+   * Prepara el documento según las necesidades detectadas
+   */
+  private async prepareDocument(
+    pdfContent: string | null,
+    requirements: { needsText: boolean; needsVisual: boolean; visualPages: number[] }
+  ): Promise<{ text?: string; images?: Map<number, string> }> {
+    const prepared: { text?: string; images?: Map<number, string> } = {};
+    
+    if (!pdfContent) {
+      return prepared;
+    }
+
+    // Extraer texto si es necesario
+    if (requirements.needsText) {
+      try {
+        prepared.text = await this.pdfParserService.extractTextFromBase64(pdfContent);
+      } catch (error) {
+        this.logger.error('Error extracting text:', error);
+      }
+    }
+
+    // Convertir a imágenes si es necesario
+    if (requirements.needsVisual) {
+      try {
+        // Si no se especificaron páginas, usar primera y última
+        let pagesToConvert = requirements.visualPages;
+        if (pagesToConvert.length === 0) {
+          pagesToConvert = [1];
+        }
+
+        // Convertir páginas especiales (-1 = última página)
+        if (pagesToConvert.includes(-1)) {
+          // Para obtener la última página, primero necesitamos el conteo
+          prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent);
+        } else {
+          // Convertir páginas específicas
+          prepared.images = await this.pdfImageService.convertPages(pdfContent, pagesToConvert);
+        }
+        
+        this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images`);
+      } catch (error) {
+        this.logger.error('Error converting to images:', error);
+        // Si falla la conversión, intentar continuar con texto si está disponible
+      }
+    }
+
+    return prepared;
+  }
+
+  /**
+   * Determina si una pregunta específica requiere análisis visual
+   */
+  private requiresVisualAnalysis(pmcField: string, question: string): boolean {
+    const visualFields = [
+      'lop_signed_by_ho',
+      'lop_signed_by_client',
+      'signed_insured_next_amount',
+      'signature',
+      'stamp',
+      'seal',
+      'checkbox',
+      'marked'
+    ];
+    
+    const visualKeywords = [
+      'signed', 'signature', 'stamp', 'seal', 'marked', 
+      'checked', 'handwritten', 'visual'
+    ];
+    
+    const fieldLower = pmcField.toLowerCase();
+    const questionLower = question.toLowerCase();
+    
+    // Verificar campos conocidos
+    if (visualFields.some(field => fieldLower.includes(field))) {
+      return true;
+    }
+    
+    // Verificar palabras clave en la pregunta
+    if (visualKeywords.some(keyword => questionLower.includes(keyword))) {
+      return true;
+    }
+    
+    return false;
   }
 }

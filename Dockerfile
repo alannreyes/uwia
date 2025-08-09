@@ -2,7 +2,7 @@
 FROM node:18-alpine
 
 # Instalar dependencias del sistema necesarias
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl ghostscript graphicsmagick
 
 # Establecer directorio de trabajo
 WORKDIR /app
