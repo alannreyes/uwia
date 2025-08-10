@@ -106,7 +106,11 @@ export class UnderwritingService {
           processing_time: 0,
           error: `No questions configured for document: ${documentToProcess}`
         }];
-        return this.buildSuccessResponse(results, totalFields, answeredFields, 0);
+        return {
+          success: true,
+          results,
+          metadata: { totalFields, answeredFields, processingTime: 0 }
+        };
       }
       
       this.logger.log(`Found ${documentPrompts.length} questions for ${documentToProcess}`);
