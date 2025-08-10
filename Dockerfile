@@ -1,8 +1,21 @@
-# Usar Node.js 18 Alpine para imagen más ligera
-FROM node:18-alpine
+# Usar Node.js 20 Alpine para compatibilidad con pdf-to-png-converter
+FROM node:20-alpine
 
 # Instalar dependencias del sistema necesarias
-RUN apk add --no-cache curl ghostscript graphicsmagick
+# Incluye Python3 y dependencias de compilación para canvas
+RUN apk add --no-cache \
+    curl \
+    ghostscript \
+    graphicsmagick \
+    python3 \
+    py3-pip \
+    build-base \
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev
 
 # Establecer directorio de trabajo
 WORKDIR /app
