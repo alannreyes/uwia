@@ -96,7 +96,17 @@ export class UnderwritingService {
       });
       
       if (documentPrompts.length === 0) {
-        throw new Error(`No questions configured for document: ${documentToProcess}`);
+        this.logger.warn(`⚠️ No configuration found for document: ${documentToProcess} - SKIPPING`);
+        // Continúa con el procesamiento de otros documentos
+        results[documentToProcess] = [{
+          pmc_field: 'document_not_configured',
+          question: `Document ${documentToProcess} not configured in system`,
+          answer: 'SKIPPED',
+          confidence: 0,
+          processing_time: 0,
+          error: `No questions configured for document: ${documentToProcess}`
+        }];
+        return this.buildSuccessResponse(results, totalFields, answeredFields, 0);
       }
       
       this.logger.log(`Found ${documentPrompts.length} questions for ${documentToProcess}`);
@@ -174,8 +184,15 @@ export class UnderwritingService {
       });
 
       if (prompts.length === 0) {
-        this.logger.warn(`No prompts configured for document: ${documentName}`);
-        return [];
+        this.logger.warn(`⚠️ No prompts configured for document: ${documentName} - returning SKIPPED result`);
+        return [{
+          pmc_field: 'document_not_configured',
+          question: `Document ${documentName} not configured in system`,
+          answer: 'SKIPPED',
+          confidence: 0,
+          processing_time: 0,
+          error: `No questions configured for document: ${documentName}`
+        }];
       }
 
       this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
@@ -585,10 +602,17 @@ export class UnderwritingService {
               results: documentResults
             };
           } catch (error) {
-            this.logger.error(`Error processing document ${documentName}:`, error);
+            this.logger.error(`❌ Error processing document ${documentName}:`, error);
             return {
               documentName,
-              results: [],
+              results: [{
+                pmc_field: 'document_processing_error',
+                question: `Failed to process ${documentName}`,
+                answer: 'ERROR',
+                confidence: 0,
+                processing_time: 0,
+                error: error.message
+              }],
               error: error.message
             };
           }
@@ -729,7 +753,9 @@ export class UnderwritingService {
       try {
         prepared.text = await this.pdfParserService.extractTextFromBase64(pdfContent);
       } catch (error) {
-        this.logger.error('Error extracting text:', error);
+        this.logger.error('❌ Error extracting text:', error);
+        this.logger.warn(`⚠️ Text extraction failed, continuing with visual analysis if needed`);
+        prepared.text = ''; // Continuar sin texto
       }
     }
 
@@ -753,8 +779,10 @@ export class UnderwritingService {
         
         this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images`);
       } catch (error) {
-        this.logger.error('Error converting to images:', error);
+        this.logger.error('❌ Error converting to images:', error);
+        this.logger.warn(`⚠️ Visual analysis will be skipped, continuing with text-based questions`);
         // Si falla la conversión, intentar continuar con texto si está disponible
+        prepared.images = new Map(); // Mapa vacío para evitar errores
       }
     }
 
