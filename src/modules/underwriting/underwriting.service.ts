@@ -227,14 +227,14 @@ export class UnderwritingService {
             };
           }
 
+          // NUEVO: Determinar si esta pregunta específica necesita análisis visual
+          let needsVisual = this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
+          
           // Si no hay texto y la pregunta lo requiere, forzar análisis visual
           if (!extractedText) {
             this.logger.warn(`No text extracted for ${prompt.pmcField}, forcing visual analysis`);
             needsVisual = true;
           }
-
-          // NUEVO: Determinar si esta pregunta específica necesita análisis visual
-          const needsVisual = this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
           
           let aiResponse;
           
