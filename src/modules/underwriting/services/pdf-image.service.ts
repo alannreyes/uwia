@@ -12,8 +12,9 @@ export class PdfImageService {
     pdfBase64: string, 
     pageNumbers: number[] = [1]
   ): Promise<Map<number, string>> {
+    const startTime = Date.now();
     try {
-      this.logger.log(`Converting ${pageNumbers.length} pages to images`);
+      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s)`);
       
       // Limpiar header de base64 si existe
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
@@ -27,8 +28,14 @@ export class PdfImageService {
         verbosityLevel: 0            // Sin logs verbosos
       };
       
-      // Convertir páginas usando pdfToPng
-      const pngPages = await pdfToPng(pdfBuffer, options);
+      // Convertir páginas usando pdfToPng con timeout
+      const conversionPromise = pdfToPng(pdfBuffer, options);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('PDF to PNG conversion timeout (120s)')), 120000);
+      });
+      
+      this.logger.log(`⏱️ Starting conversion with 120s timeout...`);
+      const pngPages = await Promise.race([conversionPromise, timeoutPromise]);
       
       // Crear mapa de página -> imagen base64
       const imageMap = new Map<number, string>();
@@ -38,8 +45,11 @@ export class PdfImageService {
         const pageNum = page.pageNumber;
         const base64 = page.content.toString('base64');
         imageMap.set(pageNum, base64);
-        this.logger.log(`Page ${pageNum} converted: ${base64.length} chars`);
+        this.logger.log(`✅ Page ${pageNum} converted: ${base64.length} chars`);
       });
+      
+      const elapsed = Date.now() - startTime;
+      this.logger.log(`🎉 Conversion completed in ${elapsed}ms`);
       
       return imageMap;
       
