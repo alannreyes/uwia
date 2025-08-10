@@ -560,7 +560,7 @@ Be very careful and thorough in your analysis.`;
             ]
           }],
           max_tokens: 300,
-          temperature: 0.1 // Más determinístico para detección visual
+          temperature: parseFloat(process.env.OPENAI_VISION_TEMPERATURE) || 0.1
         });
       });
 

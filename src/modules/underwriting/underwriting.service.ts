@@ -491,6 +491,7 @@ export class UnderwritingService {
 
     try {
       this.logger.log(`🚀 Processing batch claim for record_id: ${dto.record_id}`);
+      this.logger.log(`📋 DEBUG - Record ID details: [${dto.record_id}] - Length: ${dto.record_id?.length} - Type: ${typeof dto.record_id}`);
       this.logger.log(`📄 Documents to process: ${documents.length}`);
       
       // Variables dinámicas para reemplazar en los prompts
