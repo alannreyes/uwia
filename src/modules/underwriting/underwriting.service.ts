@@ -191,6 +191,8 @@ export class UnderwritingService {
       let extractedText = preparedDocument.text || '';
       if (extractedText) {
         this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
+      } else if (documentNeeds.needsVisual) {
+        this.logger.warn(`No text extracted from ${documentName}, will rely on visual analysis`);
       }
 
       // 4. Procesar prompts en paralelo con límite de concurrencia
@@ -225,9 +227,10 @@ export class UnderwritingService {
             };
           }
 
-          // Si no hay texto y la pregunta lo requiere, error
+          // Si no hay texto y la pregunta lo requiere, forzar análisis visual
           if (!extractedText) {
-            throw new Error(`Document text required but not available for: ${prompt.pmcField}`);
+            this.logger.warn(`No text extracted for ${prompt.pmcField}, forcing visual analysis`);
+            needsVisual = true;
           }
 
           // NUEVO: Determinar si esta pregunta específica necesita análisis visual
