@@ -1,6 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
-const pdfjs = require('pdfjs-dist');
+
+// Importar pdfjs-dist de forma segura
+let pdfjs: any = null;
+try {
+  pdfjs = require('pdfjs-dist/build/pdf');
+  // Configurar worker path si está disponible
+  if (pdfjs && pdfjs.GlobalWorkerOptions) {
+    pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '3.4.120'}/pdf.worker.min.js`;
+  }
+} catch (error) {
+  console.warn('pdfjs-dist not available, fallback to pdf-parse only');
+}
 
 @Injectable()
 export class PdfParserService {
@@ -77,6 +88,10 @@ export class PdfParserService {
    * MÉTODO 2: Extracción usando pdfjs-dist (más robusto)
    */
   private async extractWithPdfJs(buffer: Buffer): Promise<string> {
+    if (!pdfjs) {
+      throw new Error('pdfjs-dist not available');
+    }
+    
     try {
       const loadingTask = pdfjs.getDocument({
         data: buffer,
