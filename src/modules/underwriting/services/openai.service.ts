@@ -542,7 +542,7 @@ Be very careful and thorough in your analysis.`;
       
       const completion = await this.retryWithBackoff(async () => {
         return await this.openai.chat.completions.create({
-          model: "gpt-4-vision-preview",
+          model: "gpt-4o",
           messages: [{
             role: "user",
             content: [
@@ -576,7 +576,7 @@ Be very careful and thorough in your analysis.`;
         validation_confidence: confidence,
         final_confidence: confidence,
         openai_metadata: {
-          primary_model: 'gpt-4-vision-preview',
+          primary_model: 'gpt-4o',
           validation_model: 'none',
           primary_tokens: completion.usage?.total_tokens || 0,
           validation_tokens: 0,
