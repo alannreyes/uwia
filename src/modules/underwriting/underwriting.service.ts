@@ -107,9 +107,16 @@ export class UnderwritingService {
           error: `No questions configured for document: ${documentToProcess}`
         }];
         return {
-          success: true,
+          record_id: dto.record_id,
+          status: 'success' as const,
           results,
-          metadata: { totalFields, answeredFields, processingTime: 0 }
+          summary: {
+            total_documents: 1,
+            processed_documents: 0,
+            total_fields: totalFields,
+            answered_fields: answeredFields,
+          },
+          processed_at: new Date(),
         };
       }
       
