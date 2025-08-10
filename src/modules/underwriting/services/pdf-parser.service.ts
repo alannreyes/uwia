@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
-const pdfjs = require('pdfjs-dist/legacy/build/pdf');
+const pdfjs = require('pdfjs-dist');
 
 @Injectable()
 export class PdfParserService {
