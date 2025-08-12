@@ -90,13 +90,30 @@ export class UnderwritingController {
     let document_name = body.document_name;
 
     if (uploadedFile) {
-      fileBase64 = uploadedFile.buffer.toString('base64');
-      this.logger.log(`File converted to base64: ${fileBase64.length} characters`);
-      
-      // Si no hay document_name en el body, extraerlo del nombre del archivo
-      if (!document_name && uploadedFile.originalname) {
-        document_name = uploadedFile.originalname.replace(/\.pdf$/i, '');
-        this.logger.log(`Document name extracted from file: ${document_name}`);
+      try {
+        // Log del tamaño del archivo
+        const fileSizeMB = (uploadedFile.size / 1048576).toFixed(2);
+        this.logger.log(`Processing file: ${uploadedFile.originalname} (${fileSizeMB}MB)`);
+        
+        // Validación adicional de tamaño (aunque Multer ya lo maneja)
+        const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 52428800;
+        if (uploadedFile.size > maxSize) {
+          throw new Error(`File too large: ${fileSizeMB}MB exceeds ${(maxSize/1048576).toFixed(2)}MB limit`);
+        }
+        
+        fileBase64 = uploadedFile.buffer.toString('base64');
+        this.logger.log(`File converted to base64: ${fileBase64.length} characters`);
+        
+        // Si no hay document_name en el body, extraerlo del nombre del archivo
+        if (!document_name && uploadedFile.originalname) {
+          document_name = uploadedFile.originalname.replace(/\.pdf$/i, '');
+          this.logger.log(`Document name extracted from file: ${document_name}`);
+        }
+      } catch (error) {
+        this.logger.error(`❌ Error processing file ${uploadedFile.originalname}:`, error.message);
+        // Continuar sin el archivo en lugar de fallar completamente
+        this.logger.warn(`⚠️ Continuing without file data due to processing error`);
+        fileBase64 = undefined;
       }
     }
 

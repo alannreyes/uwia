@@ -14,11 +14,20 @@ export class PdfImageService {
   ): Promise<Map<number, string>> {
     const startTime = Date.now();
     try {
-      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s)`);
-      
       // Limpiar header de base64 si existe
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
       const pdfBuffer = Buffer.from(cleanBase64, 'base64');
+      
+      // Validar tamaño antes de conversión
+      const maxConversionSize = parseInt(process.env.MAX_IMAGE_CONVERSION_SIZE) || 20971520; // 20MB
+      if (pdfBuffer.length > maxConversionSize) {
+        const sizeMB = (pdfBuffer.length / 1048576).toFixed(2);
+        const maxMB = (maxConversionSize / 1048576).toFixed(2);
+        this.logger.warn(`⚠️ PDF too large for image conversion: ${sizeMB}MB (max: ${maxMB}MB)`);
+        throw new Error(`PDF too large for visual analysis: ${sizeMB}MB exceeds ${maxMB}MB limit`);
+      }
+      
+      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s, size: ${(pdfBuffer.length / 1048576).toFixed(2)}MB)`);
       
       // Configuración de conversión para pdf-to-png-converter
       const options = {

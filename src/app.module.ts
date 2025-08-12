@@ -24,7 +24,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     // Configuración global de Multer para archivos
     MulterModule.register({
       limits: {
-        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10485760, // 10MB
+        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 52428800, // 50MB por defecto
       },
       fileFilter: (req, file, callback) => {
         // Validar que solo se procesen PDFs

@@ -313,14 +313,29 @@ export class UnderwritingService {
           return result;
 
         } catch (error) {
-          this.logger.error(`Error processing field ${prompt.pmcField}:`, error);
+          const processingTime = Date.now() - startTime;
+          this.logger.error(`❌ Error processing field ${prompt.pmcField}:`, error.message);
+          
+          // Determinar tipo de error para mejor logging
+          let errorType = 'Processing error';
+          if (error.message.includes('timeout')) {
+            errorType = 'Timeout error';
+          } else if (error.message.includes('rate limit')) {
+            errorType = 'Rate limit error';
+          } else if (error.message.includes('too large')) {
+            errorType = 'File size error';
+          }
+          
+          this.logger.warn(`⚠️ ${errorType} for ${prompt.pmcField}, continuing with other fields`);
+          
           return {
             pmc_field: prompt.pmcField,
             question: prompt.question,
             answer: null,
             confidence: 0,
             expected_type: prompt.expectedType,
-            error: error.message,
+            processing_time_ms: processingTime,
+            error: `${errorType}: ${error.message}`,
           };
         }
       };
