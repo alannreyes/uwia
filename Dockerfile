@@ -1,4 +1,5 @@
 # Usar Node.js 20 Alpine para compatibilidad con pdf-to-png-converter
+# Build version: 2025-08-13-v2 - pdfjs-dist diagnostics
 FROM node:20-alpine
 
 # Instalar dependencias del sistema necesarias

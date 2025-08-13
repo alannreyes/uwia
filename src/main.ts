@@ -34,6 +34,7 @@ async function bootstrap() {
   console.log(`🚀 UWIA - Underwriting IA iniciado en: http://localhost:${port}/api`);
   console.log(`📋 Health check: http://localhost:${port}/api/health`);
   console.log(`🔍 Evaluate claim: POST http://localhost:${port}/api/underwriting/evaluate-claim`);
+  console.log('🔧 Build version: 2025-08-13-v2 (with pdfjs-dist diagnostics)');
 }
 
 bootstrap();
