@@ -2,7 +2,7 @@
 FROM node:20-alpine
 
 # Instalar dependencias del sistema necesarias
-# Incluye Python3 y dependencias de compilación para canvas
+# Incluye Python3, Canvas, pdfjs-dist y dependencias de compilación
 RUN apk add --no-cache \
     curl \
     ghostscript \
@@ -15,7 +15,10 @@ RUN apk add --no-cache \
     jpeg-dev \
     giflib-dev \
     librsvg-dev \
-    pixman-dev
+    pixman-dev \
+    fontconfig \
+    freetype-dev \
+    harfbuzz-dev
 
 # Establecer directorio de trabajo
 WORKDIR /app

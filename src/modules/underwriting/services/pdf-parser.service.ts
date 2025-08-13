@@ -1,16 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
 
-// Importar pdfjs-dist de forma segura
+// Importar pdfjs-dist de forma segura (versión 3.x con CommonJS)
 let pdfjs: any = null;
 try {
   pdfjs = require('pdfjs-dist/build/pdf');
-  // Configurar worker path si está disponible
+  // Configurar worker path local
   if (pdfjs && pdfjs.GlobalWorkerOptions) {
-    pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '3.4.120'}/pdf.worker.min.js`;
+    try {
+      const workerPath = require.resolve('pdfjs-dist/build/pdf.worker');
+      pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
+      console.log(`🔧 Using local PDF worker: ${workerPath}`);
+    } catch (workerError) {
+      // Fallback a CDN
+      pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '3.11.174'}/pdf.worker.min.js`;
+      console.log(`🌐 Using CDN PDF worker (version: ${pdfjs.version})`);
+    }
   }
+  console.log(`✅ pdfjs-dist loaded successfully (version: ${pdfjs.version})`);
 } catch (error) {
-  console.warn('pdfjs-dist not available, fallback to pdf-parse only');
+  console.warn('⚠️ pdfjs-dist not available, fallback to pdf-parse only. Error:', error.message);
 }
 
 @Injectable()
