@@ -102,9 +102,20 @@ export class PdfParserService {
       }
     }
 
-    // Si pdf-parse tuvo éxito y pdfjs-dist no agregó valor, usar pdf-parse
+    // MÉTODO 2.5: Análisis mejorado de pdf-parse para detectar campos llenados
     if (pdfParseText && pdfParseText.length > 0) {
-      this.logger.log('📄 Usando resultado de pdf-parse (no se detectaron campos de formulario)');
+      try {
+        this.logger.log('📄 Método 2.5: Mejorando extracción con análisis de campos llenados');
+        const enhancedText = await this.extractFilledFormFields(buffer, pdfParseText);
+        if (enhancedText.length > pdfParseText.length) {
+          this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres (${enhancedText.length - pdfParseText.length} caracteres adicionales de campos)`);
+          return enhancedText;
+        }
+      } catch (error) {
+        this.logger.warn(`⚠️ Mejora de texto falló: ${error.message}`);
+      }
+      
+      this.logger.log('📄 Usando resultado de pdf-parse (no se detectaron campos de formulario adicionales)');
       return pdfParseText;
     }
 
@@ -281,8 +292,111 @@ export class PdfParserService {
   }
 
   /**
-   * MÉTODO 2.5: Mejora el texto de pdf-parse con análisis de patrones
-   * Busca campos que podrían estar llenados en formularios
+   * MÉTODO 2.5: Extrae campos de formulario llenados usando análisis binario avanzado
+   * Busca valores en campos AcroForm directamente en el PDF binario
+   */
+  private async extractFilledFormFields(buffer: Buffer, originalText: string): Promise<string> {
+    try {
+      this.logger.log('🔍 Analizando estructura binaria del PDF para campos llenados...');
+      
+      // Analizar el PDF como string binario para buscar campos AcroForm
+      const pdfString = buffer.toString('latin1');
+      let enhancedText = originalText;
+      const extractedFields = new Map<string, string>();
+      
+      // PASO 1: Buscar objetos de campo AcroForm
+      const fieldObjectPattern = /\/T\s*\(([^)]+)\)[^}]*\/V\s*\(([^)]+)\)/g;
+      let match;
+      
+      while ((match = fieldObjectPattern.exec(pdfString)) !== null) {
+        const fieldName = match[1].trim();
+        const fieldValue = match[2].trim();
+        
+        if (fieldName && fieldValue && fieldValue !== '') {
+          extractedFields.set(fieldName, fieldValue);
+          this.logger.log(`📝 Campo AcroForm encontrado: "${fieldName}" = "${fieldValue}"`);
+        }
+      }
+      
+      // PASO 2: Buscar patrones de campos de texto alternativos
+      const altTextFieldPattern = /\/Subtype\s*\/Widget[^}]*\/T\s*\(([^)]+)\)[^}]*\/V\s*\(([^)]+)\)/g;
+      while ((match = altTextFieldPattern.exec(pdfString)) !== null) {
+        const fieldName = match[1].trim();
+        const fieldValue = match[2].trim();
+        
+        if (fieldName && fieldValue && fieldValue !== '' && !extractedFields.has(fieldName)) {
+          extractedFields.set(fieldName, fieldValue);
+          this.logger.log(`📝 Campo Widget encontrado: "${fieldName}" = "${fieldValue}"`);
+        }
+      }
+      
+      // PASO 3: Buscar campos con codificación hexadecimal
+      const hexFieldPattern = /\/T\s*<([^>]+)>[^}]*\/V\s*<([^>]+)>/g;
+      while ((match = hexFieldPattern.exec(pdfString)) !== null) {
+        try {
+          const fieldName = this.decodeHexString(match[1]);
+          const fieldValue = this.decodeHexString(match[2]);
+          
+          if (fieldName && fieldValue && fieldValue !== '' && !extractedFields.has(fieldName)) {
+            extractedFields.set(fieldName, fieldValue);
+            this.logger.log(`📝 Campo hex encontrado: "${fieldName}" = "${fieldValue}"`);
+          }
+        } catch (hexError) {
+          // Ignorar errores de decodificación hex
+        }
+      }
+      
+      // PASO 4: Buscar valores entre objetos de campo y valores
+      const valueStreamPattern = /\/FT\s*\/Tx[^}]*\/V\s*\(([^)]+)\)/g;
+      while ((match = valueStreamPattern.exec(pdfString)) !== null) {
+        const fieldValue = match[1].trim();
+        
+        if (fieldValue && fieldValue !== '') {
+          const fieldKey = `text_field_${extractedFields.size}`;
+          extractedFields.set(fieldKey, fieldValue);
+          this.logger.log(`📝 Valor de texto encontrado: "${fieldValue}"`);
+        }
+      }
+      
+      // PASO 5: Si encontramos campos, agregarlos al texto
+      if (extractedFields.size > 0) {
+        enhancedText += '\n\n=== EXTRACTED FORM FIELD VALUES ===\n';
+        
+        for (const [fieldName, fieldValue] of extractedFields) {
+          enhancedText += `FIELD_${fieldName}: ${fieldValue}\n`;
+        }
+        
+        enhancedText += '=== END FORM FIELD VALUES ===\n';
+        this.logger.log(`✅ Extraídos ${extractedFields.size} campos de formulario llenados`);
+      } else {
+        this.logger.log('⚠️ No se encontraron campos de formulario llenados');
+      }
+      
+      return enhancedText;
+    } catch (error) {
+      this.logger.error(`❌ Error en extracción de campos: ${error.message}`);
+      return originalText;
+    }
+  }
+
+  /**
+   * Decodifica strings hexadecimales en PDFs
+   */
+  private decodeHexString(hexString: string): string {
+    try {
+      let result = '';
+      for (let i = 0; i < hexString.length; i += 2) {
+        const hexChar = hexString.substr(i, 2);
+        result += String.fromCharCode(parseInt(hexChar, 16));
+      }
+      return result;
+    } catch (error) {
+      return hexString; // Retornar original si falla
+    }
+  }
+
+  /**
+   * MÉTODO ANTIGUO: Mejora el texto de pdf-parse con análisis de patrones básicos
    */
   private async enhancePdfParseText(buffer: Buffer, originalText: string): Promise<string> {
     try {
