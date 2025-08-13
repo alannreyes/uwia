@@ -32,8 +32,8 @@ COPY . .
 # Construir la aplicación
 RUN npm run build
 
-# Instalar solo dependencias de producción
-RUN npm install --only=production && npm cache clean --force
+# Limpiar devDependencies pero mantener las de producción
+RUN npm prune --production && npm cache clean --force
 
 # Crear usuario no-root para seguridad
 RUN addgroup -g 1001 -S nodejs
