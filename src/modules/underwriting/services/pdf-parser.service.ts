@@ -20,35 +20,43 @@ export class PdfParserService {
   async extractText(buffer: Buffer): Promise<string> {
     this.logger.log('Iniciando extracción de texto del PDF con múltiples métodos');
     
-    // MÉTODO 1: pdf-parse (más simple)
+    // MÉTODO 1: pdf-parse (más simple, pero no extrae campos de formulario)
+    let pdfParseText = '';
     try {
-      this.logger.log('📄 Método 1: Usando pdf-parse');
+      this.logger.log('📄 Método 1: Usando pdf-parse para extracción básica');
       const data = await pdfParse(buffer);
-      const extractedText = data.text?.trim() || '';
+      pdfParseText = data.text?.trim() || '';
       
-      if (extractedText && extractedText.length > 0) {
-        this.logger.log(`✅ pdf-parse exitoso: ${extractedText.length} caracteres`);
-        return extractedText;
+      if (pdfParseText && pdfParseText.length > 0) {
+        this.logger.log(`✅ pdf-parse extrajo: ${pdfParseText.length} caracteres`);
       }
-      
-      this.logger.warn('⚠️ pdf-parse no extrajo texto, intentando método 2');
     } catch (error) {
-      this.logger.warn(`⚠️ pdf-parse falló: ${error.message}, intentando método 2`);
+      this.logger.warn(`⚠️ pdf-parse falló: ${error.message}`);
     }
 
-    // MÉTODO 2: pdfjs-dist (más robusto)
+    // MÉTODO 2: pdfjs-dist (más robusto Y extrae campos de formulario)
     try {
-      this.logger.log('📄 Método 2: Usando pdfjs-dist');
-      const extractedText = await this.extractWithPdfJs(buffer);
+      this.logger.log('📄 Método 2: Usando pdfjs-dist con extracción de campos de formulario');
+      const pdfjsText = await this.extractWithPdfJs(buffer);
       
-      if (extractedText && extractedText.length > 0) {
-        this.logger.log(`✅ pdfjs-dist exitoso: ${extractedText.length} caracteres`);
-        return extractedText;
+      if (pdfjsText && pdfjsText.length > 0) {
+        this.logger.log(`✅ pdfjs-dist exitoso: ${pdfjsText.length} caracteres (incluyendo campos de formulario)`);
+        
+        // Si pdfjs-dist extrajo más texto que pdf-parse, usar pdfjs-dist
+        // Esto indica que probablemente hay campos de formulario
+        if (pdfjsText.length > pdfParseText.length || pdfjsText.includes('=== FORM FIELD VALUES ===')) {
+          this.logger.log('🎯 Usando pdfjs-dist porque incluye campos de formulario o más contenido');
+          return pdfjsText;
+        }
       }
-      
-      this.logger.warn('⚠️ pdfjs-dist no extrajo texto');
     } catch (error) {
       this.logger.warn(`⚠️ pdfjs-dist falló: ${error.message}`);
+    }
+
+    // Si pdf-parse tuvo éxito y pdfjs-dist no agregó valor, usar pdf-parse
+    if (pdfParseText && pdfParseText.length > 0) {
+      this.logger.log('📄 Usando resultado de pdf-parse (no se detectaron campos de formulario)');
+      return pdfParseText;
     }
 
     // MÉTODO 3: Análisis de metadatos (último recurso)
@@ -99,6 +107,7 @@ export class PdfParserService {
 
   /**
    * MÉTODO 2: Extracción usando pdfjs-dist (más robusto)
+   * Ahora también extrae valores de campos de formulario
    */
   private async extractWithPdfJs(buffer: Buffer): Promise<string> {
     if (!pdfjs) {
@@ -115,19 +124,80 @@ export class PdfParserService {
 
       const pdf = await loadingTask.promise;
       let fullText = '';
+      const formFields: { [key: string]: string } = {};
 
-      // Extraer texto de todas las páginas
+      // Primero intentar extraer campos de formulario AcroForm
+      try {
+        const formData = await pdf.getFieldObjects();
+        if (formData && Object.keys(formData).length > 0) {
+          this.logger.log(`📋 Encontrados ${Object.keys(formData).length} campos de formulario`);
+          
+          for (const [fieldName, fieldData] of Object.entries(formData)) {
+            if (fieldData && Array.isArray(fieldData)) {
+              for (const field of fieldData) {
+                if (field && field.value !== undefined && field.value !== null && field.value !== '') {
+                  formFields[fieldName] = String(field.value);
+                  this.logger.log(`   ✓ Campo "${fieldName}": "${field.value}"`);
+                }
+              }
+            }
+          }
+        }
+      } catch (formError) {
+        this.logger.warn(`⚠️ No se pudieron extraer campos de formulario: ${formError.message}`);
+      }
+
+      // Extraer texto de todas las páginas Y anotaciones
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         try {
           const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
           
+          // Extraer texto normal
+          const textContent = await page.getTextContent();
           const pageText = textContent.items
             .map((item: any) => item.str)
             .join(' ');
           
           if (pageText.trim()) {
             fullText += `${pageText}\n`;
+          }
+
+          // Extraer anotaciones (incluye campos de formulario)
+          try {
+            const annotations = await page.getAnnotations();
+            if (annotations && annotations.length > 0) {
+              this.logger.log(`📝 Página ${pageNum}: ${annotations.length} anotaciones encontradas`);
+              
+              for (const annotation of annotations) {
+                // Procesar widgets de formulario (campos editables)
+                if (annotation.subtype === 'Widget' || annotation.fieldType) {
+                  const fieldName = annotation.fieldName || annotation.title || 'unnamed_field';
+                  let fieldValue = '';
+
+                  // Extraer valor según el tipo de campo
+                  if (annotation.fieldValue !== undefined && annotation.fieldValue !== null) {
+                    fieldValue = String(annotation.fieldValue);
+                  } else if (annotation.buttonValue) {
+                    fieldValue = annotation.buttonValue;
+                  } else if (annotation.value) {
+                    fieldValue = annotation.value;
+                  } else if (annotation.defaultAppearance) {
+                    // Algunos campos tienen el valor en defaultAppearance
+                    const match = annotation.defaultAppearance.match(/\((.*?)\)/);
+                    if (match && match[1]) {
+                      fieldValue = match[1];
+                    }
+                  }
+
+                  if (fieldValue && fieldValue.trim() !== '') {
+                    formFields[fieldName] = fieldValue;
+                    this.logger.log(`   ✓ Campo anotación "${fieldName}": "${fieldValue}" (tipo: ${annotation.fieldType || annotation.subtype})`);
+                  }
+                }
+              }
+            }
+          } catch (annotError) {
+            this.logger.warn(`⚠️ Error extrayendo anotaciones de página ${pageNum}: ${annotError.message}`);
           }
           
           // Cleanup de la página
@@ -138,10 +208,24 @@ export class PdfParserService {
         }
       }
 
+      // Combinar texto extraído con valores de campos de formulario
+      let combinedText = fullText;
+      
+      if (Object.keys(formFields).length > 0) {
+        this.logger.log(`✅ Total campos de formulario extraídos: ${Object.keys(formFields).length}`);
+        
+        // Agregar campos de formulario al final del texto de manera estructurada
+        combinedText += '\n\n=== FORM FIELD VALUES ===\n';
+        for (const [fieldName, fieldValue] of Object.entries(formFields)) {
+          combinedText += `${fieldName}: ${fieldValue}\n`;
+        }
+        combinedText += '=== END FORM FIELDS ===\n';
+      }
+
       // Cleanup del documento
       pdf.destroy();
       
-      return fullText.trim();
+      return combinedText.trim();
     } catch (error) {
       throw new Error(`pdfjs-dist extraction failed: ${error.message}`);
     }
