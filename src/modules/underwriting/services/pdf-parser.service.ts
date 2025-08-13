@@ -88,6 +88,20 @@ export class PdfParserService {
       this.logger.warn(`⚠️ pdfjs-dist falló: ${error.message}`);
     }
 
+    // MÉTODO 2.5: Análisis mejorado de pdf-parse para simular campos
+    if (pdfParseText && pdfParseText.length > 0) {
+      try {
+        this.logger.log('📄 Método 2.5: Mejorando extracción con análisis de patrones');
+        const enhancedText = await this.enhancePdfParseText(buffer, pdfParseText);
+        if (enhancedText.length > pdfParseText.length) {
+          this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres`);
+          return enhancedText;
+        }
+      } catch (error) {
+        this.logger.warn(`⚠️ Mejora de texto falló: ${error.message}`);
+      }
+    }
+
     // Si pdf-parse tuvo éxito y pdfjs-dist no agregó valor, usar pdf-parse
     if (pdfParseText && pdfParseText.length > 0) {
       this.logger.log('📄 Usando resultado de pdf-parse (no se detectaron campos de formulario)');
@@ -263,6 +277,64 @@ export class PdfParserService {
       return combinedText.trim();
     } catch (error) {
       throw new Error(`pdfjs-dist extraction failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * MÉTODO 2.5: Mejora el texto de pdf-parse con análisis de patrones
+   * Busca campos que podrían estar llenados en formularios
+   */
+  private async enhancePdfParseText(buffer: Buffer, originalText: string): Promise<string> {
+    try {
+      // Analizar el PDF como string para buscar patrones de campos
+      const pdfString = buffer.toString('latin1');
+      let enhancedText = originalText;
+      
+      // Patrones comunes de campos de formulario
+      const fieldPatterns = [
+        // Campos con valores después de dos puntos
+        /([A-Za-z\s]{2,20}):\s*([^\r\n]{1,50})/g,
+        // Checkbox patterns
+        /☑|☒|✓|✗|\[x\]|\[X\]|\[ \]/g,
+        // Date patterns
+        /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,
+        // Signature lines
+        /_{3,}|signature|signed|date/gi,
+        // Amount patterns
+        /\$[\d,]+\.?\d*/g,
+      ];
+      
+      const foundFields = new Map<string, string>();
+      let patternMatches = 0;
+      
+      // Buscar patrones en el string crudo del PDF
+      fieldPatterns.forEach((pattern, index) => {
+        const matches = pdfString.match(pattern);
+        if (matches && matches.length > 0) {
+          patternMatches += matches.length;
+          matches.forEach((match, i) => {
+            if (match.trim().length > 0) {
+              foundFields.set(`pattern_${index}_${i}`, match.trim());
+            }
+          });
+        }
+      });
+      
+      // Si encontramos patrones, agregarlos al texto
+      if (foundFields.size > 0) {
+        enhancedText += '\n\n=== EXTRACTED FORM PATTERNS ===\n';
+        for (const [key, value] of foundFields) {
+          enhancedText += `${key}: ${value}\n`;
+        }
+        enhancedText += '=== END FORM PATTERNS ===\n';
+        
+        this.logger.log(`📝 Encontrados ${foundFields.size} patrones de campos en PDF`);
+      }
+      
+      return enhancedText;
+    } catch (error) {
+      this.logger.warn(`Error en análisis de patrones: ${error.message}`);
+      return originalText;
     }
   }
 
