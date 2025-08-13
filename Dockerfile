@@ -24,6 +24,9 @@ RUN apk add --no-cache \
 # Establecer directorio de trabajo
 WORKDIR /app
 
+# Cache buster - force rebuild 2025-08-13-16:35
+RUN echo "Rebuild timestamp: $(date)" > /tmp/rebuild.txt
+
 # Copiar archivos de dependencias
 COPY package*.json ./
 
