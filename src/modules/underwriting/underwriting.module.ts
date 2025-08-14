@@ -4,6 +4,9 @@ import { UnderwritingController } from './underwriting.controller';
 import { UnderwritingService } from './underwriting.service';
 import { OpenAiService } from './services/openai.service';
 import { PdfParserService } from './services/pdf-parser.service';
+import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
+import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
+import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
@@ -17,6 +20,9 @@ import { ClaimEvaluation } from './entities/claim-evaluation.entity';
     UnderwritingService,
     OpenAiService,
     PdfParserService,
+    PdfFormExtractorService,
+    PdfHybridAnalyzerService,
+    PdfStreamProcessorService,
     PdfImageService,
   ],
   exports: [UnderwritingService],

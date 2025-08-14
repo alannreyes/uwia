@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PdfFormExtractorService } from './pdf-form-extractor.service';
 const pdfParse = require('pdf-parse');
 
 // Importar pdfjs-dist de forma segura (versión 3.x con CommonJS)
@@ -52,8 +53,25 @@ try {
 export class PdfParserService {
   private readonly logger = new Logger(PdfParserService.name);
 
+  constructor(
+    private readonly pdfFormExtractor: PdfFormExtractorService,
+  ) {}
+
   async extractText(buffer: Buffer): Promise<string> {
     this.logger.log('Iniciando extracción de texto del PDF con múltiples métodos');
+    
+    // MÉTODO 0: pdf-lib (JavaScript puro, extrae campos de formulario)
+    try {
+      this.logger.log('📄 Método 0: Usando pdf-lib para extracción de formularios');
+      const formData = await this.pdfFormExtractor.extractFormFields(buffer);
+      
+      if (formData.text && formData.text.length > 0) {
+        this.logger.log(`✅ pdf-lib exitoso: ${formData.text.length} caracteres con ${Object.keys(formData.fields).length} campos`);
+        return formData.text;
+      }
+    } catch (error) {
+      this.logger.warn(`⚠️ pdf-lib falló: ${error.message}`);
+    }
     
     // MÉTODO 1: pdf-parse (más simple, pero no extrae campos de formulario)
     let pdfParseText = '';
@@ -162,6 +180,98 @@ export class PdfParserService {
     } catch (error) {
       this.logger.error('Error extrayendo texto de contenido base64:', error.message);
       throw new Error(`Error al procesar PDF desde base64: ${error.message}`);
+    }
+  }
+
+  /**
+   * Detecta inteligentemente el tipo de PDF y qué método de extracción usar
+   */
+  async analyzePdfType(buffer: Buffer): Promise<{
+    type: 'form' | 'document' | 'scanned' | 'unknown';
+    confidence: number;
+    analysis: {
+      hasFormFields: boolean;
+      formFieldCount: number;
+      filledFieldCount: number;
+      textExtractable: boolean;
+      fileSize: number;
+      suggestedMethod: 'form-extraction' | 'text-extraction' | 'ocr' | 'hybrid';
+    };
+  }> {
+    this.logger.log('🔍 Analizando tipo de PDF para optimizar extracción...');
+    
+    const analysis = {
+      hasFormFields: false,
+      formFieldCount: 0,
+      filledFieldCount: 0,
+      textExtractable: false,
+      fileSize: buffer.length,
+      suggestedMethod: 'text-extraction' as 'form-extraction' | 'text-extraction' | 'ocr' | 'hybrid'
+    };
+
+    let type: 'form' | 'document' | 'scanned' | 'unknown' = 'unknown';
+    let confidence = 0;
+
+    try {
+      // Análisis con pdf-lib para detectar formularios
+      const formAnalysis = await this.pdfFormExtractor.detectPdfType(buffer);
+      analysis.hasFormFields = formAnalysis.isForm;
+      analysis.formFieldCount = formAnalysis.formFieldCount;
+      analysis.filledFieldCount = formAnalysis.filledFieldCount;
+
+      // Prueba rápida de extracción de texto con pdf-parse
+      try {
+        const data = await pdfParse(buffer);
+        const extractedText = data.text?.trim() || '';
+        analysis.textExtractable = extractedText.length > 50; // Mínimo 50 caracteres para considerar extractable
+        
+        // Si tiene poco texto pero muchas páginas, probablemente escaneado
+        if (data.numpages > 1 && extractedText.length < data.numpages * 100) {
+          type = 'scanned';
+          confidence = 0.8;
+          analysis.suggestedMethod = 'ocr';
+        }
+      } catch (textError) {
+        analysis.textExtractable = false;
+      }
+
+      // Clasificación basada en análisis
+      if (analysis.hasFormFields && analysis.filledFieldCount > 0) {
+        type = 'form';
+        confidence = 0.95;
+        analysis.suggestedMethod = 'form-extraction';
+        this.logger.log(`📋 PDF de formulario: ${analysis.filledFieldCount}/${analysis.formFieldCount} campos llenados`);
+      } else if (analysis.hasFormFields && analysis.filledFieldCount === 0) {
+        type = 'form';
+        confidence = 0.7;
+        analysis.suggestedMethod = 'hybrid'; // Formulario vacío, usar texto + análisis de estructura
+        this.logger.log(`📄 PDF de formulario vacío: ${analysis.formFieldCount} campos disponibles`);
+      } else if (analysis.textExtractable) {
+        type = 'document';
+        confidence = 0.8;
+        analysis.suggestedMethod = 'text-extraction';
+        this.logger.log(`📄 PDF de documento con texto extractable`);
+      } else {
+        type = 'scanned';
+        confidence = 0.6;
+        analysis.suggestedMethod = 'ocr';
+        this.logger.log(`🖼️ PDF posiblemente escaneado - requiere OCR`);
+      }
+
+      this.logger.log(`✅ Análisis completo: ${type} (confianza: ${(confidence * 100).toFixed(0)}%) - Método: ${analysis.suggestedMethod}`);
+      
+      return { type, confidence, analysis };
+
+    } catch (error) {
+      this.logger.error(`❌ Error analizando PDF: ${error.message}`);
+      return {
+        type: 'unknown',
+        confidence: 0,
+        analysis: {
+          ...analysis,
+          suggestedMethod: 'text-extraction' // Fallback seguro
+        }
+      };
     }
   }
 

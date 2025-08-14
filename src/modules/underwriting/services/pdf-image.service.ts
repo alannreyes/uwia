@@ -98,6 +98,35 @@ export class PdfImageService {
   }
 
   /**
+   * Convierte una sola página del PDF a imagen (optimizado para archivos grandes)
+   */
+  async convertSinglePage(pdfBuffer: Buffer, pageNumber: number = 1): Promise<string> {
+    try {
+      this.logger.log(`🖼️ Convirtiendo página ${pageNumber} de PDF grande`);
+      
+      const options = {
+        viewportScale: 1.5,           // Escala menor para ahorrar memoria
+        pagesToProcess: [pageNumber], // Solo una página
+        strictPagesToProcess: false,
+        verbosityLevel: 0
+      };
+      
+      const pngPages = await pdfToPng(pdfBuffer, options);
+      
+      if (pngPages && pngPages.length > 0) {
+        const base64Image = Buffer.from(pngPages[0].content).toString('base64');
+        this.logger.log(`✅ Página ${pageNumber} convertida exitosamente`);
+        return base64Image;
+      }
+      
+      throw new Error(`No se pudo convertir la página ${pageNumber}`);
+    } catch (error) {
+      this.logger.error(`❌ Error convirtiendo página ${pageNumber}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Obtiene el número de páginas del PDF
    */
   private async getPageCount(pdfBase64: string): Promise<number> {

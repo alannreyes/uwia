@@ -8,6 +8,9 @@ import { EvaluateClaimResponseDto, PMCFieldResultDto } from './dto/evaluate-clai
 import { DocumentDto } from './dto/evaluate-claim-batch-request.dto';
 import { OpenAiService } from './services/openai.service';
 import { PdfParserService } from './services/pdf-parser.service';
+import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
+import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
+import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
 
@@ -22,6 +25,9 @@ export class UnderwritingService {
     private claimEvaluationRepository: Repository<ClaimEvaluation>,
     private openAiService: OpenAiService,
     private pdfParserService: PdfParserService,
+    private pdfFormExtractor: PdfFormExtractorService,
+    private pdfHybridAnalyzer: PdfHybridAnalyzerService,
+    private pdfStreamProcessor: PdfStreamProcessorService,
     private pdfImageService: PdfImageService,
   ) {}
 
@@ -377,8 +383,8 @@ export class UnderwritingService {
       return []; // Return empty array silently
     }
 
-    // Extract text from PDF (fileContent is base64 string)
-    const extractedText = await this.pdfParserService.extractTextFromBase64(fileContent);
+    // NUEVO: Extract text using enhanced method with intelligent fallback
+    const extractedText = await this.extractTextEnhanced(fileContent, filename);
     
     // Process each prompt
     for (const prompt of prompts) {
@@ -777,7 +783,7 @@ export class UnderwritingService {
     // Extraer texto si es necesario
     if (requirements.needsText) {
       try {
-        prepared.text = await this.pdfParserService.extractTextFromBase64(pdfContent);
+        prepared.text = await this.extractTextEnhanced(pdfContent, 'document');
       } catch (error) {
         this.logger.error('❌ Error extracting text:', error);
         this.logger.warn(`⚠️ Text extraction failed, continuing with visual analysis if needed`);
@@ -850,4 +856,60 @@ export class UnderwritingService {
     
     return false;
   }
+
+  /**
+   * NUEVO: Extracción inteligente de texto con detección automática del mejor método
+   */
+  private async extractTextEnhanced(fileContent: string, filename: string): Promise<string> {
+    try {
+      this.logger.log(`🧠 Extracción inteligente iniciada para: ${filename}`);
+      
+      // Convertir base64 a buffer
+      const cleanBase64 = fileContent.replace(/^data:application\/pdf;base64,/, '');
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      const fileSize = buffer.length;
+      
+      this.logger.log(`📊 Tamaño: ${(fileSize / 1048576).toFixed(2)}MB`);
+
+      // PASO 1: Análisis del tipo de PDF
+      const pdfAnalysis = await this.pdfParserService.analyzePdfType(buffer);
+      this.logger.log(`🔍 Tipo: ${pdfAnalysis.type} (${(pdfAnalysis.confidence * 100).toFixed(0)}%) - Método: ${pdfAnalysis.analysis.suggestedMethod}`);
+
+      // PASO 2: Extracción según el análisis
+      if (fileSize > 52428800) { // 50MB+
+        this.logger.log('📦 Archivo muy grande - streaming');
+        const streamResult = await this.pdfStreamProcessor.processLargeFile(buffer);
+        if (streamResult.success) {
+          return streamResult.text;
+        }
+      } else if (pdfAnalysis.type === 'form' && pdfAnalysis.analysis.filledFieldCount > 0) {
+        this.logger.log('📋 Formulario con campos - extractor especializado');
+        const formData = await this.pdfFormExtractor.extractFormFields(buffer);
+        if (formData.text && formData.text.length > 50) {
+          return formData.text;
+        }
+      } else if (pdfAnalysis.type === 'scanned') {
+        this.logger.log('🖼️ Documento escaneado - OCR');
+        const hybridResult = await this.pdfHybridAnalyzer.analyzeDocument(
+          buffer,
+          [],
+          { useOcr: true, useVision: false, analyzeSignatures: false }
+        );
+        if (hybridResult.ocrText && hybridResult.ocrText.length > 50) {
+          return hybridResult.ocrText;
+        }
+      }
+
+      // FALLBACK: usar método actual
+      this.logger.log('🔄 Usando método actual como fallback');
+      return await this.pdfParserService.extractTextFromBase64(fileContent);
+
+    } catch (error) {
+      this.logger.error(`❌ Error en extracción inteligente: ${error.message}`);
+      // FALLBACK FINAL: método actual
+      this.logger.log('🆘 Fallback final al método actual');
+      return await this.pdfParserService.extractTextFromBase64(fileContent);
+    }
+  }
+
 }
