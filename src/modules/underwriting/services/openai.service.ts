@@ -117,6 +117,11 @@ export class OpenAiService {
     const confidence = this.extractConfidence(response);
     const cleanResponse = this.cleanResponse(response, expectedType);
 
+    // NUEVO: Logging de comparaciones para campos _match
+    if (pmcField && pmcField.includes('_match')) {
+      this.logComparisonDetails(pmcField, prompt, cleanResponse, confidence, documentText);
+    }
+
     return {
       response: cleanResponse,
       confidence: confidence,
@@ -701,6 +706,59 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
         return response.toLowerCase();
       default:
         return response.toLowerCase().trim();
+    }
+  }
+
+  /**
+   * NUEVO: Método para loggear detalles de comparaciones
+   */
+  private logComparisonDetails(
+    pmcField: string,
+    prompt: string,
+    result: string,
+    confidence: number,
+    documentText: string
+  ): void {
+    try {
+      // Extraer el valor esperado del prompt
+      const expectedMatch = prompt.match(/Compare.*?with\s+([^\.]+)/i) || 
+                           prompt.match(/compare.*?found.*?with\s+([^\.]+)/i);
+      const expectedValue = expectedMatch ? expectedMatch[1].trim() : 'unknown';
+      
+      // Extraer el valor encontrado del documento (buscar en los últimos 500 caracteres del prompt)
+      const relevantText = documentText.substring(0, 500);
+      let foundValue = 'NOT_EXTRACTED';
+      
+      // Intentar extraer el valor según el tipo de campo
+      if (pmcField.includes('street')) {
+        const streetMatch = relevantText.match(/([0-9]+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd))/i);
+        foundValue = streetMatch ? streetMatch[1].trim() : 'NOT_FOUND';
+      } else if (pmcField.includes('zip')) {
+        const zipMatch = relevantText.match(/\b(\d{5})\b/);
+        foundValue = zipMatch ? zipMatch[1] : 'NOT_FOUND';
+      } else if (pmcField.includes('city')) {
+        // Buscar entre el patrón de dirección típico
+        const cityMatch = relevantText.match(/,\s*([A-Za-z\s]+),\s*[A-Z]{2}/);
+        foundValue = cityMatch ? cityMatch[1].trim() : 'NOT_FOUND';
+      } else if (pmcField.includes('policy')) {
+        const policyMatch = relevantText.match(/policy[:\s#]*([A-Z0-9\-]+)/i);
+        foundValue = policyMatch ? policyMatch[1] : 'NOT_FOUND';
+      } else if (pmcField.includes('claim')) {
+        const claimMatch = relevantText.match(/claim[:\s#]*([A-Z0-9\-]+)/i);
+        foundValue = claimMatch ? claimMatch[1] : 'NOT_FOUND';
+      } else if (pmcField.includes('date')) {
+        const dateMatch = relevantText.match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/);
+        foundValue = dateMatch ? dateMatch[0] : 'NOT_FOUND';
+      }
+      
+      // Logging con formato visual
+      this.logger.log(`🔍 Comparación para ${pmcField}:`);
+      this.logger.log(`   📄 Valor encontrado: "${foundValue}"`);
+      this.logger.log(`   🎯 Valor esperado: "${expectedValue}"`);
+      this.logger.log(`   ✅ Resultado: ${result} (${(confidence * 100).toFixed(0)}%)`);
+      
+    } catch (error) {
+      this.logger.debug(`Error extrayendo valores para comparación: ${error.message}`);
     }
   }
 }
