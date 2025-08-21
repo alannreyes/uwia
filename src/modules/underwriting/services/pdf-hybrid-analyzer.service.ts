@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createWorker } from 'tesseract.js';
 import { PdfImageService } from './pdf-image.service';
+import { PdfPageStrategyService } from './pdf-page-strategy.service';
 import { OpenAiService } from './openai.service';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 
@@ -14,6 +15,7 @@ export class PdfHybridAnalyzerService {
 
   constructor(
     private readonly pdfImageService: PdfImageService,
+    private readonly pdfPageStrategy: PdfPageStrategyService,
     private readonly openAiService: OpenAiService,
   ) {}
 
@@ -82,23 +84,43 @@ export class PdfHybridAnalyzerService {
       if (options.useVision || options.useOcr) {
         try {
           const pdfBase64 = buffer.toString('base64');
-          const imageMap = await this.pdfImageService.convertPages(pdfBase64, [1, 2, 3, 4, 5]);
+          // Primero intentar convertir hasta 10 páginas (la mayoría de LOPs tienen menos)
+          const pagesToTry = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+          const imageMap = await this.pdfImageService.convertPages(pdfBase64, pagesToTry);
           imageBase64Array = Array.from(imageMap.values());
           results.metadata.imagePages = imageBase64Array.length;
           this.logger.log(`📷 Convertidas ${imageBase64Array.length} páginas a imágenes`);
         } catch (imageError) {
-          this.logger.warn(`⚠️ Error convirtiendo a imágenes: ${imageError.message}`);
+          this.logger.warn(`⚠️ Error convirtiendo múltiples páginas: ${imageError.message}`);
           
-          // Si falla por tamaño, intentar solo primera página
-          if (imageError.message.includes('too large')) {
+          // FALLBACK MEJORADO: Intentar convertir páginas individualmente
+          const imageMap = new Map<number, string>();
+          const maxPagesToTry = 5; // Intentar al menos las primeras 5 páginas individualmente
+          
+          for (let pageNum = 1; pageNum <= maxPagesToTry; pageNum++) {
             try {
-              const firstPageImage = await this.pdfImageService.convertSinglePage(buffer, 1);
-              imageBase64Array = [firstPageImage];
-              results.metadata.imagePages = 1;
-              this.logger.log(`📷 Convertida solo primera página debido al tamaño`);
-            } catch (singlePageError) {
-              this.logger.error(`❌ No se pudo convertir ni una página: ${singlePageError.message}`);
+              this.logger.log(`🔄 Intentando convertir página ${pageNum} individualmente...`);
+              const pageImage = await this.pdfImageService.convertSinglePage(buffer, pageNum);
+              if (pageImage) {
+                imageMap.set(pageNum, pageImage);
+                imageBase64Array.push(pageImage);
+                this.logger.log(`✅ Página ${pageNum} convertida exitosamente`);
+              }
+            } catch (pageError) {
+              // Si una página falla, continuar con la siguiente
+              this.logger.warn(`⚠️ No se pudo convertir página ${pageNum}: ${pageError.message}`);
+              // Si es la primera página y falla, es un error crítico
+              if (pageNum === 1 && imageMap.size === 0) {
+                this.logger.error(`❌ Error crítico: No se pudo convertir ni la primera página`);
+              }
             }
+          }
+          
+          results.metadata.imagePages = imageMap.size;
+          if (imageMap.size > 0) {
+            this.logger.log(`📷 Convertidas ${imageMap.size} páginas individualmente: [${Array.from(imageMap.keys()).join(', ')}]`);
+          } else {
+            this.logger.error(`❌ No se pudo convertir ninguna página del documento`);
           }
         }
       }
@@ -124,10 +146,11 @@ export class PdfHybridAnalyzerService {
             if (needsVisual) {
               this.logger.log(`👁️ Analizando con Vision API: "${promptData.prompt.substring(0, 50)}..."`);
               
-              // Analizar cada página o solo las relevantes
-              const pagesToAnalyze = options.analyzeSignatures ? 
-                imageBase64Array : // Todas las páginas para firmas
-                [imageBase64Array[imageBase64Array.length - 1]]; // Solo última para firmas
+              // Para firmas o campos visuales, analizar TODAS las páginas disponibles
+              // Para otros campos, podemos optimizar analizando menos páginas
+              const pagesToAnalyze = needsVisual ? 
+                imageBase64Array : // TODAS las páginas para campos visuales/firmas
+                [imageBase64Array[0]]; // Solo primera página para otros campos
               
               for (let i = 0; i < pagesToAnalyze.length; i++) {
                 const pageImage = pagesToAnalyze[i];
@@ -391,8 +414,39 @@ ature: boolean;
       this.logger.log('✍️ Análisis especializado de firmas iniciado');
       
       const pdfBase64 = buffer.toString('base64');
-      const imageMap = await this.pdfImageService.convertPages(pdfBase64);
-      const imageBase64Array = Array.from(imageMap.values());
+      let imageBase64Array: string[] = [];
+      
+      // Intentar convertir TODAS las páginas posibles
+      try {
+        // Intentar hasta 15 páginas (cubrir documentos más largos)
+        const pagesToTry = Array.from({length: 15}, (_, i) => i + 1);
+        const imageMap = await this.pdfImageService.convertPages(pdfBase64, pagesToTry);
+        imageBase64Array = Array.from(imageMap.values());
+        this.logger.log(`📄 Convertidas ${imageBase64Array.length} páginas para análisis de firmas`);
+      } catch (error) {
+        this.logger.warn(`⚠️ Error convirtiendo múltiples páginas, intentando individualmente`);
+        
+        // Fallback: convertir páginas una por una
+        for (let pageNum = 1; pageNum <= 10; pageNum++) {
+          try {
+            const pageImage = await this.pdfImageService.convertSinglePage(buffer, pageNum);
+            if (pageImage) {
+              imageBase64Array.push(pageImage);
+            }
+          } catch (e) {
+            // Si no hay más páginas, parar
+            if (e.message?.includes('does not exist') || e.message?.includes('out of range')) {
+              break;
+            }
+          }
+        }
+        this.logger.log(`📄 Convertidas ${imageBase64Array.length} páginas individualmente`);
+      }
+      
+      if (imageBase64Array.length === 0) {
+        throw new Error('No se pudo convertir ninguna página del documento');
+      }
+      
       const signatureResults = [];
 
       for (const prompt of signaturePrompts) {
