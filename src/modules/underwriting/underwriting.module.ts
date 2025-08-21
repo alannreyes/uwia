@@ -9,6 +9,8 @@ import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
 import { VisualClassifierService } from './services/visual-classifier.service';
+import { JudgeValidatorService } from './services/judge-validator.service';
+import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
 
@@ -26,6 +28,8 @@ import { ClaimEvaluation } from './entities/claim-evaluation.entity';
     PdfStreamProcessorService,
     PdfImageService,
     VisualClassifierService,
+    JudgeValidatorService,
+    AdaptiveProcessingStrategyService,
   ],
   exports: [UnderwritingService],
 })

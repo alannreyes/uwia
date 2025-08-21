@@ -1,4 +1,5 @@
 import { OpenAiService } from './src/modules/underwriting/services/openai.service';
+import { JudgeValidatorService } from './src/modules/underwriting/services/judge-validator.service';
 
 async function testVisualClassification() {
   console.log('🧪 Testing Visual Classification with AI\n');
@@ -20,7 +21,8 @@ async function testVisualClassification() {
     { field: 'street_address', question: 'What is the property address?', expected: false },
   ];
 
-  const service = new OpenAiService();
+  const judgeValidator = new JudgeValidatorService();
+  const service = new OpenAiService(judgeValidator);
   let correct = 0;
   let total = testCases.length;
 

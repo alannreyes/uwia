@@ -12,7 +12,9 @@ import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
+import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
+import { openaiConfig } from '../../config/openai.config';
 
 @Injectable()
 export class UnderwritingService {
@@ -30,6 +32,7 @@ export class UnderwritingService {
     private pdfHybridAnalyzer: PdfHybridAnalyzerService,
     private pdfStreamProcessor: PdfStreamProcessorService,
     private pdfImageService: PdfImageService,
+    private adaptiveStrategy: AdaptiveProcessingStrategyService,
   ) {}
 
   async evaluateClaim(dto: EvaluateClaimRequestDto): Promise<EvaluateClaimResponseDto> {
@@ -262,8 +265,16 @@ export class UnderwritingService {
             };
           }
 
-          // NUEVO: Determinar si esta pregunta específica necesita análisis visual
-          let needsVisual = await this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
+          // NUEVO: Determinar estrategia adaptativa para máxima precisión
+          const strategy = await this.adaptiveStrategy.determineStrategy(
+            prompt.pmcField,
+            processedQuestion,
+            prompt.expectedType,
+            preparedDocument.images && preparedDocument.images.size > 0
+          );
+
+          let needsVisual = strategy.useVisualAnalysis;
+          let useDualValidation = strategy.useDualValidation;
           
           // Si no hay texto y la pregunta lo requiere, forzar análisis visual
           if (!extractedText) {
@@ -294,14 +305,26 @@ export class UnderwritingService {
               throw new Error('No image available for visual analysis');
             }
           } else {
-            // Usar análisis de texto normal
-            aiResponse = await this.openAiService.evaluateWithValidation(
-              extractedText,
-              processedQuestion,
-              prompt.expectedType as any,
-              undefined,
-              prompt.pmcField
-            );
+            // Usar análisis de texto con estrategia adaptativa
+            if (useDualValidation && openaiConfig.dualValidation) {
+              this.logger.log(`🔄 Using dual validation for ${prompt.pmcField} (strategy determined)`);
+              aiResponse = await this.openAiService.evaluateWithValidation(
+                extractedText,
+                processedQuestion,
+                prompt.expectedType as any,
+                undefined,
+                prompt.pmcField
+              );
+            } else {
+              // Evaluación simple optimizada
+              aiResponse = await this.openAiService.evaluateWithValidation(
+                extractedText,
+                processedQuestion,
+                prompt.expectedType as any,
+                undefined,
+                prompt.pmcField
+              );
+            }
           }
 
           const processingTime = Date.now() - startTime;

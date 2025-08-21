@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { openaiConfig, processingConfig } from '../../../config/openai.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
+import { JudgeValidatorService } from './judge-validator.service';
 
 const { OpenAI } = require('openai');
 
@@ -18,7 +19,7 @@ export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
   private openai: any;
 
-  constructor() {
+  constructor(private judgeValidator: JudgeValidatorService) {
     if (!openaiConfig.enabled) {
       this.logger.warn('OpenAI está deshabilitado');
       return;
@@ -467,24 +468,40 @@ Be very careful and thorough in your analysis.`;
       openaiConfig.validationModel // gpt-4o
     );
 
-    // 3. Análisis de consensus
-    const consensus = this.analyzeConsensus(primaryResult, validationResult, expectedType);
-    
-    this.logger.log(`📊 Consensus: ${consensus.agreement ? 'ACUERDO' : 'DISCREPANCIA'} - Confianza final: ${consensus.finalConfidence}`);
+    // 3. Análisis inteligente con juez
+    const judgeDecision = await this.judgeValidator.judgeResponses(
+      documentText,
+      prompt,
+      {
+        response: primaryResult.response,
+        confidence: primaryResult.confidence,
+        model: openaiConfig.model
+      },
+      {
+        response: validationResult.response,
+        confidence: validationResult.confidence,
+        model: openaiConfig.validationModel
+      },
+      expectedType,
+      pmcField
+    );
+
+    this.logger.log(`⚖️ Judge Decision: ${judgeDecision.selectedModel} - Confianza: ${judgeDecision.confidence} - Razón: ${judgeDecision.reasoning}`);
 
     return {
-      response: consensus.finalResponse,
+      response: judgeDecision.finalAnswer,
       confidence: primaryResult.confidence,
       validation_response: validationResult.response,
       validation_confidence: validationResult.confidence,
-      final_confidence: consensus.finalConfidence,
+      final_confidence: judgeDecision.confidence,
       openai_metadata: {
         primary_model: openaiConfig.model,
         validation_model: openaiConfig.validationModel,
         primary_tokens: primaryResult.tokens_used,
         validation_tokens: validationResult.tokens_used,
-        consensus_agreement: consensus.agreement,
-        consensus_reason: consensus.reason
+        judge_selected: judgeDecision.selectedModel,
+        judge_reasoning: judgeDecision.reasoning,
+        discrepancy_analysis: judgeDecision.discrepancyAnalysis
       }
     };
   }
