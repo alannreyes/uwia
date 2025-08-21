@@ -58,4 +58,4 @@ ENV NODE_ENV=production
 ENV PORT=5015
 
 # Comando para iniciar la aplicación
-CMD ["node", "dist/main"] 
+CMD ["node", "dist/src/main"] 
