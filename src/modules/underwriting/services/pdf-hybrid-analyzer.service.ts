@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createWorker } from 'tesseract.js';
 import { PdfImageService } from './pdf-image.service';
-import { PdfPageStrategyService } from './pdf-page-strategy.service';
 import { OpenAiService } from './openai.service';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 
@@ -15,7 +14,6 @@ export class PdfHybridAnalyzerService {
 
   constructor(
     private readonly pdfImageService: PdfImageService,
-    private readonly pdfPageStrategy: PdfPageStrategyService,
     private readonly openAiService: OpenAiService,
   ) {}
 
