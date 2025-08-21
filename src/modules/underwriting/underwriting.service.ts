@@ -17,6 +17,7 @@ import { ResponseType } from './entities/uw-evaluation.entity';
 @Injectable()
 export class UnderwritingService {
   private readonly logger = new Logger(UnderwritingService.name);
+  private visualAnalysisCache = new Map<string, boolean>();
 
   constructor(
     @InjectRepository(DocumentPrompt)
@@ -262,7 +263,7 @@ export class UnderwritingService {
           }
 
           // NUEVO: Determinar si esta pregunta específica necesita análisis visual
-          let needsVisual = this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
+          let needsVisual = await this.requiresVisualAnalysis(prompt.pmcField, processedQuestion);
           
           // Si no hay texto y la pregunta lo requiere, forzar análisis visual
           if (!extractedText) {
@@ -824,34 +825,57 @@ export class UnderwritingService {
   /**
    * Determina si una pregunta específica requiere análisis visual
    */
-  private requiresVisualAnalysis(pmcField: string, question: string): boolean {
-    const visualFields = [
-      'lop_signed_by_ho',
-      'lop_signed_by_client',
-      'signed_insured_next_amount',
-      'signature',
-      'stamp',
-      'seal',
-      'checkbox',
-      'marked'
-    ];
+  private async requiresVisualAnalysis(pmcField: string, question: string): Promise<boolean> {
+    // Cache key para evitar llamadas repetidas
+    const cacheKey = `${pmcField}__${question.substring(0, 100)}`;
     
-    const visualKeywords = [
-      'signed', 'signature', 'stamp', 'seal', 'marked', 
-      'checked', 'handwritten', 'visual'
-    ];
-    
-    const fieldLower = pmcField.toLowerCase();
-    const questionLower = question.toLowerCase();
-    
-    // Verificar campos conocidos
-    if (visualFields.some(field => fieldLower.includes(field))) {
-      return true;
+    if (this.visualAnalysisCache.has(cacheKey)) {
+      const cached = this.visualAnalysisCache.get(cacheKey);
+      this.logger.log(`📦 Using cached visual classification for ${pmcField}: ${cached}`);
+      return cached;
     }
-    
-    // Verificar palabras clave en la pregunta
-    if (visualKeywords.some(keyword => questionLower.includes(keyword))) {
-      return true;
+
+    try {
+      // Usar IA para clasificación inteligente
+      const classification = await this.openAiService.classifyVisualRequirement(pmcField, question);
+      
+      // Guardar en cache
+      this.visualAnalysisCache.set(cacheKey, classification.requiresVisual);
+      
+      // Limpiar cache si crece demasiado (mantener últimas 100 entradas)
+      if (this.visualAnalysisCache.size > 100) {
+        const firstKey = this.visualAnalysisCache.keys().next().value;
+        this.visualAnalysisCache.delete(firstKey);
+      }
+      
+      this.logger.log(`🤖 AI classification for ${pmcField}: ${classification.requiresVisual} - ${classification.reason}`);
+      return classification.requiresVisual;
+      
+    } catch (error) {
+      this.logger.error(`Error in AI visual classification for ${pmcField}: ${error.message}`);
+      
+      // Fallback a detección básica mejorada en caso de error
+      const fieldLower = pmcField.toLowerCase();
+      const questionLower = question.toLowerCase();
+      
+      // Patrones mejorados para detección de firmas
+      const signaturePatterns = [
+        /sign/i,           // Cualquier variación de sign/signature
+        /initial/i,        // Iniciales
+        /autograph/i,      // Autógrafo
+        /lop_.*_ho\d*/i,  // LOP homeowner con números
+        /lop_.*_client\d*/i  // LOP client con números
+      ];
+      
+      const requiresVisual = signaturePatterns.some(pattern => 
+        pattern.test(fieldLower) || pattern.test(questionLower)
+      );
+      
+      // Guardar en cache incluso el fallback
+      this.visualAnalysisCache.set(cacheKey, requiresVisual);
+      
+      this.logger.warn(`⚠️ Using fallback detection for ${pmcField}: ${requiresVisual}`);
+      return requiresVisual;
     }
     
     return false;

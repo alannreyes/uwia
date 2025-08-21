@@ -1,0 +1,245 @@
+===============================================================================
+VALIDACIÓN DE RESPUESTAS DEL SISTEMA UWIA
+Fecha: 2025-08-21
+===============================================================================
+
+CONTEXTO DE LA EVALUACIÓN:
+- record_id: 175568
+- insured_name: JOSE ESQUIVEL and JOSEFINA ESQUIVEL
+- insurance_company: INTERINSURANCE EXCHANGE OF THE AUTOMOBILE CLUB
+- insured_address: 525 DE ANZA WAY, OXNARD, CA 93033-6566
+- type_of_job: wind damage
+- date_of_loss (esperado en contexto): NO SE PROPORCIONÓ
+- policy_number (esperado en contexto): NO SE PROPORCIONÓ  
+- claim_number (esperado en contexto): NO SE PROPORCIONÓ
+
+===============================================================================
+1. LOP.pdf - VALIDACIÓN DETALLADA
+===============================================================================
+
+DOCUMENTO ANALIZADO:
+- Tipo: Letter of Protection / Direction to Pay
+- Páginas: 2
+- Contenido: Documento firmado de BIOHOME RESTORATIONS con los Esquivel
+
+CAMPOS VALIDADOS:
+
+✅ mechanics_lien: YES
+   Respuesta Sistema: YES
+   Validación: CORRECTO
+   Evidencia: El documento dice "LETTER OF PROTECTION" y "a lien upon any and all Proceeds"
+   
+❌ lop_date1: "" (vacío)
+   Respuesta Sistema: "" (vacío)
+   Validación: INCORRECTO
+   Evidencia: Todas las firmas tienen fecha 6/7/2025
+   Esperado: 2025-06-07
+   PROBLEMA: El sistema no detectó la fecha de firma
+
+❌ lop_signed_by_client1: NO
+   Respuesta Sistema: NO  
+   Validación: INCORRECTO
+   Evidencia: OSMAN DELGADO (Service Provider) SÍ firmó en página 2
+   Esperado: YES
+   PROBLEMA: No detectó la firma del proveedor de servicio
+
+❌ lop_signed_by_ho1: NO
+   Respuesta Sistema: NO
+   Validación: INCORRECTO  
+   Evidencia: JOSE ESQUIVEL y JOSEFINA ESQUIVEL (Clients) SÍ firmaron en página 2
+   Esperado: YES
+   PROBLEMA: No detectó las firmas de los clientes/homeowners
+
+✅ onb_street1: 525 De Anza Way
+   Respuesta Sistema: 525 De Anza Way
+   Validación: CORRECTO
+   Evidencia: Dirección exacta en el documento
+
+✅ onb_zip1: 93033
+   Respuesta Sistema: 93033
+   Validación: CORRECTO
+   Evidencia: ZIP code correcto (aunque el documento muestra 93033, no 93033-6566)
+
+✅ onb_city1: Oxnard
+   Respuesta Sistema: Oxnard
+   Validación: CORRECTO
+
+✅ state1: CA California
+   Respuesta Sistema: CA California
+   Validación: CORRECTO
+
+❓ onb_date_of_loss1: 02-26-25
+   Respuesta Sistema: 02-26-25
+   Validación: FORMATO INCORRECTO
+   Evidencia: El documento dice "2/26/2025"
+   Esperado en formato: 2025-02-26
+   PROBLEMA: Formato MM-DD-YY en lugar de YYYY-MM-DD
+
+✅ onb_policy_number1: CHO 076878109
+   Respuesta Sistema: CHO 076878109
+   Validación: CORRECTO
+
+✅ onb_claim_number1: 017200281  
+   Respuesta Sistema: 017200281
+   Validación: CORRECTO
+
+CAMPOS DE COMPARACIÓN (_match):
+
+✅ onb_street_match: YES
+   Validación: CORRECTO (525 De Anza Way = 525 DE ANZA WAY)
+
+✅ onb_zip_match: YES
+   Validación: CORRECTO (93033 = primera parte de 93033-6566)
+
+✅ onb_address_match: YES
+   Validación: CORRECTO
+
+✅ onb_city_match: YES
+   Validación: CORRECTO (Oxnard = OXNARD)
+
+❌ onb_date_of_loss_match: NO
+   Validación: NO SE PUEDE VALIDAR
+   Problema: No se proporcionó date_of_loss en el contexto para comparar
+
+❌ onb_policy_number_match: NO
+   Validación: NO SE PUEDE VALIDAR
+   Problema: No se proporcionó policy_number en el contexto para comparar
+
+❌ onb_claim_number_match: NO
+   Validación: NO SE PUEDE VALIDAR
+   Problema: No se proporcionó claim_number en el contexto para comparar
+
+===============================================================================
+2. CERTIFICATE.pdf - VALIDACIÓN
+===============================================================================
+
+DOCUMENTO ANALIZADO:
+- Tipo: Certificate of Completion & Satisfaction
+- Compañía: Well Done Mitigation (NO es BIOHOME)
+- Clientes: Miguel Rolon & Santita Rodriguez (NO son los Esquivel)
+- Dirección: 693 Walkup Drive, Orlando FL (NO es la dirección de los Esquivel)
+
+CAMPO VALIDADO:
+
+❓ date_of_completion1: 07-28-25
+   Respuesta Sistema: 07-28-25
+   Validación: TÉCNICAMENTE CORRECTO PERO CONTEXTO INCORRECTO
+   Evidencia: El certificado dice 07/28/2025
+   PROBLEMA 1: Formato MM-DD-YY en lugar de YYYY-MM-DD
+   PROBLEMA 2: Este certificado NO es para los Esquivel, es para otros clientes
+
+===============================================================================
+3. ESTIMATE.pdf
+===============================================================================
+
+CAMPO VALIDADO:
+
+❓ signed_insured_next_amount: NO
+   Respuesta Sistema: NO
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+   Necesito ver el PDF de ESTIMATE para confirmar
+
+===============================================================================
+4. MOLD.pdf
+===============================================================================
+
+CAMPO VALIDADO:
+
+❓ mold_test_report: Positive
+   Respuesta Sistema: Positive
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+   Necesito ver el PDF de MOLD para confirmar
+
+===============================================================================
+5. POLICY.pdf
+===============================================================================
+
+CAMPOS VALIDADOS:
+
+❓ policy_valid_from1: 09-28-24
+   Respuesta Sistema: 09-28-24
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+   PROBLEMA: Formato MM-DD-YY en lugar de YYYY-MM-DD
+
+❓ policy_valid_to1: 09-28-25
+   Respuesta Sistema: 09-28-25
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+   PROBLEMA: Formato MM-DD-YY en lugar de YYYY-MM-DD
+
+✅ matching_insured_name: YES
+   Respuesta Sistema: YES
+   Validación: ASUMO CORRECTO (nombres coinciden con contexto)
+
+✅ matching_insured_company: YES
+   Respuesta Sistema: YES
+   Validación: ASUMO CORRECTO (compañía coincide con contexto)
+
+❓ policy_covers_type_job: YES
+   Respuesta Sistema: YES
+   Validación: PROBABLE (wind damage típicamente cubierto)
+
+===============================================================================
+6. ROOF.pdf
+===============================================================================
+
+CAMPO VALIDADO:
+
+❓ roof_area_report: 1513
+   Respuesta Sistema: 1513
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+
+===============================================================================
+7. WEATHER.pdf
+===============================================================================
+
+CAMPOS VALIDADOS:
+
+❓ windspeed1: 38
+   Respuesta Sistema: 38
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+
+❓ wind_gust1: 72
+   Respuesta Sistema: 72
+   Validación: NO PUEDO VALIDAR SIN VER EL DOCUMENTO
+
+===============================================================================
+RESUMEN DE PROBLEMAS CRÍTICOS
+===============================================================================
+
+1. DETECCIÓN DE FIRMAS EN LOP.pdf - FALLO TOTAL ❌❌❌
+   - lop_signed_by_client1: Detectó NO cuando SÍ hay firma del proveedor
+   - lop_signed_by_ho1: Detectó NO cuando SÍ hay firmas de los clientes
+   - lop_date1: No detectó fecha cuando todas las firmas tienen 6/7/2025
+   IMPACTO: CRÍTICO - Las firmas están en página 2 y no se detectaron
+
+2. FORMATO DE FECHAS - INCONSISTENTE ⚠️
+   - Todas las fechas en formato MM-DD-YY en lugar de YYYY-MM-DD
+   - Los prompts piden YYYY-MM-DD pero el sistema responde MM-DD-YY
+
+3. VARIABLES DE CONTEXTO FALTANTES ⚠️
+   - date_of_loss, policy_number, claim_number no se pasaron para comparación
+   - Esto causa que todos los _match relacionados den NO
+
+4. DOCUMENTO INCORRECTO EN CERTIFICATE ⚠️
+   - El certificado procesado NO es para los Esquivel
+   - Es para otros clientes (Miguel Rolon & Santita Rodriguez)
+   - Posible problema de mezcla de documentos
+
+===============================================================================
+RECOMENDACIONES URGENTES
+===============================================================================
+
+1. URGENTE: Revisar por qué no se detectan firmas en página 2 del LOP
+   - Verificar que se esté analizando la página 2
+   - Confirmar que Vision API se active para estas preguntas
+
+2. IMPORTANTE: Estandarizar formato de fechas
+   - Modificar lógica para devolver YYYY-MM-DD como piden los prompts
+
+3. REVISAR: Variables de contexto
+   - Asegurar que date_of_loss, policy_number, claim_number se pasen correctamente
+
+4. VERIFICAR: Documento correcto
+   - El CERTIFICATE.pdf procesado no corresponde a los Esquivel
+
+===============================================================================

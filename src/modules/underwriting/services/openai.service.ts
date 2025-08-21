@@ -526,6 +526,116 @@ Be very careful and thorough in your analysis.`;
   }
 
   /**
+   * Clasifica múltiples preguntas en batch para optimizar rendimiento
+   */
+  async classifyBatch(batchPrompt: string): Promise<string> {
+    try {
+      if (!openaiConfig.enabled) {
+        throw new Error('OpenAI disabled');
+      }
+
+      const completion = await this.retryWithBackoff(async () => {
+        return await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert at classifying document questions. Always respond with valid JSON only.' 
+            },
+            { role: 'user', content: batchPrompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 1000,
+          response_format: { type: "json_object" }
+        });
+      });
+
+      return completion.choices[0].message.content.trim();
+      
+    } catch (error) {
+      this.logger.error(`Error in batch classification: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Clasifica si una pregunta requiere análisis visual usando IA
+   */
+  async classifyVisualRequirement(
+    pmcField: string,
+    question: string
+  ): Promise<{ requiresVisual: boolean; reason: string }> {
+    try {
+      if (!openaiConfig.enabled) {
+        // Fallback conservador si OpenAI está deshabilitado
+        return {
+          requiresVisual: true,
+          reason: 'OpenAI disabled - defaulting to visual analysis for safety'
+        };
+      }
+
+      const classificationPrompt = `You are a document analysis expert. Analyze if this question requires visual inspection of the document.
+
+Field name: ${pmcField}
+Question: ${question}
+
+Visual analysis IS REQUIRED for:
+- Signatures, initials, or any handwritten elements
+- Checkboxes, stamps, seals, or physical marks
+- Document layout, formatting, or visual structure
+- Logos, images, or graphical elements
+- Anything that cannot be extracted from pure text
+
+Visual analysis is NOT required for:
+- Text values (names, addresses, numbers)
+- Dates that are typed/printed
+- Standard form field values
+- Information that can be extracted via OCR
+
+Respond in JSON format:
+{
+  "requires_visual": true/false,
+  "reason": "brief explanation",
+  "confidence": 0.0-1.0
+}`;
+
+      const completion = await this.retryWithBackoff(async () => {
+        return await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini', // Usar modelo más rápido para clasificación
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert at determining if document questions require visual analysis. Respond only with valid JSON.' 
+            },
+            { role: 'user', content: classificationPrompt }
+          ],
+          temperature: 0.1, // Baja temperatura para respuestas consistentes
+          max_tokens: 150,
+          response_format: { type: "json_object" }
+        });
+      });
+
+      const response = completion.choices[0].message.content.trim();
+      const result = JSON.parse(response);
+      
+      this.logger.log(`📊 Visual classification for ${pmcField}: ${result.requires_visual} (${result.reason})`);
+      
+      return {
+        requiresVisual: result.requires_visual || false,
+        reason: result.reason || 'Classification completed'
+      };
+      
+    } catch (error) {
+      this.logger.error(`Error in visual classification: ${error.message}`);
+      // En caso de error, ser conservador y usar análisis visual
+      return {
+        requiresVisual: true,
+        reason: `Classification error - defaulting to visual: ${error.message}`
+      };
+    }
+  }
+
+  /**
    * Evalúa usando GPT-4 Vision para preguntas que requieren análisis visual
    */
   async evaluateWithVision(
