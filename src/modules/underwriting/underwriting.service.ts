@@ -344,18 +344,16 @@ export class UnderwritingService {
                   
                   this.logger.log(`📊 Page ${pageNumber} result: ${pageResponse.response} (confidence: ${pageResponse.confidence})`);
                   
-                  // Para campos de firma, si encontramos un "YES" con buena confianza, usarlo inmediatamente
-                  if (prompt.expectedType === 'boolean' && 
-                      pageResponse.response === 'YES' && 
-                      pageResponse.confidence >= 0.7) {
-                    this.logger.log(`✅ Found positive signature on page ${pageNumber} - using this result`);
+                  // Para campos de firma/booleanos, si encontramos un "YES", usarlo inmediatamente
+                  if (prompt.expectedType === 'boolean' && pageResponse.response === 'YES') {
+                    this.logger.log(`✅ Found positive answer on page ${pageNumber} (confidence: ${pageResponse.confidence}) - using this result`);
                     aiResponse = pageResponse;
                     foundPositiveAnswer = true;
                     break;
                   }
                   
-                  // Mantener la respuesta con mayor confianza
-                  if (pageResponse.confidence > bestConfidence) {
+                  // Mantener la mejor respuesta basada en lógica inteligente
+                  if (!bestResponse || this.isBetterResponse(pageResponse, bestResponse, prompt.expectedType)) {
                     bestResponse = pageResponse;
                     bestConfidence = pageResponse.confidence;
                   }
@@ -369,7 +367,7 @@ export class UnderwritingService {
             
             // Si no encontramos una respuesta positiva, usar la de mayor confianza
             if (!foundPositiveAnswer && bestResponse) {
-              this.logger.log(`📊 Using best confidence result from all pages: ${bestResponse.response} (${bestResponse.confidence})`);
+              this.logger.log(`📊 No positive answers found. Using best confidence result: ${bestResponse.response} (${bestResponse.confidence})`);
               aiResponse = bestResponse;
             }
             
@@ -1151,6 +1149,35 @@ export class UnderwritingService {
       confidenceThreshold: 0.8,
       reasoning: 'Conservative fallback - no specific pattern detected'
     };
+  }
+
+  /**
+   * Determina si una respuesta es mejor que otra basado en el tipo de campo
+   */
+  private isBetterResponse(newResponse: any, currentBest: any, expectedType: string): boolean {
+    // Para campos booleanos (especialmente firmas)
+    if (expectedType === 'boolean') {
+      // Si la nueva respuesta es YES y la actual es NO, siempre prefiere YES
+      if (newResponse.response === 'YES' && currentBest.response === 'NO') {
+        return true;
+      }
+      
+      // Si ambas son NO, prefiere la de mayor confianza
+      if (newResponse.response === 'NO' && currentBest.response === 'NO') {
+        return newResponse.confidence > currentBest.confidence;
+      }
+      
+      // Si ambas son YES, prefiere la de mayor confianza
+      if (newResponse.response === 'YES' && currentBest.response === 'YES') {
+        return newResponse.confidence > currentBest.confidence;
+      }
+      
+      // Si la nueva es NO y la actual es YES, mantener YES
+      return false;
+    }
+    
+    // Para otros tipos de campo, usar lógica de confianza estándar
+    return newResponse.confidence > currentBest.confidence;
   }
 
 }
