@@ -233,9 +233,27 @@ export class UnderwritingService {
         this.logger.warn(`No text extracted from ${documentName}, will rely on visual analysis`);
       }
 
-      // 4. Procesar prompts en paralelo con límite de concurrencia
-      const concurrencyLimit = 3; // Máximo 3 requests simultáneos
-      const processPromise = async (prompt: any) => {
+      // 4. MEJORADO: Procesamiento inteligente con control de concurrencia
+      // Identificar campos críticos que necesitan procesamiento secuencial
+      const criticalFields = ['lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount'];
+      const isCriticalDocument = documentName.toLowerCase().includes('lop') || 
+                                 documentName.toLowerCase().includes('estimate');
+      
+      // Configurar concurrencia basada en tipo de documento y campo
+      const concurrencyLimit = isCriticalDocument ? 1 : 2; // Secuencial para documentos críticos
+      const delayBetweenRequests = isCriticalDocument ? 5000 : 2000; // 5s para críticos, 2s para otros
+      
+      this.logger.log(`📋 Processing strategy for ${documentName}:`);
+      this.logger.log(`   - Concurrency: ${concurrencyLimit}`);
+      this.logger.log(`   - Delay between: ${delayBetweenRequests}ms`);
+      this.logger.log(`   - Total prompts: ${prompts.length}`);
+      
+      const processPromise = async (prompt: any, index: number) => {
+        // Agregar delay entre requests para evitar rate limiting
+        if (index > 0 && isCriticalDocument) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+          this.logger.log(`⏳ Delay ${delayBetweenRequests}ms before processing ${prompt.pmcField}`);
+        }
         const startTime = Date.now();
         
         try {
@@ -266,12 +284,24 @@ export class UnderwritingService {
           }
 
           // NUEVO: Determinar estrategia adaptativa para máxima precisión
-          const strategy = await this.adaptiveStrategy.determineStrategy(
-            prompt.pmcField,
-            processedQuestion,
-            prompt.expectedType,
-            preparedDocument.images && preparedDocument.images.size > 0
-          );
+          this.logger.log(`🔄 Determining strategy for: ${prompt.pmcField}`);
+          
+          let strategy;
+          try {
+            strategy = await this.adaptiveStrategy.determineStrategy(
+              prompt.pmcField,
+              processedQuestion,
+              prompt.expectedType,
+              preparedDocument.images && preparedDocument.images.size > 0
+            );
+          } catch (strategyError) {
+            this.logger.error(`❌ Strategy determination failed for ${prompt.pmcField}: ${strategyError.message}`);
+            this.logger.error(`Stack trace: ${strategyError.stack}`);
+            
+            // Fallback inteligente mejorado basado en patrones del campo
+            strategy = this.getIntelligentFallbackStrategy(prompt.pmcField, processedQuestion, prompt.expectedType);
+            this.logger.warn(`⚠️ Using intelligent fallback strategy for ${prompt.pmcField}: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
+          }
 
           let needsVisual = strategy.useVisualAnalysis;
           let useDualValidation = strategy.useDualValidation;
@@ -560,7 +590,7 @@ export class UnderwritingService {
 
   private async processConcurrently<T, R>(
     items: T[],
-    processor: (item: T) => Promise<R>,
+    processor: (item: T, index: number) => Promise<R>,
     concurrencyLimit: number
   ): Promise<R[]> {
     const results: (R | null)[] = new Array(items.length).fill(null);
@@ -570,7 +600,7 @@ export class UnderwritingService {
       const index = i; // Capturar índice para mantener orden
       const item = items[index];
       
-      const promise = processor(item).then(
+      const promise = processor(item, index).then(
         result => {
           results[index] = result; // Guardar en posición correcta
         },
@@ -999,6 +1029,128 @@ export class UnderwritingService {
       this.logger.log('🆘 Fallback final al método actual');
       return await this.pdfParserService.extractTextFromBase64(fileContent);
     }
+  }
+
+  /**
+   * Fallback inteligente mejorado para cuando falla la determinación de estrategia
+   */
+  private getIntelligentFallbackStrategy(
+    pmcField: string,
+    question: string,
+    expectedType: any
+  ): any {
+    const fieldLower = pmcField.toLowerCase();
+    const questionLower = question.toLowerCase();
+    
+    // Patrones de análisis mejorado
+    const patterns = {
+      // Campos de firma - ALTA PRIORIDAD
+      signature: {
+        patterns: [
+          /lop.*sign/i, /signed.*by/i, /sign.*insured/i, /homeowner.*sign/i, 
+          /client.*sign/i, /signature/i, /initial/i, /autograph/i
+        ],
+        strategy: {
+          useVisualAnalysis: true,
+          useDualValidation: true,
+          primaryModel: 'gpt-4o',
+          validationModel: 'gpt-4o',
+          confidenceThreshold: 0.7,
+          reasoning: 'Signature field detected - high priority visual analysis'
+        }
+      },
+      
+      // Fechas - MEDIA PRIORIDAD
+      dates: {
+        patterns: [
+          /date/i, /effective/i, /expiration/i, /valid/i, /from/i, /to/i, /period/i
+        ],
+        strategy: {
+          useVisualAnalysis: false,
+          useDualValidation: false,
+          primaryModel: 'gpt-4o',
+          confidenceThreshold: 0.85,
+          reasoning: 'Date field - text extraction sufficient'
+        }
+      },
+      
+      // Comparaciones/matching - ALTA PRIORIDAD
+      matching: {
+        patterns: [
+          /_match/i, /matching_/i, /compare/i, /verify/i, /confirm/i
+        ],
+        strategy: {
+          useVisualAnalysis: false,
+          useDualValidation: true,
+          primaryModel: 'gpt-4o',
+          validationModel: 'gpt-4o',
+          confidenceThreshold: 0.8,
+          reasoning: 'Comparison field - requires validation'
+        }
+      },
+      
+      // Campos monetarios - MEDIA PRIORIDAD
+      monetary: {
+        patterns: [
+          /amount/i, /cost/i, /price/i, /value/i, /total/i, /deductible/i, /premium/i
+        ],
+        strategy: {
+          useVisualAnalysis: false,
+          useDualValidation: true,
+          primaryModel: 'gpt-4o',
+          confidenceThreshold: 0.85,
+          reasoning: 'Monetary field - important for accuracy'
+        }
+      },
+      
+      // Información básica - BAJA PRIORIDAD
+      basic: {
+        patterns: [
+          /name/i, /address/i, /city/i, /state/i, /zip/i, /phone/i, /email/i
+        ],
+        strategy: {
+          useVisualAnalysis: false,
+          useDualValidation: false,
+          primaryModel: 'gpt-4o',
+          confidenceThreshold: 0.9,
+          reasoning: 'Basic information field - standard processing'
+        }
+      }
+    };
+    
+    // Buscar el patrón que coincida
+    for (const [category, config] of Object.entries(patterns)) {
+      const matches = config.patterns.some(pattern => 
+        pattern.test(fieldLower) || pattern.test(questionLower)
+      );
+      
+      if (matches) {
+        this.logger.log(`🎯 Fallback category detected: ${category} for ${pmcField}`);
+        return config.strategy;
+      }
+    }
+    
+    // Fallback por tipo de respuesta esperada
+    if (expectedType === 'boolean') {
+      return {
+        useVisualAnalysis: fieldLower.includes('sign'),
+        useDualValidation: true,
+        primaryModel: 'gpt-4o',
+        confidenceThreshold: 0.75,
+        reasoning: 'Boolean field - conservative dual validation'
+      };
+    }
+    
+    // Fallback general más conservador
+    this.logger.warn(`⚠️ No specific pattern matched for ${pmcField}, using conservative fallback`);
+    return {
+      useVisualAnalysis: false,
+      useDualValidation: true,
+      primaryModel: 'gpt-4o',
+      validationModel: 'gpt-4o',
+      confidenceThreshold: 0.8,
+      reasoning: 'Conservative fallback - no specific pattern detected'
+    };
   }
 
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { openaiConfig } from '../../../config/openai.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
+import { RateLimiterService } from './rate-limiter.service';
 
 export interface ProcessingStrategy {
   useVisualAnalysis: boolean;
@@ -14,6 +15,11 @@ export interface ProcessingStrategy {
 @Injectable()
 export class AdaptiveProcessingStrategyService {
   private readonly logger = new Logger(AdaptiveProcessingStrategyService.name);
+  private rateLimiter: RateLimiterService;
+  
+  constructor() {
+    this.rateLimiter = new RateLimiterService();
+  }
 
   /**
    * Determina la estrategia de procesamiento más adecuada para cada prompt
@@ -72,7 +78,10 @@ Respond in JSON format:
 }`;
 
       // Usar GPT-4o-mini para análisis de estrategia (rápido y económico)
+      this.logger.log(`🔧 OpenAI config check - Enabled: ${openaiConfig.enabled}, HasKey: ${!!openaiConfig.apiKey}`);
+      
       if (!openaiConfig.enabled || !openaiConfig.apiKey) {
+        this.logger.warn(`⚠️ OpenAI not available for strategy analysis. Enabled: ${openaiConfig.enabled}, HasKey: ${!!openaiConfig.apiKey}`);
         return this.getFallbackStrategy(pmcField, question, expectedType);
       }
 
@@ -83,22 +92,29 @@ Respond in JSON format:
         maxRetries: 2
       });
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an AI strategy expert. Analyze document processing requirements and recommend optimal AI strategies. Respond only with valid JSON.'
-          },
-          {
-            role: 'user',
-            content: analysisPrompt
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 300,
-        response_format: { type: "json_object" }
-      });
+      // Usar rate limiter para estrategia con prioridad normal
+      const completion = await this.rateLimiter.executeWithRateLimit(
+        async () => {
+          return await openai.chat.completions.create({
+            model: 'gpt-4o', // Usar GPT-4o como decidiste
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an AI strategy expert. Analyze document processing requirements and recommend optimal AI strategies. Respond only with valid JSON.'
+              },
+              {
+                role: 'user',
+                content: analysisPrompt
+              }
+            ],
+            temperature: 0.1,
+            max_tokens: 300,
+            response_format: { type: "json_object" }
+          });
+        },
+        `strategy_${pmcField}`,
+        'normal' // Prioridad normal para estrategias
+      );
 
       const strategy = JSON.parse(completion.choices[0].message.content.trim());
       
@@ -134,14 +150,28 @@ Respond in JSON format:
     const fieldLower = pmcField.toLowerCase();
     const questionLower = question.toLowerCase();
     
-    // Detectar necesidad de análisis visual
+    // Detectar necesidad de análisis visual - MEJORADO para campos de firma
     const visualKeywords = [
       'sign', 'signature', 'initial', 'stamp', 'seal', 'mark', 
       'handwrit', 'visual', 'check', 'box', 'x mark', 'drawn'
     ];
+    
+    // Patrones específicos para campos de firma LOP
+    const signaturePatterns = [
+      /lop.*sign/i,           // lop_signed_by_ho1, lop_signed_by_client1
+      /signed.*by/i,          // signed_by_ho, signed_by_client
+      /sign.*insured/i,       // signed_insured_next_amount
+      /homeowner.*sign/i,     // homeowner signature
+      /client.*sign/i         // client signature
+    ];
+    
     const needsVisual = visualKeywords.some(keyword => 
       fieldLower.includes(keyword) || questionLower.includes(keyword)
+    ) || signaturePatterns.some(pattern =>
+      pattern.test(fieldLower) || pattern.test(questionLower)
     );
+    
+    this.logger.log(`🔍 Fallback analysis for ${pmcField}: needsVisual=${needsVisual}`);
 
     // Detectar necesidad de validación dual
     const complexKeywords = [

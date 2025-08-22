@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { openaiConfig, processingConfig } from '../../../config/openai.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 import { JudgeValidatorService } from './judge-validator.service';
+import { RateLimiterService } from './rate-limiter.service';
 
 const { OpenAI } = require('openai');
 
@@ -18,8 +19,10 @@ export interface EvaluationResult {
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
   private openai: any;
+  private rateLimiter: RateLimiterService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
+    this.rateLimiter = new RateLimiterService();
     if (!openaiConfig.enabled) {
       this.logger.warn('OpenAI está deshabilitado');
       return;
@@ -102,17 +105,22 @@ export class OpenAiService {
     const userPrompt = this.buildUserPrompt(documentText, prompt);
     const modelToUse = modelOverride || openaiConfig.model;
 
-    const completion = await this.retryWithBackoff(async () => {
-      return await this.openai.chat.completions.create({
-        model: modelToUse,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: openaiConfig.temperature,
-        max_tokens: openaiConfig.maxTokens,
-      });
-    });
+    // Usar rate limiter para todas las llamadas a OpenAI
+    const completion = await this.rateLimiter.executeWithRateLimit(
+      async () => {
+        return await this.openai.chat.completions.create({
+          model: modelToUse,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: openaiConfig.temperature,
+          max_tokens: openaiConfig.maxTokens,
+        });
+      },
+      `evaluate_${pmcField || 'field'}`,
+      pmcField?.includes('sign') ? 'high' : 'normal' // Alta prioridad para campos de firma
+    );
 
     const response = completion.choices[0].message.content.trim();
     const confidence = this.extractConfidence(response);
@@ -519,17 +527,22 @@ Be very careful and thorough in your analysis.`;
     const userPrompt = this.buildUserPrompt(documentText, validationPrompt);
     const modelToUse = modelOverride || openaiConfig.validationModel;
 
-    const completion = await this.retryWithBackoff(async () => {
-      return await this.openai.chat.completions.create({
-        model: modelToUse,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: openaiConfig.temperature,
-        max_tokens: openaiConfig.maxTokens,
-      });
-    });
+    // Usar rate limiter para todas las llamadas a OpenAI
+    const completion = await this.rateLimiter.executeWithRateLimit(
+      async () => {
+        return await this.openai.chat.completions.create({
+          model: modelToUse,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: openaiConfig.temperature,
+          max_tokens: openaiConfig.maxTokens,
+        });
+      },
+      `evaluate_${pmcField || 'field'}`,
+      pmcField?.includes('sign') ? 'high' : 'normal' // Alta prioridad para campos de firma
+    );
 
     const response = completion.choices[0].message.content.trim();
     const confidence = this.extractConfidence(response);
@@ -672,29 +685,34 @@ Respond in JSON format:
       // Construir prompt específico para análisis visual
       const visionPrompt = this.buildVisionPrompt(prompt, expectedType, pmcField);
       
-      const completion = await this.retryWithBackoff(async () => {
-        return await this.openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [{
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: visionPrompt
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/png;base64,${imageBase64}`,
-                  detail: "high" // Alta resolución para detectar firmas
+      // Usar rate limiter con alta prioridad para Vision API
+      const completion = await this.rateLimiter.executeWithRateLimit(
+        async () => {
+          return await this.openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: visionPrompt
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/png;base64,${imageBase64}`,
+                    detail: "high" // Alta resolución para detectar firmas
+                  }
                 }
-              }
-            ]
-          }],
-          max_tokens: 300,
-          temperature: parseFloat(process.env.OPENAI_VISION_TEMPERATURE) || 0.1
-        });
-      });
+              ]
+            }],
+            max_tokens: 300,
+            temperature: parseFloat(process.env.OPENAI_VISION_TEMPERATURE) || 0.1
+          });
+        },
+        `vision_${pmcField || 'field'}_page${pageNumber}`,
+        'high' // Alta prioridad para Vision API
+      );
 
       const response = completion.choices[0].message.content.trim();
       const confidence = this.extractConfidence(response);
