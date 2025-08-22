@@ -476,7 +476,20 @@ Be very careful and thorough in your analysis.`;
       openaiConfig.validationModel // gpt-4o
     );
 
-    // 3. Análisis inteligente con juez
+    // 3. LOGGING PREVIO AL JUEZ - Mostrar las dos respuestas que se van a juzgar
+    this.logger.log(`🔄 DUAL VALIDATION RESULTS for ${pmcField}:`);
+    this.logger.log(`   📊 Primary Model (${openaiConfig.model}): "${primaryResult.response}" (confidence: ${primaryResult.confidence})`);
+    this.logger.log(`   📊 Validation Model (${openaiConfig.validationModel}): "${validationResult.response}" (confidence: ${validationResult.confidence})`);
+    
+    // Determinar si hay discrepancia
+    const hasDiscrepancy = primaryResult.response !== validationResult.response;
+    if (hasDiscrepancy) {
+      this.logger.warn(`⚠️ DISCREPANCY DETECTED - Models disagreed! Invoking judge...`);
+    } else {
+      this.logger.log(`✅ CONSENSUS - Models agreed! Judge will confirm...`);
+    }
+
+    // 4. Análisis inteligente con juez
     const judgeDecision = await this.judgeValidator.judgeResponses(
       documentText,
       prompt,
@@ -494,7 +507,15 @@ Be very careful and thorough in your analysis.`;
       pmcField
     );
 
-    this.logger.log(`⚖️ Judge Decision: ${judgeDecision.selectedModel} - Confianza: ${judgeDecision.confidence} - Razón: ${judgeDecision.reasoning}`);
+    // 5. LOGGING DETALLADO DE LA DECISIÓN DEL JUEZ
+    this.logger.log(`⚖️ JUDGE DECISION for ${pmcField}:`);
+    this.logger.log(`   🎯 Selected: ${judgeDecision.selectedModel.toUpperCase()} model`);
+    this.logger.log(`   📝 Final Answer: "${judgeDecision.finalAnswer}"`);
+    this.logger.log(`   📊 Final Confidence: ${judgeDecision.confidence}`);
+    this.logger.log(`   🧠 Judge Reasoning: ${judgeDecision.reasoning}`);
+    if (judgeDecision.discrepancyAnalysis) {
+      this.logger.log(`   🔍 Discrepancy Analysis: ${judgeDecision.discrepancyAnalysis}`);
+    }
 
     return {
       response: judgeDecision.finalAnswer,

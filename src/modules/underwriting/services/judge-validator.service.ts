@@ -39,22 +39,36 @@ export class JudgeValidatorService {
     pmcField?: string
   ): Promise<JudgeDecision> {
     
+    // Logging inicial del proceso del juez
+    this.logger.log(`⚖️ JUDGE ANALYSIS START for ${pmcField}`);
+    
+    const normalizedPrimary = this.normalizeAnswer(primaryAnswer.response, expectedType);
+    const normalizedValidation = this.normalizeAnswer(validationAnswer.response, expectedType);
+    
+    this.logger.log(`🔍 Normalized answers: Primary="${normalizedPrimary}", Validation="${normalizedValidation}"`);
+    
     // Si las respuestas coinciden exactamente, alta confianza
-    if (this.normalizeAnswer(primaryAnswer.response, expectedType) === 
-        this.normalizeAnswer(validationAnswer.response, expectedType)) {
+    if (normalizedPrimary === normalizedValidation) {
       
       const avgConfidence = (primaryAnswer.confidence + validationAnswer.confidence) / 2;
+      const finalConfidence = Math.min(0.99, avgConfidence + 0.15); // Bonus mayor por consenso total
+      
+      this.logger.log(`✅ CONSENSUS DETECTED - Both models agreed!`);
+      this.logger.log(`📊 Confidence boost: ${avgConfidence.toFixed(3)} + 0.15 = ${finalConfidence.toFixed(3)}`);
       
       return {
         finalAnswer: primaryAnswer.response,
-        confidence: Math.min(0.99, avgConfidence + 0.15), // Bonus mayor por consenso total
-        reasoning: 'Both models reached the same conclusion independently',
+        confidence: finalConfidence,
+        reasoning: 'Both models reached the same conclusion independently - consensus bonus applied',
         selectedModel: 'primary'
       };
     }
 
     // Si hay discrepancia, usar un tercer modelo como juez
-    this.logger.warn(`⚖️ Discrepancy detected for ${pmcField}. Invoking judge...`);
+    this.logger.warn(`🚨 DISCREPANCY DETECTED for ${pmcField}`);
+    this.logger.warn(`   Primary says: "${primaryAnswer.response}" (${primaryAnswer.confidence})`);
+    this.logger.warn(`   Validation says: "${validationAnswer.response}" (${validationAnswer.confidence})`);
+    this.logger.warn(`🧠 Invoking GPT-4o as independent judge...`);
     
     try {
       const judgePrompt = this.buildJudgePrompt(
@@ -85,7 +99,13 @@ export class JudgeValidatorService {
 
       const judgeResponse = JSON.parse(completion.choices[0].message.content.trim());
       
-      this.logger.log(`⚖️ Judge decision: ${judgeResponse.decision} - ${judgeResponse.reasoning}`);
+      // Log detallado de la respuesta del juez
+      this.logger.log(`🧠 JUDGE GPT-4o RAW RESPONSE:`);
+      this.logger.log(`   Decision: ${judgeResponse.decision}`);
+      this.logger.log(`   Correct Answer: ${judgeResponse.correct_answer}`);
+      this.logger.log(`   Confidence: ${judgeResponse.confidence}`);
+      this.logger.log(`   Reasoning: ${judgeResponse.reasoning}`);
+      this.logger.log(`   Discrepancy Analysis: ${judgeResponse.discrepancy_analysis}`);
 
       return this.processJudgeDecision(
         judgeResponse,
@@ -174,24 +194,33 @@ Be decisive and accurate. Your judgment is final.`;
     expectedType: ResponseType
   ): JudgeDecision {
     
+    this.logger.log(`🎯 PROCESSING JUDGE DECISION...`);
+    
     let finalAnswer: string;
     let selectedModel: 'primary' | 'validation' | 'synthesized';
     
     if (judgeResponse.decision === 'A') {
       finalAnswer = primaryAnswer.response;
       selectedModel = 'primary';
+      this.logger.log(`   ✅ Judge selected PRIMARY model answer: "${finalAnswer}"`);
     } else if (judgeResponse.decision === 'B') {
       finalAnswer = validationAnswer.response;
       selectedModel = 'validation';
+      this.logger.log(`   ✅ Judge selected VALIDATION model answer: "${finalAnswer}"`);
     } else {
       // Judge synthesized a new answer
       finalAnswer = this.formatAnswer(judgeResponse.correct_answer, expectedType);
       selectedModel = 'synthesized';
+      this.logger.log(`   🔧 Judge SYNTHESIZED new answer: "${finalAnswer}"`);
     }
+
+    const finalConfidence = judgeResponse.confidence || 0.85;
+    this.logger.log(`📊 Final judge confidence: ${finalConfidence}`);
+    this.logger.log(`⚖️ JUDGE DECISION COMPLETE: ${selectedModel.toUpperCase()} - "${finalAnswer}"`);
 
     return {
       finalAnswer,
-      confidence: judgeResponse.confidence || 0.85,
+      confidence: finalConfidence,
       reasoning: judgeResponse.reasoning,
       selectedModel,
       discrepancyAnalysis: judgeResponse.discrepancy_analysis
@@ -204,13 +233,23 @@ Be decisive and accurate. Your judgment is final.`;
     expectedType: ResponseType
   ): JudgeDecision {
     
+    this.logger.error(`⚠️ JUDGE FALLBACK MODE - GPT-4o judge failed!`);
+    
     const useValidation = validationAnswer.confidence > primaryAnswer.confidence;
+    const selectedAnswer = useValidation ? validationAnswer.response : primaryAnswer.response;
+    const selectedModel = useValidation ? 'validation' : 'primary';
+    const fallbackConfidence = Math.max(primaryAnswer.confidence, validationAnswer.confidence) * 0.8;
+    
+    this.logger.warn(`🔄 Using ${selectedModel.toUpperCase()} model (higher confidence)`);
+    this.logger.warn(`📊 Primary: "${primaryAnswer.response}" (${primaryAnswer.confidence})`);
+    this.logger.warn(`📊 Validation: "${validationAnswer.response}" (${validationAnswer.confidence})`);
+    this.logger.warn(`✅ Selected: "${selectedAnswer}" with confidence ${fallbackConfidence.toFixed(3)} (reduced 20% due to fallback)`);
     
     return {
-      finalAnswer: useValidation ? validationAnswer.response : primaryAnswer.response,
-      confidence: Math.max(primaryAnswer.confidence, validationAnswer.confidence) * 0.8,
-      reasoning: 'Fallback: selected answer with higher confidence',
-      selectedModel: useValidation ? 'validation' : 'primary',
+      finalAnswer: selectedAnswer,
+      confidence: fallbackConfidence,
+      reasoning: 'Fallback: GPT-4o judge unavailable - selected answer with higher confidence',
+      selectedModel,
       discrepancyAnalysis: 'Judge unavailable - used confidence-based selection'
     };
   }
