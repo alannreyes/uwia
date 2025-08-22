@@ -737,6 +737,58 @@ Respond in JSON format:
 
     } catch (error) {
       this.logger.error(`Error en evaluación con Vision:`, error);
+      
+      // FALLBACK: Si Vision API falla por rate limiting/circuit breaker, intentar análisis de texto
+      const isRateLimitError = error.message.includes('Rate limiter') || 
+                              error.message.includes('Circuit breaker') ||
+                              error.message.includes('queue is full') ||
+                              error.message.includes('timeout');
+      
+      if (isRateLimitError && pmcField?.toLowerCase().includes('sign')) {
+        this.logger.warn(`🔄 Vision API failed for signature field ${pmcField} - attempting text analysis fallback`);
+        
+        // Usar análisis de texto con prompt específico para firmas
+        const fallbackPrompt = `FALLBACK SIGNATURE ANALYSIS - Vision API unavailable.
+        
+Based on the document structure and text patterns, ${prompt}
+
+IMPORTANT: This is text-only analysis. Look for:
+- Text patterns indicating signature areas (e.g., "Signature:", "Signed by:")
+- Date patterns near signature sections
+- Name patterns in signature contexts
+- Form field indicators
+
+If you cannot determine from text alone, respond "NO" with confidence 0.3 to indicate uncertainty.`;
+
+        try {
+          return await this.evaluateWithValidation(
+            'FALLBACK MODE - LIMITED TEXT ANALYSIS',
+            fallbackPrompt,
+            expectedType,
+            'Text-only fallback due to Vision API unavailability',
+            pmcField
+          );
+        } catch (fallbackError) {
+          this.logger.error(`Fallback also failed for ${pmcField}:`, fallbackError);
+          // Retornar respuesta por defecto con baja confianza
+          return {
+            response: 'NO',
+            confidence: 0.3,
+            validation_response: 'NO',
+            validation_confidence: 0.3,
+            final_confidence: 0.3,
+            openai_metadata: {
+              primary_model: 'fallback',
+              validation_model: 'none',
+              primary_tokens: 0,
+              validation_tokens: 0,
+              error: 'Both Vision API and fallback failed',
+              fallback_reason: error.message
+            }
+          };
+        }
+      }
+      
       throw error;
     }
   }
@@ -750,29 +802,50 @@ Respond in JSON format:
       json: 'Provide a valid JSON object.'
     };
 
-    // Prompts específicos para análisis visual
-    const visualHints = {
-      signature: 'Look for handwritten signatures, signature lines, "X" marks, or any indication of signing.',
-      stamp: 'Look for official stamps, seals, or embossed marks.',
-      checkbox: 'Look for checkboxes, tickmarks, or selection indicators.',
-      handwriting: 'Look for handwritten text or filled form fields.'
-    };
-
-    let hint = '';
     const lowerField = (pmcField || '').toLowerCase();
-    
-    if (lowerField.includes('sign')) hint = visualHints.signature;
-    else if (lowerField.includes('stamp') || lowerField.includes('seal')) hint = visualHints.stamp;
-    else if (lowerField.includes('check') || lowerField.includes('mark')) hint = visualHints.checkbox;
-    else if (lowerField.includes('handwrit') || lowerField.includes('filled')) hint = visualHints.handwriting;
+    const isSignatureField = lowerField.includes('sign');
 
-    return `You are analyzing a document image. ${hint}
+    if (isSignatureField) {
+      // Prompt optimizado específicamente para detección de firmas
+      return `You are an expert document analyst. Your task is to identify any form of signature or signing evidence in this document image.
+
+QUESTION: ${prompt}
+
+SIGNATURE EVIDENCE TO LOOK FOR:
+• Handwritten signatures (cursive, printed, or stylized writing)
+• Names written on signature lines
+• "X" marks or signing indicators
+• Printed names near signature areas
+• Dates next to signature sections
+• Any marks indicating document signing or authorization
+
+ANALYSIS INSTRUCTIONS:
+Answer "YES" if you detect ANY of the above signature evidence.
+Answer "NO" only if signature areas are completely empty with no marks.
+Look carefully at the entire document - signatures may appear anywhere.
+
+${typeInstructions[expectedType] || ''}`;
+    } else {
+      // Prompt estándar para otros campos
+      const visualHints = {
+        stamp: 'Look for official stamps, seals, or embossed marks.',
+        checkbox: 'Look for checkboxes, tickmarks, or selection indicators.',
+        handwriting: 'Look for handwritten text or filled form fields.'
+      };
+
+      let hint = '';
+      if (lowerField.includes('stamp') || lowerField.includes('seal')) hint = visualHints.stamp;
+      else if (lowerField.includes('check') || lowerField.includes('mark')) hint = visualHints.checkbox;
+      else if (lowerField.includes('handwrit') || lowerField.includes('filled')) hint = visualHints.handwriting;
+
+      return `You are analyzing a document image. ${hint}
 
 QUESTION: ${prompt}
 
 ${typeInstructions[expectedType] || ''}
 
 Important: Base your answer ONLY on what you can visually see in the image. If you cannot clearly determine the answer from the visual evidence, respond with "NO" for boolean questions or "NOT FOUND" for other types.`;
+    }
   }
 
   private analyzeConsensus(

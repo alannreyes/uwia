@@ -57,9 +57,9 @@ export class RateLimiterService {
     maxDelay: 60000,  // 60 segundos
     backoffMultiplier: 1.5,
     jitter: true,
-    requestsPerMinute: 30, // Ajustable según tu plan de OpenAI
-    maxQueueSize: 100, // Máximo 100 requests en cola
-    maxWaitTimeMs: 300000 // 5 minutos máximo de espera
+    requestsPerMinute: 60, // Aumentado para mejor throughput
+    maxQueueSize: 200, // Aumentado para manejar más requests concurrentes
+    maxWaitTimeMs: 120000 // 2 minutos máximo de espera (reducido)
   };
 
   /**

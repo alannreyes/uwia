@@ -134,6 +134,23 @@ Respond in JSON format:
 
     } catch (error) {
       this.logger.error(`Error determining strategy for ${pmcField}: ${error.message}`);
+      
+      // Si el error es de rate limiting o circuit breaker, forzar fallback visual para campos críticos
+      const isRateLimitError = error.message.includes('Rate limiter') || 
+                              error.message.includes('Circuit breaker') ||
+                              error.message.includes('queue is full');
+      
+      if (isRateLimitError && (pmcField.toLowerCase().includes('sign') || question.toLowerCase().includes('sign'))) {
+        this.logger.warn(`🔄 Rate limit detected for signature field ${pmcField} - forcing visual analysis fallback`);
+        return {
+          useVisualAnalysis: true,
+          useDualValidation: false, // Reducir carga
+          primaryModel: 'gpt-4o',
+          confidenceThreshold: 0.70,
+          reasoning: 'Rate limit fallback - visual analysis for signatures'
+        };
+      }
+      
       return this.getFallbackStrategy(pmcField, question, expectedType);
     }
   }
