@@ -285,24 +285,66 @@ export class UnderwritingService {
           let aiResponse;
           
           if (needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
-            // Usar Vision API para preguntas visuales
-            this.logger.log(`📸 Using Vision API for: ${prompt.pmcField}`);
+            // Usar Vision API para preguntas visuales analizando TODAS las páginas
+            this.logger.log(`📸 Using Vision API for: ${prompt.pmcField} - Analyzing ${preparedDocument.images.size} page(s)`);
             
-            // Seleccionar la mejor página para análisis (primera por defecto)
-            const pageImage = preparedDocument.images.get(1) || 
-                            preparedDocument.images.get(preparedDocument.images.size) || 
-                            '';
+            // Analizar TODAS las páginas disponibles
+            const pageNumbers = Array.from(preparedDocument.images.keys()).sort((a, b) => a - b);
+            this.logger.log(`🔍 Pages to analyze: ${pageNumbers.join(', ')}`);
             
-            if (pageImage) {
-              aiResponse = await this.openAiService.evaluateWithVision(
-                pageImage,
-                processedQuestion,
-                prompt.expectedType as any,
-                prompt.pmcField,
-                1 // página analizada
-              );
-            } else {
-              throw new Error('No image available for visual analysis');
+            let bestResponse: any = null;
+            let bestConfidence = 0;
+            let foundPositiveAnswer = false;
+            
+            // Iterar através de todas las páginas
+            for (const pageNumber of pageNumbers) {
+              const pageImage = preparedDocument.images.get(pageNumber);
+              
+              if (pageImage) {
+                this.logger.log(`🎯 Analyzing page ${pageNumber} for: ${prompt.pmcField}`);
+                
+                try {
+                  const pageResponse = await this.openAiService.evaluateWithVision(
+                    pageImage,
+                    processedQuestion,
+                    prompt.expectedType as any,
+                    prompt.pmcField,
+                    pageNumber
+                  );
+                  
+                  this.logger.log(`📊 Page ${pageNumber} result: ${pageResponse.response} (confidence: ${pageResponse.confidence})`);
+                  
+                  // Para campos de firma, si encontramos un "YES" con buena confianza, usarlo inmediatamente
+                  if (prompt.expectedType === 'boolean' && 
+                      pageResponse.response === 'YES' && 
+                      pageResponse.confidence >= 0.7) {
+                    this.logger.log(`✅ Found positive signature on page ${pageNumber} - using this result`);
+                    aiResponse = pageResponse;
+                    foundPositiveAnswer = true;
+                    break;
+                  }
+                  
+                  // Mantener la respuesta con mayor confianza
+                  if (pageResponse.confidence > bestConfidence) {
+                    bestResponse = pageResponse;
+                    bestConfidence = pageResponse.confidence;
+                  }
+                  
+                } catch (pageError) {
+                  this.logger.warn(`⚠️ Error analyzing page ${pageNumber}: ${pageError.message}`);
+                  continue;
+                }
+              }
+            }
+            
+            // Si no encontramos una respuesta positiva, usar la de mayor confianza
+            if (!foundPositiveAnswer && bestResponse) {
+              this.logger.log(`📊 Using best confidence result from all pages: ${bestResponse.response} (${bestResponse.confidence})`);
+              aiResponse = bestResponse;
+            }
+            
+            if (!aiResponse) {
+              throw new Error('No pages could be analyzed successfully');
             }
           } else {
             // Usar análisis de texto con estrategia adaptativa
