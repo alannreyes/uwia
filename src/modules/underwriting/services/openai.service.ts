@@ -540,8 +540,8 @@ Be very careful and thorough in your analysis.`;
           max_tokens: openaiConfig.maxTokens,
         });
       },
-      `evaluate_${pmcField || 'field'}`,
-      pmcField?.includes('sign') ? 'high' : 'normal' // Alta prioridad para campos de firma
+      `validation_field`,
+      'normal' // Prioridad normal para validación
     );
 
     const response = completion.choices[0].message.content.trim();
