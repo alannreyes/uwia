@@ -1,0 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Ejecutar verificación de secretos
+./scripts/check-secrets.sh
+
+# Si el script anterior falla, detener el commit
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+# Continuar con otros checks si es necesario
+# npm run lint
+# npm run test

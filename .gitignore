@@ -17,8 +17,10 @@ coverage
 # nyc test coverage
 .nyc_output
 
-# Environment variables
+# CRITICAL: Environment variables and secrets - NEVER COMMIT
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
@@ -27,6 +29,14 @@ coverage
 config-corrected.env
 production.env
 CREDENCIALES_PRIVADAS.txt
+*.key
+*.pem
+*.cert
+*.crt
+**/secrets/
+**/credentials/
+config/production.json
+config/staging.json
 
 # Test files and logs
 test_results_*.log
