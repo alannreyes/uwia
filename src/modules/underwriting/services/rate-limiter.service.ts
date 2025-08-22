@@ -166,34 +166,24 @@ export class RateLimiterService {
     
     try {
       while (this.requestQueue.length > 0) {
-        this.logger.log(`🔄 Processing queue, ${this.requestQueue.length} items remaining`);
-        
         // Limpiar requests expirados
         this.cleanExpiredRequests();
         
-        if (this.requestQueue.length === 0) {
-          this.logger.log('📭 Queue is empty after cleanup');
-          break;
-        }
+        if (this.requestQueue.length === 0) break;
         
         const request = this.requestQueue.shift()!;
-        this.logger.log(`🚀 Processing request: ${request.operationName}`);
         
         try {
           // Rate limiting check antes de procesar
-          this.logger.log(`⏳ Checking rate limit for ${request.operationName}`);
           await this.waitForRateLimit();
-          this.logger.log(`✅ Rate limit check passed for ${request.operationName}`);
           
           // Ejecutar con retry logic
-          this.logger.log(`🔄 Executing with retry: ${request.operationName}`);
           const result = await this.executeWithRetry(
             request.operation, 
             request.operationName, 
             0
           );
           
-          this.logger.log(`✅ Request completed successfully: ${request.operationName}`);
           request.resolve(result);
           
         } catch (error) {
@@ -202,7 +192,6 @@ export class RateLimiterService {
         }
         
         // Small delay entre requests para prevenir spam
-        this.logger.log(`⏱️ Waiting 100ms before next request`);
         await this.sleep(100);
       }
     } catch (error) {
@@ -243,26 +232,18 @@ export class RateLimiterService {
     operationName: string,
     attemptNumber: number
   ): Promise<T> {
-    this.logger.log(`🔄 executeWithRetry called for ${operationName}, attempt ${attemptNumber}`);
-    
     try {
       // Rate limiting check
-      this.logger.log(`⏳ Secondary rate limit check for ${operationName}`);
       await this.waitForRateLimit();
-      this.logger.log(`✅ Secondary rate limit check passed for ${operationName}`);
 
-      // Log attempt y tracking de retries
+      // Track retries
       if (attemptNumber > 0) {
         this.metrics.retriesCount++;
         this.logger.log(`🔄 Retry attempt ${attemptNumber}/${this.config.maxRetries} for ${operationName}`);
-      } else {
-        this.logger.log(`🚀 First attempt for ${operationName}`);
       }
 
       // Execute operation
-      this.logger.log(`📞 Calling operation function for ${operationName}`);
       const result = await operation();
-      this.logger.log(`✅ Operation completed successfully for ${operationName}`);
       
       // Success - reset failure counter
       this.consecutiveFailures = 0;
@@ -277,11 +258,9 @@ export class RateLimiterService {
       const isRetryable = this.isRetryableError(error);
       
       this.logger.error(`❌ Error in ${operationName} (attempt ${attemptNumber + 1}): ${error.message}`);
-      this.logger.error(`❌ Error stack: ${error.stack}`);
 
       // Check if we should retry
       if (!isRetryable || attemptNumber >= this.config.maxRetries) {
-        this.logger.error(`❌ Cannot retry ${operationName}: isRetryable=${isRetryable}, attemptNumber=${attemptNumber}, maxRetries=${this.config.maxRetries}`);
         this.handleFailure(error, operationName);
         throw error;
       }
@@ -291,10 +270,8 @@ export class RateLimiterService {
       
       this.logger.warn(`⏳ Waiting ${delay}ms before retry ${attemptNumber + 1} for ${operationName}`);
       await this.sleep(delay);
-      this.logger.warn(`⏰ Retry delay completed for ${operationName}`);
 
       // Recursive retry
-      this.logger.warn(`🔁 Starting retry ${attemptNumber + 1} for ${operationName}`);
       return this.executeWithRetry(operation, operationName, attemptNumber + 1);
     }
   }
@@ -306,12 +283,8 @@ export class RateLimiterService {
     const now = Date.now();
     const oneMinuteAgo = now - 60000;
 
-    this.logger.log(`🔍 Rate limit check: now=${now}, oneMinuteAgo=${oneMinuteAgo}`);
-
     // Limpiar timestamps antiguos
-    const oldLength = this.requestTimestamps.length;
     this.requestTimestamps = this.requestTimestamps.filter(ts => ts > oneMinuteAgo);
-    this.logger.log(`🧹 Cleaned timestamps: ${oldLength} → ${this.requestTimestamps.length}`);
 
     // Si estamos en el límite, esperar
     if (this.requestTimestamps.length >= this.config.requestsPerMinute) {
@@ -320,25 +293,17 @@ export class RateLimiterService {
       const waitTime = 60000 - (now - oldestTimestamp) + 1000; // +1s de buffer
       
       this.logger.warn(`📊 Rate limit reached (${this.requestTimestamps.length}/${this.config.requestsPerMinute} requests). Waiting ${waitTime}ms`);
-      this.logger.warn(`📊 Oldest timestamp: ${oldestTimestamp}, age: ${now - oldestTimestamp}ms`);
       
       if (waitTime > 0) {
-        this.logger.warn(`⏰ Sleeping for ${waitTime}ms`);
         await this.sleep(waitTime);
-        this.logger.warn(`⏰ Sleep completed, rechecking...`);
-      } else {
-        this.logger.warn(`⏰ No need to wait (waitTime: ${waitTime}ms)`);
       }
       
       // Recursive call para re-verificar
-      this.logger.warn(`🔁 Recursive rate limit check...`);
       return this.waitForRateLimit();
     }
 
     // Registrar este request
-    this.logger.log(`✅ Rate limit OK: ${this.requestTimestamps.length}/${this.config.requestsPerMinute} requests`);
     this.requestTimestamps.push(now);
-    this.logger.log(`📝 Registered request timestamp: ${now}`);
   }
 
   /**
