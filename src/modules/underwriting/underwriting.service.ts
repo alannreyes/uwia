@@ -378,7 +378,7 @@ export class UnderwritingService {
             // Usar análisis de texto con estrategia adaptativa
             if (useDualValidation && openaiConfig.dualValidation) {
               this.logger.log(`🔄 Using dual validation for ${prompt.pmcField} (strategy determined)`);
-              aiResponse = await this.openAiService.evaluateWithValidation(
+              aiResponse = await this.openAiService.evaluateWithDualValidation(
                 extractedText,
                 processedQuestion,
                 prompt.expectedType as any,

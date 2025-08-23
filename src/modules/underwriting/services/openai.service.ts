@@ -447,7 +447,7 @@ Be very careful and thorough in your analysis.`;
     return [...new Set(relevantKeywords)]; // Eliminar duplicados
   }
 
-  private async evaluateWithDualValidation(
+  async evaluateWithDualValidation(
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
