@@ -344,14 +344,21 @@ Be very careful and thorough in your analysis.`;
   }
 
   private extractRelevantChunks(documentText: string, prompt: string): string {
+    // LÍMITE ABSOLUTO - no procesar documentos mayores a 50k caracteres
+    if (documentText.length > 50000) {
+      this.logger.warn(`⚠️ Documento muy largo (${documentText.length} chars) - truncando a 8000 caracteres`);
+      return documentText.substring(0, 8000) + "\n\n...[DOCUMENTO TRUNCADO - MUY LARGO]";
+    }
+    
     // Si el documento es pequeño, retornarlo completo
-    if (documentText.length <= 15000) {
+    if (documentText.length <= 6000) { // Reducido de 15000
       return documentText;
     }
 
-    // Dividir el documento en chunks de ~8000 caracteres
-    const chunkSize = 8000;
-    const overlap = 500; // Overlap para no perder contexto entre chunks
+    // Dividir el documento en chunks más pequeños para mejor procesamiento
+    const MAX_CHUNK_CHARACTERS = 8000; // Límite máximo por chunk
+    const chunkSize = 5000; // Reducido de 8000
+    const overlap = 300; // Reducido de 500 para menos repetición
     const chunks: string[] = [];
     
     for (let i = 0; i < documentText.length; i += chunkSize - overlap) {
@@ -384,12 +391,13 @@ Be very careful and thorough in your analysis.`;
     // Ordenar por score y tomar los mejores chunks
     scoredChunks.sort((a, b) => b.score - a.score);
     
-    // Tomar chunks hasta un máximo de ~25,000 caracteres
+    // Tomar chunks hasta un máximo de 8,000 caracteres (reducido de 25,000)
+    const MAX_TOTAL_CHARACTERS = 8000;
     let totalLength = 0;
     const selectedChunks: { chunk: string; index: number }[] = [];
     
     for (const item of scoredChunks) {
-      if (totalLength + item.chunk.length <= 25000) {
+      if (totalLength + item.chunk.length <= MAX_TOTAL_CHARACTERS) {
         selectedChunks.push(item);
         totalLength += item.chunk.length;
       }
@@ -398,10 +406,11 @@ Be very careful and thorough in your analysis.`;
     // Reordenar por índice original para mantener coherencia
     selectedChunks.sort((a, b) => a.index - b.index);
     
-    // Si no hay chunks relevantes, tomar los primeros chunks
+    // Si no hay chunks relevantes, tomar solo el primer chunk (máximo 8000 caracteres)
     if (selectedChunks.length === 0) {
-      const firstChunks = chunks.slice(0, 3); // Primeros 3 chunks
-      return firstChunks.join('\n\n--- CHUNK SEPARATOR ---\n\n');
+      const firstChunk = documentText.substring(0, MAX_TOTAL_CHARACTERS);
+      this.logger.warn('⚠️ No se encontraron chunks relevantes - usando primeros 8000 caracteres');
+      return firstChunk + (documentText.length > MAX_TOTAL_CHARACTERS ? '\n\n...[RESTO TRUNCADO]' : '');
     }
 
     return selectedChunks.map(item => item.chunk).join('\n\n--- CHUNK SEPARATOR ---\n\n');
