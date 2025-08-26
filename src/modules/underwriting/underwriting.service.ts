@@ -56,20 +56,8 @@ export class UnderwritingService {
         }
       }
       
-      const variables = {
-        'CMS_insured': dto.insured_name || contextData.insured_name,
-        'Insurance_Company': dto.insurance_company || contextData.insurance_company,
-        'insured_address': dto.insured_address || contextData.insured_address,
-        'insured_street': dto.insured_street || contextData.insured_street,
-        'insured_city': dto.insured_city || contextData.insured_city,
-        'insured_zip': dto.insured_zip || contextData.insured_zip,
-        // Nuevas variables para las preguntas de matching
-        'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
-        'policy_number': dto.policy_number || contextData.policy_number,
-        'claim_number': dto.claim_number || contextData.claim_number,
-        'type_of_job': dto.type_of_job || contextData.type_of_job,
-        'cause_of_loss': dto.cause_of_loss || contextData.cause_of_loss
-      };
+      // Usar función centralizada para mapeo consistente de variables
+      const variables = this.getVariableMapping(dto, contextData);
 
       // MODIFICACIÓN: Procesar SOLO el documento específico enviado
       let documentToProcess: string;
@@ -262,7 +250,9 @@ export class UnderwritingService {
           let processedQuestion = prompt.question;
           Object.entries(variables).forEach(([key, value]) => {
             const placeholder = `%${key}%`;
-            processedQuestion = processedQuestion.replace(new RegExp(placeholder, 'g'), value);
+            // Escapar caracteres especiales de regex para evitar errores
+            const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            processedQuestion = processedQuestion.replace(new RegExp(escapedPlaceholder, 'g'), value);
           });
 
           this.logger.log(`Processing field: ${prompt.pmcField}`);
@@ -651,19 +641,8 @@ export class UnderwritingService {
         }
       }
       
-      const variables = {
-        'CMS insured': dto.insured_name || contextData.insured_name,
-        'Insurance Company': dto.insurance_company || contextData.insurance_company,
-        'insured_address': dto.insured_address || contextData.insured_address,
-        'insured_street': dto.insured_street || contextData.insured_street,
-        'insured_city': dto.insured_city || contextData.insured_city,
-        'insured_zip': dto.insured_zip || contextData.insured_zip,
-        'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
-        'policy_number': dto.policy_number || contextData.policy_number,
-        'claim_number': dto.claim_number || contextData.claim_number,
-        'type_of_job': dto.type_of_job || contextData.type_of_job,
-        'cause_of_loss': dto.cause_of_loss || contextData.cause_of_loss
-      };
+      // Usar función centralizada para mapeo consistente de variables
+      const variables = this.getVariableMapping(dto, contextData);
 
       // Crear un mapa de documentos para acceso rápido
       const documentMap = new Map<string, string>();
@@ -1029,6 +1008,27 @@ export class UnderwritingService {
       this.logger.log('🆘 Fallback final al método actual');
       return await this.pdfParserService.extractTextFromBase64(fileContent);
     }
+  }
+
+  /**
+   * Función centralizada para obtener el mapeo de variables consistente
+   * Usa los nombres exactos que coinciden con la BD
+   */
+  private getVariableMapping(dto: EvaluateClaimRequestDto, contextData: any): Record<string, any> {
+    return {
+      // Variables principales - nombres exactos como en la BD
+      'insured_name': dto.insured_name || contextData.insured_name,
+      'insurance_company': dto.insurance_company || contextData.insurance_company,
+      'insured_address': dto.insured_address || contextData.insured_address,
+      'insured_street': dto.insured_street || contextData.insured_street,
+      'insured_city': dto.insured_city || contextData.insured_city,
+      'insured_zip': dto.insured_zip || contextData.insured_zip,
+      'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
+      'policy_number': dto.policy_number || contextData.policy_number,
+      'claim_number': dto.claim_number || contextData.claim_number,
+      'type_of_job': dto.type_of_job || contextData.type_of_job,
+      'cause_of_loss': dto.cause_of_loss || contextData.cause_of_loss
+    };
   }
 
   /**
