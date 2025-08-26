@@ -57,8 +57,8 @@ export class UnderwritingService {
       }
       
       const variables = {
-        'CMS insured': dto.insured_name || contextData.insured_name,
-        'Insurance Company': dto.insurance_company || contextData.insurance_company,
+        'CMS_insured': dto.insured_name || contextData.insured_name,
+        'Insurance_Company': dto.insurance_company || contextData.insurance_company,
         'insured_address': dto.insured_address || contextData.insured_address,
         'insured_street': dto.insured_street || contextData.insured_street,
         'insured_city': dto.insured_city || contextData.insured_city,
