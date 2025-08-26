@@ -67,7 +67,8 @@ export class UnderwritingService {
         'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
         'policy_number': dto.policy_number || contextData.policy_number,
         'claim_number': dto.claim_number || contextData.claim_number,
-        'type_of_job': dto.type_of_job || contextData.type_of_job
+        'type_of_job': dto.type_of_job || contextData.type_of_job,
+        'cause_of_loss' : dto.cause_of_loss || contextData.cause_of_loss
       };
 
       // MODIFICACIÓN: Procesar SOLO el documento específico enviado
