@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { openaiConfig, processingConfig } from '../../../config/openai.config';
+import { modelConfig } from '../../../config/model.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 import { JudgeValidatorService } from './judge-validator.service';
 import { RateLimiterService } from './rate-limiter.service';
@@ -19,10 +20,13 @@ export interface EvaluationResult {
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
   private openai: any;
+  private qwenClient?: any; // Cliente Qwen opcional
   private rateLimiter: RateLimiterService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
     this.rateLimiter = new RateLimiterService();
+    
+    // Inicializar cliente OpenAI (existente)
     if (!openaiConfig.enabled) {
       this.logger.warn('OpenAI está deshabilitado');
       return;
@@ -37,6 +41,22 @@ export class OpenAiService {
       timeout: openaiConfig.timeout,
       maxRetries: openaiConfig.maxRetries,
     });
+    
+    // Inicializar cliente Qwen si está disponible (nuevo)
+    if (modelConfig.isQwenAvailable()) {
+      try {
+        this.qwenClient = new OpenAI({
+          apiKey: modelConfig.qwen.apiKey,
+          baseURL: modelConfig.qwen.baseURL,
+          timeout: modelConfig.qwen.timeout,
+          maxRetries: modelConfig.qwen.maxRetries,
+        });
+        this.logger.log('✅ Cliente Qwen-Long inicializado correctamente');
+      } catch (error) {
+        this.logger.warn(`⚠️ No se pudo inicializar cliente Qwen: ${error.message}`);
+        this.qwenClient = null;
+      }
+    }
   }
 
   async evaluateWithValidation(
@@ -67,8 +87,19 @@ export class OpenAiService {
         throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
       }
 
-      // Estrategia dual-model para máxima precisión
-      if (openaiConfig.dualValidation) {
+      // Selección de estrategia de validación basada en configuración
+      const validationStrategy = modelConfig.getValidationStrategy();
+      
+      if (validationStrategy === 'triple' && this.qwenClient) {
+        // Nueva validación triple con Qwen-Long
+        this.logger.log('🔺 Usando validación triple: GPT-4o + Qwen-Long + GPT-4o Árbitro');
+        return await this.evaluateWithTripleValidation(documentText, relevantText, prompt, expectedType, additionalContext, pmcField);
+      } else if (validationStrategy === 'triple' && !this.qwenClient) {
+        // Fallback a dual si triple está activado pero Qwen no disponible
+        this.logger.warn('⚠️ Triple validación configurada pero Qwen no disponible, usando validación dual');
+        return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext, pmcField);
+      } else if (openaiConfig.dualValidation) {
+        // Validación dual existente
         return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext, pmcField);
       } else {
         // Fallback a evaluación simple
@@ -1008,5 +1039,473 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
     } catch (error) {
       this.logger.debug(`Error extrayendo valores para comparación: ${error.message}`);
     }
+  }
+
+  /**
+   * Evalúa un documento usando Qwen-Long con contexto completo (sin chunking)
+   * @param documentText Documento completo sin chunking
+   * @param prompt Pregunta a evaluar
+   * @param expectedType Tipo de respuesta esperada
+   * @param additionalContext Contexto adicional opcional
+   * @param pmcField Campo PMC para logging
+   */
+  private async evaluateWithQwenLong(
+    documentText: string,
+    prompt: string,
+    expectedType: ResponseType,
+    additionalContext?: string,
+    pmcField?: string
+  ): Promise<{ response: string; confidence: number; tokens_used: number; model_used: string }> {
+    if (!this.qwenClient) {
+      throw new Error('Cliente Qwen no disponible');
+    }
+
+    const startTime = Date.now();
+    this.logger.log(`🔮 Evaluando con Qwen-Long (documento completo: ${documentText.length} chars)`);
+
+    // Prompt optimizado para Qwen-Long
+    const systemPrompt = `You are Qwen-Long, a specialized model for analyzing long documents.
+You have access to the COMPLETE document without any truncation or chunking.
+Use your full context window advantage to provide the most accurate analysis.
+
+${this.buildSystemPrompt(expectedType, additionalContext, false, pmcField)}
+
+IMPORTANT: You have the complete document available. Search through ALL content, not just the beginning or end.`;
+
+    const userPrompt = `COMPLETE DOCUMENT (${documentText.length} characters):
+${documentText}
+
+QUESTION TO ANSWER:
+${prompt}
+
+Remember: You have the ENTIRE document. Use all available context for maximum accuracy.`;
+
+    try {
+      const completion = await this.rateLimiter.executeWithRateLimit(
+        async () => {
+          return await this.qwenClient.chat.completions.create({
+            model: modelConfig.qwen.model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: modelConfig.qwen.temperature,
+            max_tokens: modelConfig.qwen.maxTokens,
+          });
+        },
+        `qwen_${pmcField || 'field'}`,
+        'normal'
+      );
+
+      const response = completion.choices[0].message.content.trim();
+      const confidence = this.extractConfidence(response);
+      const cleanResponse = this.cleanResponse(response, expectedType);
+
+      const elapsedTime = Date.now() - startTime;
+      this.logger.log(`✅ Qwen-Long completado en ${elapsedTime}ms - Confianza: ${confidence}`);
+
+      return {
+        response: cleanResponse,
+        confidence: confidence,
+        tokens_used: completion.usage?.total_tokens || 0,
+        model_used: modelConfig.qwen.model
+      };
+
+    } catch (error) {
+      this.logger.error(`Error en evaluación con Qwen-Long: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Sistema de triple validación: GPT-4o + Qwen-Long + GPT-4o Árbitro
+   * @param fullDocument Documento completo para Qwen
+   * @param chunkedDocument Documento con chunking para GPT
+   * @param prompt Pregunta a evaluar
+   * @param expectedType Tipo de respuesta esperada
+   * @param additionalContext Contexto adicional
+   * @param pmcField Campo PMC
+   */
+  private async evaluateWithTripleValidation(
+    fullDocument: string,
+    chunkedDocument: string,
+    prompt: string,
+    expectedType: ResponseType,
+    additionalContext?: string,
+    pmcField?: string
+  ): Promise<EvaluationResult> {
+    const startTime = Date.now();
+    this.logger.log(`🔺 Iniciando validación triple para: ${pmcField || 'campo'}`);
+
+    try {
+      // Ejecutar evaluaciones en paralelo para mejor performance
+      const [gptResult, qwenResult] = await Promise.allSettled([
+        // 1. GPT-4o con chunking inteligente
+        this.evaluatePrompt(
+          chunkedDocument,
+          prompt,
+          expectedType,
+          additionalContext,
+          modelConfig.validation.triple.models.primary,
+          pmcField
+        ),
+        // 2. Qwen-Long con documento completo
+        this.evaluateWithQwenLong(
+          fullDocument,
+          prompt,
+          expectedType,
+          additionalContext,
+          pmcField
+        )
+      ]);
+
+      // Manejo de resultados
+      let primaryResult: any = null;
+      let independentResult: any = null;
+
+      if (gptResult.status === 'fulfilled') {
+        primaryResult = gptResult.value;
+      } else {
+        this.logger.error(`Error en evaluación GPT: ${gptResult.reason}`);
+      }
+
+      if (qwenResult.status === 'fulfilled') {
+        independentResult = qwenResult.value;
+      } else {
+        this.logger.error(`Error en evaluación Qwen: ${qwenResult.reason}`);
+      }
+
+      // Si ambas evaluaciones fallaron, lanzar error
+      if (!primaryResult && !independentResult) {
+        throw new Error('Ambas evaluaciones fallaron en validación triple');
+      }
+
+      // Si solo una falló, usar validación dual con el resultado disponible
+      if (!primaryResult || !independentResult) {
+        this.logger.warn('⚠️ Una evaluación falló, degradando a validación dual');
+        const availableResult = primaryResult || independentResult;
+        
+        // Validar con GPT-4o
+        const validationResult = await this.validateResponse(
+          chunkedDocument,
+          prompt,
+          availableResult.response,
+          expectedType,
+          additionalContext,
+          pmcField
+        );
+
+        return {
+          response: validationResult.response,
+          confidence: validationResult.confidence,
+          validation_response: validationResult.response,
+          validation_confidence: validationResult.confidence,
+          final_confidence: validationResult.confidence,
+          openai_metadata: {
+            validation_strategy: 'dual_fallback',
+            primary_model: availableResult.model_used || modelConfig.validation.triple.models.primary,
+            validation_model: modelConfig.openai.validationModel,
+            primary_tokens: availableResult.tokens_used || 0,
+            validation_tokens: validationResult.tokens_used,
+            fallback_reason: 'One model failed in triple validation'
+          }
+        };
+      }
+
+      // 3. Árbitro GPT-4o compara ambas respuestas
+      const arbitrationResult = await this.arbitrateWithGPT4o(
+        primaryResult,
+        independentResult,
+        prompt,
+        expectedType,
+        chunkedDocument,
+        pmcField
+      );
+
+      const elapsedTime = Date.now() - startTime;
+      this.logger.log(`✅ Validación triple completada en ${elapsedTime}ms`);
+
+      return arbitrationResult;
+
+    } catch (error) {
+      this.logger.error(`Error en validación triple: ${error.message}`);
+      
+      // Fallback a validación dual si triple falla
+      if (modelConfig.validation.triple.fallbackStrategy === 'dual') {
+        this.logger.warn('🔄 Fallback a validación dual');
+        return await this.evaluateWithDualValidation(
+          chunkedDocument,
+          prompt,
+          expectedType,
+          additionalContext,
+          pmcField
+        );
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * GPT-4o actúa como árbitro entre las respuestas de GPT y Qwen
+   * @param gptResult Resultado de GPT-4o
+   * @param qwenResult Resultado de Qwen-Long
+   * @param originalPrompt Pregunta original
+   * @param expectedType Tipo esperado
+   * @param documentSnippet Fragmento del documento para contexto
+   * @param pmcField Campo PMC
+   */
+  private async arbitrateWithGPT4o(
+    gptResult: { response: string; confidence: number; tokens_used: number },
+    qwenResult: { response: string; confidence: number; tokens_used: number },
+    originalPrompt: string,
+    expectedType: ResponseType,
+    documentSnippet: string,
+    pmcField?: string
+  ): Promise<EvaluationResult> {
+    const startTime = Date.now();
+    this.logger.log(`⚖️ Iniciando arbitraje para ${pmcField || 'campo'}`);
+
+    // Calcular nivel de acuerdo inicial
+    const initialAgreement = this.calculateAgreement(gptResult.response, qwenResult.response, expectedType);
+    
+    // Si hay consenso alto, no necesitamos árbitro
+    if (initialAgreement >= modelConfig.validation.triple.highAgreementThreshold) {
+      this.logger.log(`✅ Consenso alto (${(initialAgreement * 100).toFixed(0)}%) - usando respuesta consensuada`);
+      
+      const avgConfidence = (gptResult.confidence + qwenResult.confidence) / 2;
+      
+      return {
+        response: gptResult.response, // Usar respuesta de GPT por defecto en consenso
+        confidence: avgConfidence,
+        validation_response: qwenResult.response,
+        validation_confidence: qwenResult.confidence,
+        final_confidence: Math.min(avgConfidence * 1.1, 1.0), // Boost por consenso
+        openai_metadata: {
+          validation_strategy: 'triple_consensus',
+          primary_model: modelConfig.validation.triple.models.primary,
+          independent_model: modelConfig.validation.triple.models.independent,
+          arbitrator_model: 'not_needed',
+          consensus_level: initialAgreement,
+          primary_tokens: gptResult.tokens_used,
+          qwen_tokens: qwenResult.tokens_used,
+          arbitration_tokens: 0,
+          decision_reasoning: 'High consensus between models'
+        }
+      };
+    }
+
+    // Necesitamos arbitraje
+    const arbitrationPrompt = `You are an expert arbitrator comparing two AI analyses of a document.
+
+ORIGINAL QUESTION: ${originalPrompt}
+
+ANALYSIS 1 (GPT-4o with chunking):
+- Response: ${gptResult.response}
+- Confidence: ${gptResult.confidence}
+- Method: Intelligent chunking to focus on relevant sections
+
+ANALYSIS 2 (Qwen-Long with full context):
+- Response: ${qwenResult.response}
+- Confidence: ${qwenResult.confidence}
+- Method: Full document analysis with 10M token context
+
+DOCUMENT SNIPPET FOR REFERENCE:
+${documentSnippet.substring(0, 2000)}
+
+Your task:
+1. Compare both responses critically
+2. Determine which is more accurate based on the document evidence
+3. Provide a final answer with reasoning
+4. Calculate agreement level (0.0 to 1.0)
+
+Expected response type: ${expectedType}
+
+Respond in this JSON format:
+{
+  "final_answer": "your definitive answer",
+  "reasoning": "brief explanation of your decision",
+  "selected_model": "GPT" or "QWEN" or "COMBINED",
+  "agreement_level": 0.0 to 1.0,
+  "confidence": 0.0 to 1.0
+}`;
+
+    try {
+      const completion = await this.rateLimiter.executeWithRateLimit(
+        async () => {
+          return await this.openai.chat.completions.create({
+            model: modelConfig.validation.triple.models.arbitrator,
+            messages: [
+              { 
+                role: 'system', 
+                content: 'You are an expert arbitrator. Analyze both responses and provide the most accurate answer. Respond only with valid JSON.'
+              },
+              { role: 'user', content: arbitrationPrompt }
+            ],
+            temperature: 0.1, // Baja temperatura para decisiones consistentes
+            max_tokens: 500,
+            response_format: { type: "json_object" }
+          });
+        },
+        `arbitrate_${pmcField || 'field'}`,
+        'high'
+      );
+
+      const arbitrationResponse = JSON.parse(completion.choices[0].message.content.trim());
+      
+      const elapsedTime = Date.now() - startTime;
+      this.logger.log(`⚖️ Arbitraje completado en ${elapsedTime}ms - Decisión: ${arbitrationResponse.selected_model}`);
+
+      // Determinar respuesta final basada en arbitraje
+      let finalResponse: string;
+      let finalConfidence: number;
+
+      if (arbitrationResponse.selected_model === 'GPT') {
+        finalResponse = gptResult.response;
+        finalConfidence = gptResult.confidence;
+      } else if (arbitrationResponse.selected_model === 'QWEN') {
+        finalResponse = qwenResult.response;
+        finalConfidence = qwenResult.confidence;
+      } else {
+        // COMBINED o nueva respuesta del árbitro
+        finalResponse = arbitrationResponse.final_answer;
+        finalConfidence = arbitrationResponse.confidence;
+      }
+
+      return {
+        response: finalResponse,
+        confidence: finalConfidence,
+        validation_response: arbitrationResponse.final_answer,
+        validation_confidence: arbitrationResponse.confidence,
+        final_confidence: arbitrationResponse.confidence,
+        openai_metadata: {
+          validation_strategy: 'triple_arbitrated',
+          primary_model: modelConfig.validation.triple.models.primary,
+          independent_model: modelConfig.validation.triple.models.independent,
+          arbitrator_model: modelConfig.validation.triple.models.arbitrator,
+          consensus_level: arbitrationResponse.agreement_level,
+          primary_tokens: gptResult.tokens_used,
+          qwen_tokens: qwenResult.tokens_used,
+          arbitration_tokens: completion.usage?.total_tokens || 0,
+          decision_reasoning: arbitrationResponse.reasoning,
+          selected_model: arbitrationResponse.selected_model,
+          gpt_response: gptResult.response,
+          qwen_response: qwenResult.response
+        }
+      };
+
+    } catch (error) {
+      this.logger.error(`Error en arbitraje: ${error.message}`);
+      
+      // En caso de error, usar el resultado con mayor confianza
+      const bestResult = gptResult.confidence >= qwenResult.confidence ? gptResult : qwenResult;
+      
+      return {
+        response: bestResult.response,
+        confidence: bestResult.confidence,
+        validation_response: bestResult.response,
+        validation_confidence: bestResult.confidence,
+        final_confidence: bestResult.confidence,
+        openai_metadata: {
+          validation_strategy: 'triple_fallback',
+          primary_model: modelConfig.validation.triple.models.primary,
+          independent_model: modelConfig.validation.triple.models.independent,
+          arbitrator_model: 'failed',
+          consensus_level: initialAgreement,
+          primary_tokens: gptResult.tokens_used,
+          qwen_tokens: qwenResult.tokens_used,
+          arbitration_tokens: 0,
+          decision_reasoning: 'Arbitration failed - using highest confidence result',
+          error: error.message
+        }
+      };
+    }
+  }
+
+  /**
+   * Calcula el nivel de acuerdo entre dos respuestas
+   * @param response1 Primera respuesta
+   * @param response2 Segunda respuesta
+   * @param expectedType Tipo de respuesta esperada
+   */
+  private calculateAgreement(response1: string, response2: string, expectedType: ResponseType): number {
+    // Normalizar respuestas para comparación
+    const norm1 = response1.toLowerCase().trim();
+    const norm2 = response2.toLowerCase().trim();
+
+    // Acuerdo perfecto
+    if (norm1 === norm2) return 1.0;
+
+    // Para respuestas booleanas
+    if (expectedType === ResponseType.BOOLEAN) {
+      const isYes1 = norm1.includes('yes') || norm1.includes('sí') || norm1 === 'true';
+      const isYes2 = norm2.includes('yes') || norm2.includes('sí') || norm2 === 'true';
+      return isYes1 === isYes2 ? 0.9 : 0.1;
+    }
+
+    // Para fechas
+    if (expectedType === ResponseType.DATE) {
+      // Extraer componentes de fecha y comparar
+      const date1 = this.extractDateComponents(norm1);
+      const date2 = this.extractDateComponents(norm2);
+      
+      if (date1 && date2) {
+        let agreement = 0;
+        if (date1.year === date2.year) agreement += 0.4;
+        if (date1.month === date2.month) agreement += 0.3;
+        if (date1.day === date2.day) agreement += 0.3;
+        return agreement;
+      }
+    }
+
+    // Para números
+    if (expectedType === ResponseType.NUMBER) {
+      const num1 = parseFloat(norm1.replace(/[^0-9.-]/g, ''));
+      const num2 = parseFloat(norm2.replace(/[^0-9.-]/g, ''));
+      
+      if (!isNaN(num1) && !isNaN(num2)) {
+        const diff = Math.abs(num1 - num2);
+        const avg = (num1 + num2) / 2;
+        if (avg === 0) return num1 === num2 ? 1.0 : 0.0;
+        const percentDiff = diff / avg;
+        return Math.max(0, 1 - percentDiff);
+      }
+    }
+
+    // Para texto: usar similitud de Jaccard simplificada
+    const words1 = new Set(norm1.split(/\s+/));
+    const words2 = new Set(norm2.split(/\s+/));
+    
+    const intersection = new Set([...words1].filter(x => words2.has(x)));
+    const union = new Set([...words1, ...words2]);
+    
+    return intersection.size / union.size;
+  }
+
+  /**
+   * Extrae componentes de fecha de un string
+   * @param dateStr String con fecha
+   */
+  private extractDateComponents(dateStr: string): { year?: string; month?: string; day?: string } | null {
+    // Intentar varios formatos de fecha
+    const patterns = [
+      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,  // MM/DD/YYYY o DD/MM/YYYY
+      /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,     // YYYY/MM/DD
+      /(\w+)\s+(\d{1,2}),?\s+(\d{4})/,             // Month DD, YYYY
+      /(\d{1,2})\s+(\w+)\s+(\d{4})/                // DD Month YYYY
+    ];
+
+    for (const pattern of patterns) {
+      const match = dateStr.match(pattern);
+      if (match) {
+        return {
+          year: match[3] || match[1],
+          month: match[1] || match[2],
+          day: match[2] || match[1]
+        };
+      }
+    }
+
+    return null;
   }
 }
