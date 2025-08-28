@@ -28,25 +28,29 @@ export const claudeConfig = {
   maxDocumentLength: parseInt(process.env.CLAUDE_MAX_DOCUMENT_LENGTH) || 400000, // 400K chars (~160K tokens)
   smartChunking: process.env.CLAUDE_SMART_CHUNKING === 'true', // Chunking inteligente
   
-  // Rate limits Claude Sonnet 4 (Tier 1 defaults - ajustar según cuenta)
+  // Rate limits Claude Sonnet 4 (Ajustados para documentos grandes)
   rateLimits: {
-    rpm: parseInt(process.env.CLAUDE_RATE_LIMIT_RPM) || 40, // 40 RPM - conservador para Tier 1
-    itpm: parseInt(process.env.CLAUDE_RATE_LIMIT_ITPM) || 25000, // 25K input tokens/min
-    otpm: parseInt(process.env.CLAUDE_RATE_LIMIT_OTPM) || 6000, // 6K output tokens/min
-    maxRetries: parseInt(process.env.CLAUDE_MAX_RETRIES) || 5,
-    baseDelay: parseInt(process.env.CLAUDE_RETRY_BASE_DELAY) || 15000, // 15s base delay
-    maxDelay: parseInt(process.env.CLAUDE_RETRY_MAX_DELAY) || 120000, // 2 minutos máximo
+    rpm: parseInt(process.env.CLAUDE_RATE_LIMIT_RPM) || 50, // 50 RPM - más permisivo
+    itpm: parseInt(process.env.CLAUDE_RATE_LIMIT_ITPM) || 40000, // 40K input tokens/min - incrementado
+    otpm: parseInt(process.env.CLAUDE_RATE_LIMIT_OTPM) || 8000, // 8K output tokens/min - incrementado
+    maxRetries: parseInt(process.env.CLAUDE_MAX_RETRIES) || 3, // Menos reintentos para fallar rápido
+    baseDelay: parseInt(process.env.CLAUDE_RETRY_BASE_DELAY) || 10000, // 10s base delay - reducido
+    maxDelay: parseInt(process.env.CLAUDE_RETRY_MAX_DELAY) || 60000, // 1 minuto máximo - reducido
   },
   
-  // Timeouts y reintentos - aumentados para Claude Sonnet 4
-  timeout: parseInt(process.env.ANTHROPIC_TIMEOUT) || 120000, // 2 minutos para documentos grandes
-  maxRetries: parseInt(process.env.ANTHROPIC_MAX_RETRIES) || 3,
-  retryDelay: parseInt(process.env.ANTHROPIC_RETRY_DELAY) || 5000, // 5 segundos entre reintentos
+  // Timeouts y reintentos - optimizados para documentos grandes
+  timeout: parseInt(process.env.ANTHROPIC_TIMEOUT) || 180000, // 3 minutos para documentos muy grandes
+  maxRetries: parseInt(process.env.ANTHROPIC_MAX_RETRIES) || 2, // Menos reintentos para fallar rápido
+  retryDelay: parseInt(process.env.ANTHROPIC_RETRY_DELAY) || 3000, // 3 segundos entre reintentos - reducido
   
-  // Características especiales
-  useFullDocument: true, // Claude puede procesar documento completo sin chunking extremo
+  // Características especiales - ajustadas para grandes documentos
+  useFullDocument: process.env.CLAUDE_FORCE_CHUNKING !== 'true', // Permitir desactivar para docs problemáticos
   specialization: 'long-context-analysis', // Especializado en análisis de contexto largo
   anthropicVersion: '2023-06-01', // Versión de la API de Anthropic
+  
+  // Límites adicionales para estabilidad
+  maxDocumentTokens: parseInt(process.env.CLAUDE_MAX_DOC_TOKENS) || 180000, // Límite conservador de tokens por doc
+  circuitBreakerThreshold: parseInt(process.env.CLAUDE_CB_THRESHOLD) || 5, // Abrir circuit breaker tras 5 fallos
   
   // Performance y monitoring
   performanceLogging: process.env.CLAUDE_PERFORMANCE_LOGGING === 'true',

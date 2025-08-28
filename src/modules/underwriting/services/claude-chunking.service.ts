@@ -31,20 +31,50 @@ export class ClaudeChunkingService {
     pmcField?: string
   ): ChunkingStrategy {
     const docLength = documentText.length;
-    const estimatedTokens = Math.ceil(documentText.length / 3.5); // ~3.5 chars per token
-    const promptTokens = Math.ceil(prompt.length / 3.5);
+    const estimatedTokens = Math.ceil(documentText.length / 2.3); // ~2.3 chars per token (Claude actual ratio)
+    const promptTokens = Math.ceil(prompt.length / 2.3);
     const totalTokens = estimatedTokens + promptTokens;
 
     this.logger.log(`📏 Document analysis: ${docLength} chars, ~${estimatedTokens} tokens, prompt: ${promptTokens} tokens`);
+    
+    // Verificación adicional de seguridad para tokens
+    const maxSafeTokens = modelConfig.claude.maxDocumentTokens || 180000;
+    if (estimatedTokens > maxSafeTokens) {
+      this.logger.warn(`⚠️ Document exceeds safe token limit (${estimatedTokens} > ${maxSafeTokens}) - forcing chunking`);
+      return {
+        useChunking: true,
+        maxChunkTokens: 50000, // Muy conservador
+        overlapTokens: 2000,
+        prioritizeContent: true,
+        reason: `Document exceeds safe token limit (${estimatedTokens} tokens) - forced chunking`
+      };
+    }
 
-    // No chunking needed if within limits
-    if (totalTokens <= (modelConfig.claude.maxContextTokens * 0.8)) { // 80% safety margin
+    // Detect problematic document sizes and apply aggressive chunking
+    const isVeryLargeDoc = docLength > 500000; // 500K+ chars
+    const isLargeDoc = docLength > 400000;     // 400K+ chars
+    
+    // Force chunking for very large documents regardless of token estimate
+    if (isVeryLargeDoc) {
+      this.logger.warn(`🚨 Very large document detected (${docLength} chars) - forcing aggressive chunking`);
+      return {
+        useChunking: true,
+        maxChunkTokens: 60000, // Very conservative for large docs
+        overlapTokens: 3000,
+        prioritizeContent: true,
+        reason: `Very large document (${docLength} chars) - aggressive chunking applied`
+      };
+    }
+
+    // No chunking needed if within limits - more conservative for large docs
+    const safetyMargin = isLargeDoc ? 0.5 : (docLength > 200000 ? 0.65 : 0.8); // Progressive safety margins
+    if (totalTokens <= (modelConfig.claude.maxContextTokens * safetyMargin)) {
       return {
         useChunking: false,
         maxChunkTokens: 0,
         overlapTokens: 0,
         prioritizeContent: false,
-        reason: `Document fits in context (${totalTokens} tokens < ${Math.floor(modelConfig.claude.maxContextTokens * 0.8)} limit)`
+        reason: `Document fits in context (${totalTokens} tokens < ${Math.floor(modelConfig.claude.maxContextTokens * safetyMargin)} limit, safety: ${Math.round(safetyMargin * 100)}%)`
       };
     }
 
@@ -56,17 +86,44 @@ export class ClaudeChunkingService {
     const isPolicyField = pmcField?.toLowerCase().includes('policy') || 
                          prompt.toLowerCase().includes('policy');
 
-    // Calculate optimal chunk size
-    const availableTokens = modelConfig.claude.maxContextTokens - promptTokens - 1000; // 1000 tokens safety buffer
-    const maxChunkTokens = Math.min(availableTokens, 150000); // Max 150K tokens per chunk
-    const overlapTokens = isSignatureField ? 2000 : (isDateField ? 1000 : 500); // More overlap for complex fields
+    // Calculate optimal chunk size - progressive conservatism based on doc size
+    const safetyBuffer = isLargeDoc ? 3000 : (docLength > 200000 ? 2000 : 1000);
+    const availableTokens = modelConfig.claude.maxContextTokens - promptTokens - safetyBuffer;
+    
+    // Progressive chunk sizing based on document size
+    let baseChunkSize;
+    if (isLargeDoc) {
+      baseChunkSize = 80000;  // 80K for 400K+ char docs
+    } else if (docLength > 300000) {
+      baseChunkSize = 100000; // 100K for 300K+ char docs
+    } else if (docLength > 200000) {
+      baseChunkSize = 120000; // 120K for 200K+ char docs
+    } else {
+      baseChunkSize = 140000; // 140K for smaller docs
+    }
+    
+    const maxChunkTokens = Math.min(availableTokens, baseChunkSize);
+    
+    // Progressive overlap based on document complexity
+    let baseOverlap;
+    if (isSignatureField) {
+      baseOverlap = isLargeDoc ? 3000 : 2000;
+    } else if (isDateField) {
+      baseOverlap = isLargeDoc ? 2000 : 1000;
+    } else {
+      baseOverlap = isLargeDoc ? 1000 : 500;
+    }
+    
+    const overlapTokens = baseOverlap;
+
+    this.logger.log(`🧠 Chunking strategy: ${maxChunkTokens} tokens/chunk, ${overlapTokens} overlap, doc: ${docLength} chars`);
 
     return {
       useChunking: true,
       maxChunkTokens,
       overlapTokens,
       prioritizeContent: isSignatureField || isPolicyField,
-      reason: `Document too large (${totalTokens} tokens). Using smart chunking: ${maxChunkTokens} tokens per chunk`
+      reason: `Document too large (${totalTokens} tokens). Smart chunking: ${maxChunkTokens} tokens/chunk (${Math.round(maxChunkTokens/1000)}K)`
     };
   }
 
@@ -82,7 +139,7 @@ export class ClaudeChunkingService {
     if (!strategy.useChunking) {
       return [{
         content: documentText,
-        tokens: Math.ceil(documentText.length / 3.5),
+        tokens: Math.ceil(documentText.length / 2.3),
         priority: 'high',
         type: 'content',
         startIndex: 0,
@@ -93,8 +150,8 @@ export class ClaudeChunkingService {
     this.logger.log(`🔪 Chunking document: ${strategy.maxChunkTokens} tokens per chunk, ${strategy.overlapTokens} overlap`);
 
     const chunks: ClaudeChunk[] = [];
-    const maxChunkChars = strategy.maxChunkTokens * 3.5; // Convert tokens to approximate chars
-    const overlapChars = strategy.overlapTokens * 3.5;
+    const maxChunkChars = strategy.maxChunkTokens * 2.3; // Convert tokens to approximate chars (Claude ratio)
+    const overlapChars = strategy.overlapTokens * 2.3;
 
     // Try to split by natural boundaries first
     const sections = this.findNaturalSections(documentText, pmcField);
@@ -107,8 +164,9 @@ export class ClaudeChunkingService {
     // Fall back to sliding window chunking with smart boundaries
     let currentIndex = 0;
     let chunkNumber = 0;
+    const maxChunks = documentText.length > 400000 ? 8 : 15; // Limit chunks for very large docs
 
-    while (currentIndex < documentText.length) {
+    while (currentIndex < documentText.length && chunkNumber < maxChunks) {
       const chunkStart = Math.max(0, currentIndex - (chunkNumber === 0 ? 0 : overlapChars));
       const chunkEnd = Math.min(documentText.length, currentIndex + maxChunkChars);
       
@@ -116,30 +174,57 @@ export class ClaudeChunkingService {
       const adjustedEnd = this.findGoodBoundary(documentText, chunkEnd, chunkStart);
       
       const chunkContent = documentText.substring(chunkStart, adjustedEnd);
-      const chunkTokens = Math.ceil(chunkContent.length / 3.5);
-
-      // Determine chunk priority based on content relevance
-      const priority = this.determineChunkPriority(chunkContent, prompt, pmcField);
+      const chunkTokens = Math.ceil(chunkContent.length / 2.3);
       
-      chunks.push({
-        content: chunkContent,
-        tokens: chunkTokens,
-        priority,
-        type: this.determineChunkType(chunkContent, chunkNumber, chunks.length === 0),
-        startIndex: chunkStart,
-        endIndex: adjustedEnd
-      });
+      // Validate chunk token count - skip if too large
+      if (chunkTokens > strategy.maxChunkTokens * 1.2) {
+        this.logger.warn(`⚠️ Chunk ${chunkNumber + 1} too large (${chunkTokens} tokens), attempting smaller chunk`);
+        // Try with smaller chunk size
+        const smallerEnd = chunkStart + Math.floor(maxChunkChars * 0.8);
+        const smallerAdjustedEnd = this.findGoodBoundary(documentText, smallerEnd, chunkStart);
+        const smallerContent = documentText.substring(chunkStart, smallerAdjustedEnd);
+        const smallerTokens = Math.ceil(smallerContent.length / 2.3);
+        
+        if (smallerTokens <= strategy.maxChunkTokens) {
+          chunks.push({
+            content: smallerContent,
+            tokens: smallerTokens,
+            priority: this.determineChunkPriority(smallerContent, prompt, pmcField),
+            type: this.determineChunkType(smallerContent, chunkNumber, chunks.length === 0),
+            startIndex: chunkStart,
+            endIndex: smallerAdjustedEnd
+          });
+          
+          this.logger.log(`📄 Chunk ${chunkNumber + 1} (reduced): ${smallerContent.length} chars (~${smallerTokens} tokens)`);
+          currentIndex = smallerAdjustedEnd;
+        } else {
+          this.logger.error(`⚠️ Cannot create safe chunk at position ${chunkStart}, skipping section`);
+          currentIndex = adjustedEnd; // Skip problematic section
+        }
+      } else {
+        // Normal chunk processing
+        const priority = this.determineChunkPriority(chunkContent, prompt, pmcField);
+        
+        chunks.push({
+          content: chunkContent,
+          tokens: chunkTokens,
+          priority,
+          type: this.determineChunkType(chunkContent, chunkNumber, chunks.length === 0),
+          startIndex: chunkStart,
+          endIndex: adjustedEnd
+        });
 
-      this.logger.log(`📄 Chunk ${chunkNumber + 1}: ${chunkContent.length} chars (~${chunkTokens} tokens), priority: ${priority}`);
-
-      currentIndex = adjustedEnd;
-      chunkNumber++;
-
-      // Safety check to avoid infinite loops
-      if (chunkNumber > 50) {
-        this.logger.error('⚠️ Too many chunks generated, breaking loop');
-        break;
+        this.logger.log(`📄 Chunk ${chunkNumber + 1}: ${chunkContent.length} chars (~${chunkTokens} tokens), priority: ${priority}`);
+        currentIndex = adjustedEnd;
       }
+      
+      chunkNumber++;
+    }
+    
+    // Warning if we hit the chunk limit
+    if (chunkNumber >= maxChunks && currentIndex < documentText.length) {
+      const remainingChars = documentText.length - currentIndex;
+      this.logger.warn(`⚠️ Document truncated: ${remainingChars} chars not processed (chunk limit: ${maxChunks})`);
     }
 
     // Sort chunks by priority for processing
@@ -173,8 +258,11 @@ export class ClaudeChunkingService {
 
     const results: Array<{ response: string; confidence: number; priority: string }> = [];
 
+    // Dynamic chunk processing based on document size
+    const maxChunksToProcess = chunks.length > 6 ? 2 : 3; // Process fewer chunks for very large docs
+    
     // Process chunks in priority order
-    for (let i = 0; i < Math.min(chunks.length, 3); i++) { // Limit to first 3 chunks for cost efficiency
+    for (let i = 0; i < Math.min(chunks.length, maxChunksToProcess); i++) {
       const chunk = chunks[i];
       
       try {
@@ -189,9 +277,10 @@ export class ClaudeChunkingService {
 
         this.logger.log(`✅ Chunk ${i + 1} processed: ${result.response.substring(0, 50)}... (confidence: ${result.confidence})`);
 
-        // Early exit if we found a high-confidence answer
-        if (result.confidence > 0.9 && !result.response.toLowerCase().includes('not_found')) {
-          this.logger.log(`🎯 High confidence answer found in chunk ${i + 1}, stopping processing`);
+        // Early exit if we found a high-confidence answer - more aggressive for large docs
+        const confidenceThreshold = chunks.length > 4 ? 0.85 : 0.9; // Lower threshold for large docs
+        if (result.confidence > confidenceThreshold && !result.response.toLowerCase().includes('not_found')) {
+          this.logger.log(`🎯 High confidence answer found in chunk ${i + 1} (confidence: ${result.confidence}), stopping processing`);
           return { 
             response: result.response, 
             confidence: result.confidence,
@@ -246,7 +335,7 @@ export class ClaudeChunkingService {
     const chunks: ClaudeChunk[] = [];
     
     sections.forEach((section, index) => {
-      const tokens = Math.ceil(section.length / 3.5);
+      const tokens = Math.ceil(section.length / 2.3);
       
       chunks.push({
         content: section,

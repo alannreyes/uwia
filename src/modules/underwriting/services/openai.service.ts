@@ -608,7 +608,7 @@ Be very careful and thorough in your analysis.`;
           max_tokens: openaiConfig.maxTokens,
         });
       },
-      `validation_field`,
+      `validation_${modelToUse.replace(/[^a-zA-Z0-9]/g, '_')}`,
       'normal' // Prioridad normal para validación
     );
 
@@ -1236,14 +1236,14 @@ ${chunkPrompt}`;
         this.logger.warn('⚠️ Una evaluación falló, degradando a validación dual');
         const availableResult = primaryResult || independentResult;
         
-        // Validar con GPT-4o
+        // Validar con GPT-4o (usar modelo correcto, no el nombre del campo)
         const validationResult = await this.validateResponse(
           chunkedDocument,
           prompt,
           availableResult.response,
           expectedType,
           additionalContext,
-          pmcField
+          modelConfig.validation.triple.models.arbitrator // Usar modelo correcto
         );
 
         return {

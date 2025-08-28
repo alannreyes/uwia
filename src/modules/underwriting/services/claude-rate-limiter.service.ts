@@ -193,16 +193,17 @@ export class ClaudeRateLimiterService {
     this.state.consecutiveFailures++;
     this.state.lastFailureTime = Date.now();
     
-    // Activar circuit breaker después de 3 fallos consecutivos (Claude es más sensible)
-    if (this.state.consecutiveFailures >= 3) {
+    // Activar circuit breaker después de más fallos (configuración flexible)
+    const threshold = claudeConfig.circuitBreakerThreshold || 5;
+    if (this.state.consecutiveFailures >= threshold) {
       const breakerDuration = Math.min(
-        60000 * Math.pow(2, this.state.consecutiveFailures - 3), // Exponential backoff
-        300000 // Máximo 5 minutos
+        30000 * Math.pow(1.5, this.state.consecutiveFailures - threshold), // Backoff más suave
+        120000 // Máximo 2 minutos - reducido
       );
       
       this.state.circuitBreakerUntil = Date.now() + breakerDuration;
       
-      this.logger.error(`⚡ Claude circuit breaker OPENED for ${breakerDuration/1000}s after ${this.state.consecutiveFailures} consecutive failures`);
+      this.logger.error(`⚡ Claude circuit breaker OPENED for ${breakerDuration/1000}s after ${this.state.consecutiveFailures} consecutive failures (threshold: ${threshold})`);
     }
   }
 
