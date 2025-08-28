@@ -8,13 +8,13 @@ import { openaiConfig } from './openai.config';
 
 /**
  * Configuración de Claude (Anthropic)
- * Claude 3.5 Sonnet con 200K tokens de contexto
+ * Claude Sonnet 4 con 200K tokens de contexto
  */
 export const claudeConfig = {
   // Credenciales y endpoint
   apiKey: process.env.ANTHROPIC_API_KEY,
   baseURL: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
-  model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+  model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
   
   // Estado del servicio
   enabled: !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'YOUR_ANTHROPIC_API_KEY_HERE',
@@ -27,10 +27,20 @@ export const claudeConfig = {
   maxContextTokens: 200000, // 200K tokens de contexto
   maxDocumentLength: 600000, // ~600K caracteres
   
-  // Timeouts y reintentos
-  timeout: parseInt(process.env.ANTHROPIC_TIMEOUT) || 60000,
+  // Rate limits Claude Sonnet 4 (Tier 1 defaults - ajustar según cuenta)
+  rateLimits: {
+    rpm: parseInt(process.env.CLAUDE_RATE_LIMIT_RPM) || 40, // 40 RPM - conservador para Tier 1
+    itpm: parseInt(process.env.CLAUDE_RATE_LIMIT_ITPM) || 25000, // 25K input tokens/min
+    otpm: parseInt(process.env.CLAUDE_RATE_LIMIT_OTPM) || 6000, // 6K output tokens/min
+    maxRetries: parseInt(process.env.CLAUDE_MAX_RETRIES) || 5,
+    baseDelay: parseInt(process.env.CLAUDE_RETRY_BASE_DELAY) || 15000, // 15s base delay
+    maxDelay: parseInt(process.env.CLAUDE_RETRY_MAX_DELAY) || 120000, // 2 minutos máximo
+  },
+  
+  // Timeouts y reintentos - aumentados para Claude Sonnet 4
+  timeout: parseInt(process.env.ANTHROPIC_TIMEOUT) || 120000, // 2 minutos para documentos grandes
   maxRetries: parseInt(process.env.ANTHROPIC_MAX_RETRIES) || 3,
-  retryDelay: parseInt(process.env.ANTHROPIC_RETRY_DELAY) || 3000,
+  retryDelay: parseInt(process.env.ANTHROPIC_RETRY_DELAY) || 5000, // 5 segundos entre reintentos
   
   // Características especiales
   useFullDocument: true, // Claude puede procesar documento completo sin chunking extremo
@@ -72,7 +82,7 @@ export const tripleValidationConfig = {
   // Modelos a usar en cada etapa
   models: {
     primary: openaiConfig.model, // GPT-4o-mini o GPT-4o según config
-    independent: claudeConfig.model, // Claude 3.5 Sonnet para segunda opinión
+    independent: claudeConfig.model, // Claude Sonnet 4 para segunda opinión
     arbitrator: process.env.TRIPLE_ARBITRATOR_MODEL || 'gpt-4o', // GPT-4o como árbitro
   },
   
@@ -93,7 +103,7 @@ export const modelConfig = {
   // OpenAI (mantiene compatibilidad total)
   openai: openaiConfig,
   
-  // Claude (Anthropic) - reemplaza a Qwen
+  // Claude (Anthropic) - Claude Sonnet 4 - reemplaza a Qwen
   claude: claudeConfig,
   
   // Qwen-Long (DEPRECATED - mantenido por compatibilidad)
@@ -108,7 +118,7 @@ export const modelConfig = {
       validationModel: openaiConfig.validationModel,
     },
     
-    // Nueva validación triple con Claude
+    // Nueva validación triple con Claude Sonnet 4
     triple: tripleValidationConfig,
   },
   

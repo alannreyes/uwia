@@ -4,6 +4,7 @@ import { modelConfig } from '../../../config/model.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 import { JudgeValidatorService } from './judge-validator.service';
 import { RateLimiterService } from './rate-limiter.service';
+import { ClaudeRateLimiterService } from './claude-rate-limiter.service';
 
 const { OpenAI } = require('openai');
 const { Anthropic } = require('@anthropic-ai/sdk');
@@ -23,9 +24,11 @@ export class OpenAiService {
   private openai: any;
   private claudeClient?: any; // Cliente Claude opcional
   private rateLimiter: RateLimiterService;
+  private claudeRateLimiter: ClaudeRateLimiterService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
     this.rateLimiter = new RateLimiterService();
+    this.claudeRateLimiter = new ClaudeRateLimiterService();
     
     // Inicializar cliente OpenAI (existente)
     if (!openaiConfig.enabled) {
@@ -52,7 +55,7 @@ export class OpenAiService {
           timeout: modelConfig.claude.timeout,
           maxRetries: modelConfig.claude.maxRetries,
         });
-        this.logger.log('✅ Cliente Claude 3.5 Sonnet inicializado correctamente');
+        this.logger.log('✅ Cliente Claude Sonnet 4 inicializado correctamente');
       } catch (error) {
         this.logger.warn(`⚠️ No se pudo inicializar cliente Claude: ${error.message}`);
         this.claudeClient = null;
@@ -93,7 +96,7 @@ export class OpenAiService {
       
       if (validationStrategy === 'triple' && this.claudeClient) {
         // Nueva validación triple con Claude
-        this.logger.log('🔺 Usando validación triple: GPT-4o + Claude 3.5 Sonnet + GPT-4o Árbitro');
+        this.logger.log('🔺 Usando validación triple: GPT-4o + Claude Sonnet 4 + GPT-4o Árbitro');
         return await this.evaluateWithTripleValidation(documentText, relevantText, prompt, expectedType, additionalContext, pmcField);
       } else if (validationStrategy === 'triple' && !this.claudeClient) {
         // Fallback a dual si triple está activado pero Claude no disponible
@@ -1043,7 +1046,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   }
 
   /**
-   * Evalúa un documento usando Claude 3.5 Sonnet con contexto completo (sin chunking)
+   * Evalúa un documento usando Claude Sonnet 4 con contexto completo (sin chunking)
    * @param documentText Documento completo sin chunking
    * @param prompt Pregunta a evaluar
    * @param expectedType Tipo de respuesta esperada
@@ -1061,11 +1064,17 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
       throw new Error('Cliente Claude no disponible');
     }
 
+    // Validar tamaño del documento para prevenir timeouts
+    if (documentText.length > modelConfig.claude.maxDocumentLength) {
+      this.logger.warn(`⚠️ Documento muy grande (${documentText.length} chars) para Claude. Máximo: ${modelConfig.claude.maxDocumentLength}`);
+      throw new Error(`Document too large for Claude processing: ${documentText.length} characters exceeds limit of ${modelConfig.claude.maxDocumentLength}`);
+    }
+
     const startTime = Date.now();
-    this.logger.log(`🤖 Evaluando con Claude 3.5 Sonnet (documento completo: ${documentText.length} chars)`);
+    this.logger.log(`🤖 Evaluando con Claude Sonnet 4 (documento completo: ${documentText.length} chars, timeout: ${modelConfig.claude.timeout}ms)`);
 
     // Prompt optimizado para Claude con su contexto de 200K tokens
-    const systemPrompt = `You are Claude 3.5 Sonnet, a highly capable AI assistant specialized in analyzing long documents with your 200K token context window.
+    const systemPrompt = `You are Claude Sonnet 4, a highly capable AI assistant specialized in analyzing long documents with your 200K token context window.
 You have access to the COMPLETE document without any truncation or chunking.
 Use your advanced reasoning capabilities to provide the most accurate analysis.
 
@@ -1082,7 +1091,10 @@ ${prompt}
 Remember: You have the ENTIRE document with your 200K token context. Use all available context for maximum accuracy and thoroughness.`;
 
     try {
-      const completion = await this.rateLimiter.executeWithRateLimit(
+      // Estimar tokens de entrada para rate limiting
+      const estimatedInputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5); // ~3.5 chars per token aprox
+      
+      const completion = await this.claudeRateLimiter.executeWithClaudeRateLimit(
         async () => {
           return await this.claudeClient.messages.create({
             model: modelConfig.claude.model,
@@ -1095,6 +1107,7 @@ Remember: You have the ENTIRE document with your 200K token context. Use all ava
           });
         },
         `claude_${pmcField || 'field'}`,
+        estimatedInputTokens,
         'normal'
       );
 
@@ -1103,7 +1116,7 @@ Remember: You have the ENTIRE document with your 200K token context. Use all ava
       const cleanResponse = this.cleanResponse(response, expectedType);
 
       const elapsedTime = Date.now() - startTime;
-      this.logger.log(`✅ Claude 3.5 Sonnet completado en ${elapsedTime}ms - Confianza: ${confidence}`);
+      this.logger.log(`✅ Claude Sonnet 4 completado en ${elapsedTime}ms - Confianza: ${confidence}`);
 
       return {
         response: cleanResponse,
@@ -1113,13 +1126,26 @@ Remember: You have the ENTIRE document with your 200K token context. Use all ava
       };
 
     } catch (error) {
-      this.logger.error(`Error en evaluación con Claude: ${error.message}`);
+      const elapsedTime = Date.now() - startTime;
+      
+      // Clasificar tipos de error para mejor debugging
+      if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
+        this.logger.error(`⏰ Claude timeout después de ${elapsedTime}ms (límite: ${modelConfig.claude.timeout}ms). Documento: ${documentText.length} chars`);
+      } else if (error.status === 429) {
+        this.logger.error(`🚫 Claude rate limit hit después de ${elapsedTime}ms`);
+      } else {
+        this.logger.error(`❌ Error en evaluación con Claude después de ${elapsedTime}ms: ${error.message}`);
+      }
+      
+      // Log Claude rate limiter stats para debugging
+      this.claudeRateLimiter.logStats();
+      
       throw error;
     }
   }
 
   /**
-   * Sistema de triple validación: GPT-4o + Claude 3.5 Sonnet + GPT-4o Árbitro
+   * Sistema de triple validación: GPT-4o + Claude Sonnet 4 + GPT-4o Árbitro
    * @param fullDocument Documento completo para Claude
    * @param chunkedDocument Documento con chunking para GPT
    * @param prompt Pregunta a evaluar
@@ -1150,7 +1176,7 @@ Remember: You have the ENTIRE document with your 200K token context. Use all ava
           modelConfig.validation.triple.models.primary,
           pmcField
         ),
-        // 2. Claude 3.5 Sonnet con documento completo
+        // 2. Claude Sonnet 4 con documento completo
         this.evaluateWithClaude(
           fullDocument,
           prompt,
@@ -1250,7 +1276,7 @@ Remember: You have the ENTIRE document with your 200K token context. Use all ava
   /**
    * GPT-4o actúa como árbitro entre las respuestas de GPT y Claude
    * @param gptResult Resultado de GPT-4o
-   * @param claudeResult Resultado de Claude 3.5 Sonnet
+   * @param claudeResult Resultado de Claude Sonnet 4
    * @param originalPrompt Pregunta original
    * @param expectedType Tipo esperado
    * @param documentSnippet Fragmento del documento para contexto
@@ -1306,7 +1332,7 @@ ANALYSIS 1 (GPT-4o with chunking):
 - Confidence: ${gptResult.confidence}
 - Method: Intelligent chunking to focus on relevant sections
 
-ANALYSIS 2 (Claude 3.5 Sonnet with full context):
+ANALYSIS 2 (Claude Sonnet 4 with full context):
 - Response: ${claudeResult.response}
 - Confidence: ${claudeResult.confidence}
 - Method: Full document analysis with 200K token context
@@ -1508,5 +1534,27 @@ Respond in this JSON format:
     }
 
     return null;
+  }
+
+  /**
+   * Obtiene estadísticas del rate limiter de Claude para debugging
+   */
+  getClaudeRateLimiterStats() {
+    return this.claudeRateLimiter.getStats();
+  }
+
+  /**
+   * Imprime estadísticas del rate limiter de Claude
+   */
+  logClaudeStats(): void {
+    this.claudeRateLimiter.logStats();
+  }
+
+  /**
+   * Resetea el rate limiter de Claude
+   */
+  resetClaudeRateLimiter(): void {
+    this.claudeRateLimiter.reset();
+    this.logger.log('🔄 Claude rate limiter has been reset');
   }
 }

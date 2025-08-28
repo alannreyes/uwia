@@ -118,7 +118,7 @@ function generateMockResponse(strategy) {
         openai_metadata: {
           validation_strategy: 'triple_arbitrated',
           primary_model: 'gpt-4o',
-          independent_model: 'claude-3-5-sonnet-20241022',
+          independent_model: 'claude-sonnet-4-20250514',
           arbitrator_model: 'gpt-4o',
           consensus_level: 0.85,
           primary_tokens: 1500,

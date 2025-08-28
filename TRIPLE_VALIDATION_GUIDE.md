@@ -1,10 +1,10 @@
-# 🚀 Guía de Activación: Sistema de Triple Validación con Claude 3.5 Sonnet
+# 🚀 Guía de Activación: Sistema de Triple Validación con Claude Sonnet 4
 
 ## 📋 Resumen Ejecutivo
 
 Se ha implementado exitosamente un **Sistema de Triple Validación** que combina:
 - **GPT-4o**: Análisis con chunking inteligente
-- **Claude 3.5 Sonnet**: Análisis de documento completo (200K tokens)
+- **Claude Sonnet 4**: Análisis de documento completo (200K tokens)
 - **GPT-4o Árbitro**: Decisión final inteligente
 
 ### ✅ Garantías
@@ -18,10 +18,10 @@ Se ha implementado exitosamente un **Sistema de Triple Validación** que combina
 ### Paso 1: Actualizar `.env.production`
 
 ```bash
-# Configuración de Claude 3.5 Sonnet
+# Configuración de Claude Sonnet 4
 ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY_HERE  # Configurar en EasyPanel
 ANTHROPIC_BASE_URL=https://api.anthropic.com
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
 
 # Activar Triple Validación
 TRIPLE_VALIDATION=true
@@ -54,7 +54,7 @@ ANTHROPIC_API_KEY=sk-ant-xxx
 
 Flujo:
 1. GPT-4o analiza con chunking inteligente
-2. Claude 3.5 Sonnet analiza documento completo
+2. Claude Sonnet 4 analiza documento completo
 3. Si consenso > 80%: respuesta directa
 4. Si consenso < 80%: GPT-4o arbitra
 ```
@@ -103,7 +103,7 @@ Error con mensaje descriptivo
   "openai_metadata": {
     "validation_strategy": "triple_arbitrated",
     "primary_model": "gpt-4o",
-    "independent_model": "claude-3-5-sonnet-20241022",
+    "independent_model": "claude-sonnet-4-20250514",
     "arbitrator_model": "gpt-4o",
     "consensus_level": 0.85,
     "primary_tokens": 1500,
@@ -121,7 +121,7 @@ Error con mensaje descriptivo
 
 ### Logs Importantes:
 - `🔺 Iniciando validación triple`: Inicio del proceso
-- `🤖 Evaluando con Claude 3.5 Sonnet`: Análisis de documento completo
+- `🤖 Evaluando con Claude Sonnet 4`: Análisis de documento completo
 - `⚖️ Iniciando arbitraje`: Comparación de respuestas
 - `✅ Consenso alto`: Modelos de acuerdo
 - `⚠️ Fallback a validación dual`: Claude no disponible

@@ -56,7 +56,7 @@ function main() {
   checkEnvironmentVariable('OPENAI_ENABLED', process.env.OPENAI_ENABLED);
 
   // 2. Verificar configuración de Claude
-  log('\n🤖 Claude 3.5 Sonnet Configuration:', 'magenta');
+  log('\n🤖 Claude Sonnet 4 Configuration:', 'magenta');
   const claudeConfigured = checkEnvironmentVariable('ANTHROPIC_API_KEY', process.env.ANTHROPIC_API_KEY);
   checkEnvironmentVariable('ANTHROPIC_BASE_URL', process.env.ANTHROPIC_BASE_URL);
   checkEnvironmentVariable('ANTHROPIC_MODEL', process.env.ANTHROPIC_MODEL);
@@ -114,7 +114,7 @@ function main() {
   // Escenario 2: Triple activo y todo configurado
   if (tripleEnabled && claudeEnabled && openaiEnabled) {
     log('\n  ✅ Full triple validation available!', 'green');
-    log('      → GPT-4o (chunking) + Claude 3.5 Sonnet (full) + GPT-4o (arbitrator)', 'blue');
+    log('      → GPT-4o (chunking) + Claude Sonnet 4 (full) + GPT-4o (arbitrator)', 'blue');
   }
 
   // Escenario 3: Solo dual validation
@@ -141,7 +141,7 @@ function main() {
     
     log('\n  Benefits of Triple Validation:', 'green');
     log('  • GPT-4o analyzes with intelligent chunking', 'blue');
-    log('  • Claude 3.5 Sonnet analyzes complete document (200K tokens)', 'blue');
+    log('  • Claude Sonnet 4 analyzes complete document (200K tokens)', 'blue');
     log('  • GPT-4o arbitrates for maximum accuracy', 'blue');
     log('  • Automatic consensus detection', 'blue');
     log('  • Graceful fallbacks if any service fails', 'blue');
