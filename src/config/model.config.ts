@@ -25,7 +25,8 @@ export const claudeConfig = {
   
   // Límites específicos de Claude
   maxContextTokens: 200000, // 200K tokens de contexto
-  maxDocumentLength: 600000, // ~600K caracteres
+  maxDocumentLength: parseInt(process.env.CLAUDE_MAX_DOCUMENT_LENGTH) || 400000, // 400K chars (~160K tokens)
+  smartChunking: process.env.CLAUDE_SMART_CHUNKING === 'true', // Chunking inteligente
   
   // Rate limits Claude Sonnet 4 (Tier 1 defaults - ajustar según cuenta)
   rateLimits: {
@@ -46,6 +47,11 @@ export const claudeConfig = {
   useFullDocument: true, // Claude puede procesar documento completo sin chunking extremo
   specialization: 'long-context-analysis', // Especializado en análisis de contexto largo
   anthropicVersion: '2023-06-01', // Versión de la API de Anthropic
+  
+  // Performance y monitoring
+  performanceLogging: process.env.CLAUDE_PERFORMANCE_LOGGING === 'true',
+  successRateThreshold: parseFloat(process.env.CLAUDE_SUCCESS_RATE_THRESHOLD) || 85,
+  autoFallback: process.env.CLAUDE_AUTO_FALLBACK !== 'false', // Default true
 };
 
 /**

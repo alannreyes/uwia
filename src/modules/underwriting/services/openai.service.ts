@@ -5,6 +5,7 @@ import { ResponseType } from '../entities/uw-evaluation.entity';
 import { JudgeValidatorService } from './judge-validator.service';
 import { RateLimiterService } from './rate-limiter.service';
 import { ClaudeRateLimiterService } from './claude-rate-limiter.service';
+import { ClaudeChunkingService } from './claude-chunking.service';
 
 const { OpenAI } = require('openai');
 const { Anthropic } = require('@anthropic-ai/sdk');
@@ -25,10 +26,12 @@ export class OpenAiService {
   private claudeClient?: any; // Cliente Claude opcional
   private rateLimiter: RateLimiterService;
   private claudeRateLimiter: ClaudeRateLimiterService;
+  private claudeChunking: ClaudeChunkingService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
     this.rateLimiter = new RateLimiterService();
     this.claudeRateLimiter = new ClaudeRateLimiterService();
+    this.claudeChunking = new ClaudeChunkingService();
     
     // Inicializar cliente OpenAI (existente)
     if (!openaiConfig.enabled) {
@@ -1064,65 +1067,86 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
       throw new Error('Cliente Claude no disponible');
     }
 
-    // Validar tamaño del documento para prevenir timeouts
-    if (documentText.length > modelConfig.claude.maxDocumentLength) {
-      this.logger.warn(`⚠️ Documento muy grande (${documentText.length} chars) para Claude. Máximo: ${modelConfig.claude.maxDocumentLength}`);
-      throw new Error(`Document too large for Claude processing: ${documentText.length} characters exceeds limit of ${modelConfig.claude.maxDocumentLength}`);
+    const startTime = Date.now();
+    this.logger.log(`🤖 Evaluando con Claude Sonnet 4 (documento: ${documentText.length} chars, timeout: ${modelConfig.claude.timeout}ms)`);
+
+    // Determinar estrategia de chunking
+    const chunkingStrategy = this.claudeChunking.determineChunkingStrategy(documentText, prompt, pmcField);
+    this.logger.log(`📋 Chunking strategy: ${chunkingStrategy.reason}`);
+
+    // Auto-fallback si el documento es demasiado grande incluso para chunking
+    if (documentText.length > modelConfig.claude.maxDocumentLength * 2 && modelConfig.claude.autoFallback) {
+      this.logger.warn(`⚠️ Documento extremadamente grande (${documentText.length} chars), using GPT-4o fallback`);
+      throw new Error(`Document too large for Claude, auto-fallback triggered: ${documentText.length} characters`);
     }
 
-    const startTime = Date.now();
-    this.logger.log(`🤖 Evaluando con Claude Sonnet 4 (documento completo: ${documentText.length} chars, timeout: ${modelConfig.claude.timeout}ms)`);
-
-    // Prompt optimizado para Claude con su contexto de 200K tokens
-    const systemPrompt = `You are Claude Sonnet 4, a highly capable AI assistant specialized in analyzing long documents with your 200K token context window.
-You have access to the COMPLETE document without any truncation or chunking.
-Use your advanced reasoning capabilities to provide the most accurate analysis.
-
+    try {
+      // Crear chunks si es necesario
+      const chunks = this.claudeChunking.chunkDocument(documentText, chunkingStrategy, prompt, pmcField);
+      
+      // Procesador Claude para chunks
+      const claudeProcessor = async (content: string, chunkPrompt: string) => {
+        const systemPrompt = `You are Claude Sonnet 4, a highly capable AI assistant specialized in document analysis.
 ${this.buildSystemPrompt(expectedType, additionalContext, false, pmcField)}
 
-IMPORTANT: You have the complete document available. Analyze ALL content thoroughly, not just sections. Use your strong analytical capabilities for comprehensive evaluation.`;
+IMPORTANT: Provide accurate analysis based on the content provided. If information is not found in the provided content, respond with "NOT_FOUND".`;
 
-    const userPrompt = `COMPLETE DOCUMENT (${documentText.length} characters):
-${documentText}
+        const userPrompt = `DOCUMENT CONTENT:
+${content}
 
 QUESTION TO ANSWER:
-${prompt}
+${chunkPrompt}`;
 
-Remember: You have the ENTIRE document with your 200K token context. Use all available context for maximum accuracy and thoroughness.`;
+        // Estimar tokens para rate limiting
+        const estimatedInputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5);
+        
+        const completion = await this.claudeRateLimiter.executeWithClaudeRateLimit(
+          async () => {
+            return await this.claudeClient.messages.create({
+              model: modelConfig.claude.model,
+              max_tokens: modelConfig.claude.maxTokens,
+              temperature: modelConfig.claude.temperature,
+              system: systemPrompt,
+              messages: [
+                { role: 'user', content: userPrompt }
+              ]
+            });
+          },
+          `claude_chunk_${pmcField || 'field'}`,
+          estimatedInputTokens,
+          'normal'
+        );
 
-    try {
-      // Estimar tokens de entrada para rate limiting
-      const estimatedInputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5); // ~3.5 chars per token aprox
-      
-      const completion = await this.claudeRateLimiter.executeWithClaudeRateLimit(
-        async () => {
-          return await this.claudeClient.messages.create({
-            model: modelConfig.claude.model,
-            max_tokens: modelConfig.claude.maxTokens,
-            temperature: modelConfig.claude.temperature,
-            system: systemPrompt,
-            messages: [
-              { role: 'user', content: userPrompt }
-            ]
-          });
-        },
-        `claude_${pmcField || 'field'}`,
-        estimatedInputTokens,
-        'normal'
+        const response = completion.content[0].text.trim();
+        const confidence = this.extractConfidence(response);
+        
+        return {
+          response: this.cleanResponse(response, expectedType),
+          confidence: confidence
+        };
+      };
+
+      // Procesar chunks con Claude
+      const result = await this.claudeChunking.processChunksWithClaude(
+        chunks, 
+        prompt, 
+        pmcField || 'field',
+        claudeProcessor
       );
 
-      const response = completion.content[0].text.trim();
-      const confidence = this.extractConfidence(response);
-      const cleanResponse = this.cleanResponse(response, expectedType);
-
       const elapsedTime = Date.now() - startTime;
-      this.logger.log(`✅ Claude Sonnet 4 completado en ${elapsedTime}ms - Confianza: ${confidence}`);
+      
+      if (modelConfig.claude.performanceLogging) {
+        this.logger.log(`📊 Claude Performance: ${elapsedTime}ms, ${result.chunksProcessed} chunks, confidence: ${result.confidence}`);
+      }
+      
+      this.logger.log(`✅ Claude Sonnet 4 completado en ${elapsedTime}ms - Confianza: ${result.confidence} (${result.chunksProcessed} chunks)`);
 
       return {
-        response: cleanResponse,
-        confidence: confidence,
-        tokens_used: completion.usage?.input_tokens + completion.usage?.output_tokens || 0,
-        model_used: modelConfig.claude.model
+        response: result.response,
+        confidence: result.confidence,
+        tokens_used: chunks.reduce((sum, chunk) => sum + chunk.tokens, 0), // Approximate
+        model_used: `${modelConfig.claude.model} (${result.chunksProcessed} chunks)`
       };
 
     } catch (error) {
