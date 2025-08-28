@@ -35,16 +35,16 @@ const testScenarios = [
     name: 'Triple Validation Enabled',
     env: {
       TRIPLE_VALIDATION: 'true',
-      QWEN_API_KEY: 'test_key',
+      ANTHROPIC_API_KEY: 'test_key',
       OPENAI_DUAL_VALIDATION: 'false'
     },
     expectedStrategy: 'triple'
   },
   {
-    name: 'Triple Enabled but Qwen Unavailable (Fallback to Dual)',
+    name: 'Triple Enabled but Claude Unavailable (Fallback to Dual)',
     env: {
       TRIPLE_VALIDATION: 'true',
-      QWEN_API_KEY: '',
+      ANTHROPIC_API_KEY: '',
       OPENAI_DUAL_VALIDATION: 'true'
     },
     expectedStrategy: 'dual'
@@ -118,16 +118,16 @@ function generateMockResponse(strategy) {
         openai_metadata: {
           validation_strategy: 'triple_arbitrated',
           primary_model: 'gpt-4o',
-          independent_model: 'qwen-long-latest',
+          independent_model: 'claude-3-5-sonnet-20241022',
           arbitrator_model: 'gpt-4o',
           consensus_level: 0.85,
           primary_tokens: 1500,
-          qwen_tokens: 8000,
+          claude_tokens: 4000,
           arbitration_tokens: 500,
           decision_reasoning: 'Both models agree on the answer with high confidence',
           selected_model: 'GPT',
           gpt_response: 'YES',
-          qwen_response: 'YES'
+          claude_response: 'YES'
         }
       };
     
@@ -169,7 +169,7 @@ function validateMetadataStructure(metadata, expectedStrategy) {
   
   const validations = {
     triple: ['validation_strategy', 'primary_model', 'independent_model', 'arbitrator_model', 
-             'consensus_level', 'primary_tokens', 'qwen_tokens', 'arbitration_tokens'],
+             'consensus_level', 'primary_tokens', 'claude_tokens', 'arbitration_tokens'],
     dual: ['validation_strategy', 'primary_model', 'validation_model', 'primary_tokens', 
            'validation_tokens'],
     simple: ['validation_strategy', 'primary_model', 'primary_tokens']

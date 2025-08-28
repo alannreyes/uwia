@@ -1,10 +1,10 @@
-# 🚀 Guía de Activación: Sistema de Triple Validación con Qwen-Long
+# 🚀 Guía de Activación: Sistema de Triple Validación con Claude 3.5 Sonnet
 
 ## 📋 Resumen Ejecutivo
 
 Se ha implementado exitosamente un **Sistema de Triple Validación** que combina:
 - **GPT-4o**: Análisis con chunking inteligente
-- **Qwen-Long**: Análisis de documento completo (10M tokens)
+- **Claude 3.5 Sonnet**: Análisis de documento completo (200K tokens)
 - **GPT-4o Árbitro**: Decisión final inteligente
 
 ### ✅ Garantías
@@ -18,10 +18,10 @@ Se ha implementado exitosamente un **Sistema de Triple Validación** que combina
 ### Paso 1: Actualizar `.env.production`
 
 ```bash
-# Configuración de Qwen-Long
-QWEN_API_KEY=YOUR_QWEN_API_KEY_HERE  # Configurar en EasyPanel
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-QWEN_MODEL=qwen-long-latest
+# Configuración de Claude 3.5 Sonnet
+ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY_HERE  # Configurar en EasyPanel
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 
 # Activar Triple Validación
 TRIPLE_VALIDATION=true
@@ -50,11 +50,11 @@ npm run start:prod
 ```
 Configuración:
 TRIPLE_VALIDATION=true
-QWEN_API_KEY=sk-xxx
+ANTHROPIC_API_KEY=sk-ant-xxx
 
 Flujo:
 1. GPT-4o analiza con chunking inteligente
-2. Qwen-Long analiza documento completo
+2. Claude 3.5 Sonnet analiza documento completo
 3. Si consenso > 80%: respuesta directa
 4. Si consenso < 80%: GPT-4o arbitra
 ```
@@ -87,7 +87,7 @@ El sistema maneja automáticamente las fallas:
 
 ```
 Triple Validation
-    ↓ (si Qwen falla)
+    ↓ (si Claude falla)
 Dual Validation
     ↓ (si validación falla)
 Simple Validation
@@ -103,16 +103,16 @@ Error con mensaje descriptivo
   "openai_metadata": {
     "validation_strategy": "triple_arbitrated",
     "primary_model": "gpt-4o",
-    "independent_model": "qwen-long-latest",
+    "independent_model": "claude-3-5-sonnet-20241022",
     "arbitrator_model": "gpt-4o",
     "consensus_level": 0.85,
     "primary_tokens": 1500,
-    "qwen_tokens": 8000,
+    "claude_tokens": 4000,
     "arbitration_tokens": 500,
     "decision_reasoning": "Both models agree...",
     "selected_model": "GPT",
     "gpt_response": "YES",
-    "qwen_response": "YES"
+    "claude_response": "YES"
   }
 }
 ```
@@ -121,10 +121,10 @@ Error con mensaje descriptivo
 
 ### Logs Importantes:
 - `🔺 Iniciando validación triple`: Inicio del proceso
-- `🔮 Evaluando con Qwen-Long`: Análisis de documento completo
+- `🤖 Evaluando con Claude 3.5 Sonnet`: Análisis de documento completo
 - `⚖️ Iniciando arbitraje`: Comparación de respuestas
 - `✅ Consenso alto`: Modelos de acuerdo
-- `⚠️ Fallback a validación dual`: Qwen no disponible
+- `⚠️ Fallback a validación dual`: Claude no disponible
 
 ### Variables de Debug:
 ```bash
@@ -152,14 +152,14 @@ TRIPLE_INCLUDE_REASONING=true
 
 | Estrategia | Precisión | Velocidad | Costo | Tokens Usados |
 |------------|-----------|-----------|-------|---------------|
-| Triple     | ⭐⭐⭐⭐⭐ | ⭐⭐      | $$$   | ~10,000      |
+| Triple     | ⭐⭐⭐⭐⭐ | ⭐⭐⭐    | $$$   | ~6,000      |
 | Dual       | ⭐⭐⭐⭐   | ⭐⭐⭐    | $$    | ~3,000       |
 | Simple     | ⭐⭐⭐     | ⭐⭐⭐⭐⭐ | $     | ~1,000       |
 
 ## 🚨 Troubleshooting
 
-### Problema: "Cliente Qwen no disponible"
-**Solución**: Verificar QWEN_API_KEY está configurada correctamente
+### Problema: "Cliente Claude no disponible"
+**Solución**: Verificar ANTHROPIC_API_KEY está configurada correctamente
 
 ### Problema: "Rate limit exceeded"
 **Solución**: El sistema automáticamente hace fallback a dual validation
@@ -170,8 +170,8 @@ TRIPLE_INCLUDE_REASONING=true
 ## 📝 Checklist de Implementación
 
 - [x] Crear `model.config.ts` con configuración centralizada
-- [x] Extender `OpenAiService` con cliente Qwen opcional
-- [x] Implementar `evaluateWithQwenLong()` para análisis completo
+- [x] Extender `OpenAiService` con cliente Claude opcional
+- [x] Implementar `evaluateWithClaude()` para análisis completo
 - [x] Implementar `evaluateWithTripleValidation()` orquestador
 - [x] Implementar `arbitrateWithGPT4o()` para decisiones
 - [x] Agregar lógica de selección de estrategia

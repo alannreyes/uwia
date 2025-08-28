@@ -6,6 +6,7 @@ import { JudgeValidatorService } from './judge-validator.service';
 import { RateLimiterService } from './rate-limiter.service';
 
 const { OpenAI } = require('openai');
+const { Anthropic } = require('@anthropic-ai/sdk');
 
 export interface EvaluationResult {
   response: string;
@@ -20,7 +21,7 @@ export interface EvaluationResult {
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
   private openai: any;
-  private qwenClient?: any; // Cliente Qwen opcional
+  private claudeClient?: any; // Cliente Claude opcional
   private rateLimiter: RateLimiterService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
@@ -42,19 +43,19 @@ export class OpenAiService {
       maxRetries: openaiConfig.maxRetries,
     });
     
-    // Inicializar cliente Qwen si está disponible (nuevo)
-    if (modelConfig.isQwenAvailable()) {
+    // Inicializar cliente Claude si está disponible (nuevo)
+    if (modelConfig.isClaudeAvailable()) {
       try {
-        this.qwenClient = new OpenAI({
-          apiKey: modelConfig.qwen.apiKey,
-          baseURL: modelConfig.qwen.baseURL,
-          timeout: modelConfig.qwen.timeout,
-          maxRetries: modelConfig.qwen.maxRetries,
+        this.claudeClient = new Anthropic({
+          apiKey: modelConfig.claude.apiKey,
+          baseURL: modelConfig.claude.baseURL,
+          timeout: modelConfig.claude.timeout,
+          maxRetries: modelConfig.claude.maxRetries,
         });
-        this.logger.log('✅ Cliente Qwen-Long inicializado correctamente');
+        this.logger.log('✅ Cliente Claude 3.5 Sonnet inicializado correctamente');
       } catch (error) {
-        this.logger.warn(`⚠️ No se pudo inicializar cliente Qwen: ${error.message}`);
-        this.qwenClient = null;
+        this.logger.warn(`⚠️ No se pudo inicializar cliente Claude: ${error.message}`);
+        this.claudeClient = null;
       }
     }
   }
@@ -90,13 +91,13 @@ export class OpenAiService {
       // Selección de estrategia de validación basada en configuración
       const validationStrategy = modelConfig.getValidationStrategy();
       
-      if (validationStrategy === 'triple' && this.qwenClient) {
-        // Nueva validación triple con Qwen-Long
-        this.logger.log('🔺 Usando validación triple: GPT-4o + Qwen-Long + GPT-4o Árbitro');
+      if (validationStrategy === 'triple' && this.claudeClient) {
+        // Nueva validación triple con Claude
+        this.logger.log('🔺 Usando validación triple: GPT-4o + Claude 3.5 Sonnet + GPT-4o Árbitro');
         return await this.evaluateWithTripleValidation(documentText, relevantText, prompt, expectedType, additionalContext, pmcField);
-      } else if (validationStrategy === 'triple' && !this.qwenClient) {
-        // Fallback a dual si triple está activado pero Qwen no disponible
-        this.logger.warn('⚠️ Triple validación configurada pero Qwen no disponible, usando validación dual');
+      } else if (validationStrategy === 'triple' && !this.claudeClient) {
+        // Fallback a dual si triple está activado pero Claude no disponible
+        this.logger.warn('⚠️ Triple validación configurada pero Claude no disponible, usando validación dual');
         return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext, pmcField);
       } else if (openaiConfig.dualValidation) {
         // Validación dual existente
@@ -1042,35 +1043,35 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   }
 
   /**
-   * Evalúa un documento usando Qwen-Long con contexto completo (sin chunking)
+   * Evalúa un documento usando Claude 3.5 Sonnet con contexto completo (sin chunking)
    * @param documentText Documento completo sin chunking
    * @param prompt Pregunta a evaluar
    * @param expectedType Tipo de respuesta esperada
    * @param additionalContext Contexto adicional opcional
    * @param pmcField Campo PMC para logging
    */
-  private async evaluateWithQwenLong(
+  private async evaluateWithClaude(
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
     additionalContext?: string,
     pmcField?: string
   ): Promise<{ response: string; confidence: number; tokens_used: number; model_used: string }> {
-    if (!this.qwenClient) {
-      throw new Error('Cliente Qwen no disponible');
+    if (!this.claudeClient) {
+      throw new Error('Cliente Claude no disponible');
     }
 
     const startTime = Date.now();
-    this.logger.log(`🔮 Evaluando con Qwen-Long (documento completo: ${documentText.length} chars)`);
+    this.logger.log(`🤖 Evaluando con Claude 3.5 Sonnet (documento completo: ${documentText.length} chars)`);
 
-    // Prompt optimizado para Qwen-Long
-    const systemPrompt = `You are Qwen-Long, a specialized model for analyzing long documents.
+    // Prompt optimizado para Claude con su contexto de 200K tokens
+    const systemPrompt = `You are Claude 3.5 Sonnet, a highly capable AI assistant specialized in analyzing long documents with your 200K token context window.
 You have access to the COMPLETE document without any truncation or chunking.
-Use your full context window advantage to provide the most accurate analysis.
+Use your advanced reasoning capabilities to provide the most accurate analysis.
 
 ${this.buildSystemPrompt(expectedType, additionalContext, false, pmcField)}
 
-IMPORTANT: You have the complete document available. Search through ALL content, not just the beginning or end.`;
+IMPORTANT: You have the complete document available. Analyze ALL content thoroughly, not just sections. Use your strong analytical capabilities for comprehensive evaluation.`;
 
     const userPrompt = `COMPLETE DOCUMENT (${documentText.length} characters):
 ${documentText}
@@ -1078,48 +1079,48 @@ ${documentText}
 QUESTION TO ANSWER:
 ${prompt}
 
-Remember: You have the ENTIRE document. Use all available context for maximum accuracy.`;
+Remember: You have the ENTIRE document with your 200K token context. Use all available context for maximum accuracy and thoroughness.`;
 
     try {
       const completion = await this.rateLimiter.executeWithRateLimit(
         async () => {
-          return await this.qwenClient.chat.completions.create({
-            model: modelConfig.qwen.model,
+          return await this.claudeClient.messages.create({
+            model: modelConfig.claude.model,
+            max_tokens: modelConfig.claude.maxTokens,
+            temperature: modelConfig.claude.temperature,
+            system: systemPrompt,
             messages: [
-              { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt }
-            ],
-            temperature: modelConfig.qwen.temperature,
-            max_tokens: modelConfig.qwen.maxTokens,
+            ]
           });
         },
-        `qwen_${pmcField || 'field'}`,
+        `claude_${pmcField || 'field'}`,
         'normal'
       );
 
-      const response = completion.choices[0].message.content.trim();
+      const response = completion.content[0].text.trim();
       const confidence = this.extractConfidence(response);
       const cleanResponse = this.cleanResponse(response, expectedType);
 
       const elapsedTime = Date.now() - startTime;
-      this.logger.log(`✅ Qwen-Long completado en ${elapsedTime}ms - Confianza: ${confidence}`);
+      this.logger.log(`✅ Claude 3.5 Sonnet completado en ${elapsedTime}ms - Confianza: ${confidence}`);
 
       return {
         response: cleanResponse,
         confidence: confidence,
-        tokens_used: completion.usage?.total_tokens || 0,
-        model_used: modelConfig.qwen.model
+        tokens_used: completion.usage?.input_tokens + completion.usage?.output_tokens || 0,
+        model_used: modelConfig.claude.model
       };
 
     } catch (error) {
-      this.logger.error(`Error en evaluación con Qwen-Long: ${error.message}`);
+      this.logger.error(`Error en evaluación con Claude: ${error.message}`);
       throw error;
     }
   }
 
   /**
-   * Sistema de triple validación: GPT-4o + Qwen-Long + GPT-4o Árbitro
-   * @param fullDocument Documento completo para Qwen
+   * Sistema de triple validación: GPT-4o + Claude 3.5 Sonnet + GPT-4o Árbitro
+   * @param fullDocument Documento completo para Claude
    * @param chunkedDocument Documento con chunking para GPT
    * @param prompt Pregunta a evaluar
    * @param expectedType Tipo de respuesta esperada
@@ -1139,7 +1140,7 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
 
     try {
       // Ejecutar evaluaciones en paralelo para mejor performance
-      const [gptResult, qwenResult] = await Promise.allSettled([
+      const [gptResult, claudeResult] = await Promise.allSettled([
         // 1. GPT-4o con chunking inteligente
         this.evaluatePrompt(
           chunkedDocument,
@@ -1149,8 +1150,8 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
           modelConfig.validation.triple.models.primary,
           pmcField
         ),
-        // 2. Qwen-Long con documento completo
-        this.evaluateWithQwenLong(
+        // 2. Claude 3.5 Sonnet con documento completo
+        this.evaluateWithClaude(
           fullDocument,
           prompt,
           expectedType,
@@ -1169,10 +1170,10 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
         this.logger.error(`Error en evaluación GPT: ${gptResult.reason}`);
       }
 
-      if (qwenResult.status === 'fulfilled') {
-        independentResult = qwenResult.value;
+      if (claudeResult.status === 'fulfilled') {
+        independentResult = claudeResult.value;
       } else {
-        this.logger.error(`Error en evaluación Qwen: ${qwenResult.reason}`);
+        this.logger.error(`Error en evaluación Claude: ${claudeResult.reason}`);
       }
 
       // Si ambas evaluaciones fallaron, lanzar error
@@ -1247,9 +1248,9 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
   }
 
   /**
-   * GPT-4o actúa como árbitro entre las respuestas de GPT y Qwen
+   * GPT-4o actúa como árbitro entre las respuestas de GPT y Claude
    * @param gptResult Resultado de GPT-4o
-   * @param qwenResult Resultado de Qwen-Long
+   * @param claudeResult Resultado de Claude 3.5 Sonnet
    * @param originalPrompt Pregunta original
    * @param expectedType Tipo esperado
    * @param documentSnippet Fragmento del documento para contexto
@@ -1257,7 +1258,7 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
    */
   private async arbitrateWithGPT4o(
     gptResult: { response: string; confidence: number; tokens_used: number },
-    qwenResult: { response: string; confidence: number; tokens_used: number },
+    claudeResult: { response: string; confidence: number; tokens_used: number },
     originalPrompt: string,
     expectedType: ResponseType,
     documentSnippet: string,
@@ -1267,19 +1268,19 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
     this.logger.log(`⚖️ Iniciando arbitraje para ${pmcField || 'campo'}`);
 
     // Calcular nivel de acuerdo inicial
-    const initialAgreement = this.calculateAgreement(gptResult.response, qwenResult.response, expectedType);
+    const initialAgreement = this.calculateAgreement(gptResult.response, claudeResult.response, expectedType);
     
     // Si hay consenso alto, no necesitamos árbitro
     if (initialAgreement >= modelConfig.validation.triple.highAgreementThreshold) {
       this.logger.log(`✅ Consenso alto (${(initialAgreement * 100).toFixed(0)}%) - usando respuesta consensuada`);
       
-      const avgConfidence = (gptResult.confidence + qwenResult.confidence) / 2;
+      const avgConfidence = (gptResult.confidence + claudeResult.confidence) / 2;
       
       return {
         response: gptResult.response, // Usar respuesta de GPT por defecto en consenso
         confidence: avgConfidence,
-        validation_response: qwenResult.response,
-        validation_confidence: qwenResult.confidence,
+        validation_response: claudeResult.response,
+        validation_confidence: claudeResult.confidence,
         final_confidence: Math.min(avgConfidence * 1.1, 1.0), // Boost por consenso
         openai_metadata: {
           validation_strategy: 'triple_consensus',
@@ -1288,7 +1289,7 @@ Remember: You have the ENTIRE document. Use all available context for maximum ac
           arbitrator_model: 'not_needed',
           consensus_level: initialAgreement,
           primary_tokens: gptResult.tokens_used,
-          qwen_tokens: qwenResult.tokens_used,
+          claude_tokens: claudeResult.tokens_used,
           arbitration_tokens: 0,
           decision_reasoning: 'High consensus between models'
         }
@@ -1305,10 +1306,10 @@ ANALYSIS 1 (GPT-4o with chunking):
 - Confidence: ${gptResult.confidence}
 - Method: Intelligent chunking to focus on relevant sections
 
-ANALYSIS 2 (Qwen-Long with full context):
-- Response: ${qwenResult.response}
-- Confidence: ${qwenResult.confidence}
-- Method: Full document analysis with 10M token context
+ANALYSIS 2 (Claude 3.5 Sonnet with full context):
+- Response: ${claudeResult.response}
+- Confidence: ${claudeResult.confidence}
+- Method: Full document analysis with 200K token context
 
 DOCUMENT SNIPPET FOR REFERENCE:
 ${documentSnippet.substring(0, 2000)}
@@ -1325,7 +1326,7 @@ Respond in this JSON format:
 {
   "final_answer": "your definitive answer",
   "reasoning": "brief explanation of your decision",
-  "selected_model": "GPT" or "QWEN" or "COMBINED",
+  "selected_model": "GPT" or "CLAUDE" or "COMBINED",
   "agreement_level": 0.0 to 1.0,
   "confidence": 0.0 to 1.0
 }`;
@@ -1363,9 +1364,9 @@ Respond in this JSON format:
       if (arbitrationResponse.selected_model === 'GPT') {
         finalResponse = gptResult.response;
         finalConfidence = gptResult.confidence;
-      } else if (arbitrationResponse.selected_model === 'QWEN') {
-        finalResponse = qwenResult.response;
-        finalConfidence = qwenResult.confidence;
+      } else if (arbitrationResponse.selected_model === 'CLAUDE') {
+        finalResponse = claudeResult.response;
+        finalConfidence = claudeResult.confidence;
       } else {
         // COMBINED o nueva respuesta del árbitro
         finalResponse = arbitrationResponse.final_answer;
@@ -1385,12 +1386,12 @@ Respond in this JSON format:
           arbitrator_model: modelConfig.validation.triple.models.arbitrator,
           consensus_level: arbitrationResponse.agreement_level,
           primary_tokens: gptResult.tokens_used,
-          qwen_tokens: qwenResult.tokens_used,
+          claude_tokens: claudeResult.tokens_used,
           arbitration_tokens: completion.usage?.total_tokens || 0,
           decision_reasoning: arbitrationResponse.reasoning,
           selected_model: arbitrationResponse.selected_model,
           gpt_response: gptResult.response,
-          qwen_response: qwenResult.response
+          claude_response: claudeResult.response
         }
       };
 
@@ -1398,7 +1399,7 @@ Respond in this JSON format:
       this.logger.error(`Error en arbitraje: ${error.message}`);
       
       // En caso de error, usar el resultado con mayor confianza
-      const bestResult = gptResult.confidence >= qwenResult.confidence ? gptResult : qwenResult;
+      const bestResult = gptResult.confidence >= claudeResult.confidence ? gptResult : claudeResult;
       
       return {
         response: bestResult.response,
@@ -1413,7 +1414,7 @@ Respond in this JSON format:
           arbitrator_model: 'failed',
           consensus_level: initialAgreement,
           primary_tokens: gptResult.tokens_used,
-          qwen_tokens: qwenResult.tokens_used,
+          claude_tokens: claudeResult.tokens_used,
           arbitration_tokens: 0,
           decision_reasoning: 'Arbitration failed - using highest confidence result',
           error: error.message

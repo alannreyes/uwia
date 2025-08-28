@@ -55,13 +55,13 @@ function main() {
   checkEnvironmentVariable('OPENAI_DUAL_VALIDATION', process.env.OPENAI_DUAL_VALIDATION);
   checkEnvironmentVariable('OPENAI_ENABLED', process.env.OPENAI_ENABLED);
 
-  // 2. Verificar configuración de Qwen
-  log('\n🔮 Qwen-Long Configuration:', 'magenta');
-  const qwenConfigured = checkEnvironmentVariable('QWEN_API_KEY', process.env.QWEN_API_KEY);
-  checkEnvironmentVariable('QWEN_BASE_URL', process.env.QWEN_BASE_URL);
-  checkEnvironmentVariable('QWEN_MODEL', process.env.QWEN_MODEL);
-  checkEnvironmentVariable('QWEN_TEMPERATURE', process.env.QWEN_TEMPERATURE);
-  checkEnvironmentVariable('QWEN_MAX_TOKENS', process.env.QWEN_MAX_TOKENS);
+  // 2. Verificar configuración de Claude
+  log('\n🤖 Claude 3.5 Sonnet Configuration:', 'magenta');
+  const claudeConfigured = checkEnvironmentVariable('ANTHROPIC_API_KEY', process.env.ANTHROPIC_API_KEY);
+  checkEnvironmentVariable('ANTHROPIC_BASE_URL', process.env.ANTHROPIC_BASE_URL);
+  checkEnvironmentVariable('ANTHROPIC_MODEL', process.env.ANTHROPIC_MODEL);
+  checkEnvironmentVariable('ANTHROPIC_TEMPERATURE', process.env.ANTHROPIC_TEMPERATURE);
+  checkEnvironmentVariable('ANTHROPIC_MAX_TOKENS', process.env.ANTHROPIC_MAX_TOKENS);
 
   // 3. Verificar configuración de Triple Validation
   log('\n🔺 Triple Validation Configuration:', 'magenta');
@@ -83,13 +83,13 @@ function main() {
     log(`    Validation Model: ${modelConfig.openai.validationModel}`, 'blue');
   }
 
-  // Estado de Qwen
-  const qwenEnabled = modelConfig.qwen.enabled;
-  log(`\n  Qwen-Long Service: ${qwenEnabled ? '✅ ENABLED' : '⚠️ DISABLED'}`, qwenEnabled ? 'green' : 'yellow');
-  if (qwenEnabled) {
-    log(`    Model: ${modelConfig.qwen.model}`, 'blue');
-    log(`    Max Context: ${modelConfig.qwen.maxContextTokens.toLocaleString()} tokens`, 'blue');
-  } else if (process.env.QWEN_API_KEY && process.env.QWEN_API_KEY.startsWith('sk-')) {
+  // Estado de Claude
+  const claudeEnabled = modelConfig.claude.enabled;
+  log(`\n  Claude Service: ${claudeEnabled ? '✅ ENABLED' : '⚠️ DISABLED'}`, claudeEnabled ? 'green' : 'yellow');
+  if (claudeEnabled) {
+    log(`    Model: ${modelConfig.claude.model}`, 'blue');
+    log(`    Max Context: ${modelConfig.claude.maxContextTokens.toLocaleString()} tokens`, 'blue');
+  } else if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
     log(`    ℹ️  API Key is set but not activated`, 'yellow');
   }
 
@@ -105,16 +105,16 @@ function main() {
   log('\n\n🛡️ Fallback Scenarios:', 'cyan');
   log('=' .repeat(60), 'cyan');
 
-  // Escenario 1: Triple activado pero Qwen no disponible
-  if (process.env.TRIPLE_VALIDATION === 'true' && !qwenEnabled) {
-    log('\n  ⚠️  Triple validation requested but Qwen unavailable', 'yellow');
+  // Escenario 1: Triple activado pero Claude no disponible
+  if (process.env.TRIPLE_VALIDATION === 'true' && !claudeEnabled) {
+    log('\n  ⚠️  Triple validation requested but Claude unavailable', 'yellow');
     log('      → Will fallback to DUAL validation', 'green');
   }
 
   // Escenario 2: Triple activo y todo configurado
-  if (tripleEnabled && qwenEnabled && openaiEnabled) {
+  if (tripleEnabled && claudeEnabled && openaiEnabled) {
     log('\n  ✅ Full triple validation available!', 'green');
-    log('      → GPT-4o (chunking) + Qwen-Long (full) + GPT-4o (arbitrator)', 'blue');
+    log('      → GPT-4o (chunking) + Claude 3.5 Sonnet (full) + GPT-4o (arbitrator)', 'blue');
   }
 
   // Escenario 3: Solo dual validation
@@ -135,13 +135,13 @@ function main() {
 
   if (!tripleEnabled) {
     log('\n  To enable Triple Validation:', 'yellow');
-    log('  1. Set QWEN_API_KEY in EasyPanel environment variables', 'cyan');
+    log('  1. Set ANTHROPIC_API_KEY in EasyPanel environment variables', 'cyan');
     log('  2. Set TRIPLE_VALIDATION=true', 'cyan');
     log('  3. Restart the application', 'cyan');
     
     log('\n  Benefits of Triple Validation:', 'green');
     log('  • GPT-4o analyzes with intelligent chunking', 'blue');
-    log('  • Qwen-Long analyzes complete document (10M tokens)', 'blue');
+    log('  • Claude 3.5 Sonnet analyzes complete document (200K tokens)', 'blue');
     log('  • GPT-4o arbitrates for maximum accuracy', 'blue');
     log('  • Automatic consensus detection', 'blue');
     log('  • Graceful fallbacks if any service fails', 'blue');
@@ -171,13 +171,13 @@ function main() {
     log(`  OpenAI API Key: ${keyFormat}`, keyFormat === 'Valid format' ? 'green' : 'red');
   }
 
-  if (process.env.QWEN_API_KEY && process.env.QWEN_API_KEY !== 'YOUR_QWEN_API_KEY_HERE') {
-    const keyFormat = process.env.QWEN_API_KEY?.startsWith('sk-') ? 'Valid format' : 'Invalid format';
-    log(`  Qwen API Key: ${keyFormat}`, keyFormat === 'Valid format' ? 'green' : 'red');
+  if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'YOUR_ANTHROPIC_API_KEY_HERE') {
+    const keyFormat = process.env.ANTHROPIC_API_KEY?.startsWith('sk-ant-') ? 'Valid format' : 'Invalid format';
+    log(`  Claude API Key: ${keyFormat}`, keyFormat === 'Valid format' ? 'green' : 'red');
     
     // Verificar URL base
-    const urlValid = process.env.QWEN_BASE_URL?.includes('dashscope.aliyuncs.com');
-    log(`  Qwen Base URL: ${urlValid ? 'Valid Alibaba Cloud endpoint' : 'Custom endpoint'}`, urlValid ? 'green' : 'yellow');
+    const urlValid = process.env.ANTHROPIC_BASE_URL?.includes('api.anthropic.com');
+    log(`  Claude Base URL: ${urlValid ? 'Valid Anthropic endpoint' : 'Custom endpoint'}`, urlValid ? 'green' : 'yellow');
   }
 
   log('\n' + '=' .repeat(60), 'bright');
