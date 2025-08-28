@@ -1,6 +1,6 @@
 export const openaiConfig = {
   apiKey: process.env.OPENAI_API_KEY,
-  model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  model: process.env.OPENAI_MODEL || 'gpt-4o',
   validationModel: process.env.OPENAI_VALIDATION_MODEL || 'gpt-4o', // Modelo premium para validación
   enabled: process.env.OPENAI_ENABLED === 'true',
   dualValidation: process.env.OPENAI_DUAL_VALIDATION === 'true', // Activar validación dual

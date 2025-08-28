@@ -121,7 +121,7 @@ Respond in JSON format:
       const result: ProcessingStrategy = {
         useVisualAnalysis: strategy.use_visual && documentHasImages,
         useDualValidation: strategy.use_dual_validation,
-        primaryModel: strategy.primary_model || 'gpt-4o-mini',
+        primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-4o',
         validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-4o') : undefined,
         confidenceThreshold: strategy.confidence_threshold || 0.85,
         reasoning: strategy.reasoning || 'AI-determined strategy'
@@ -200,7 +200,9 @@ Respond in JSON format:
     ) || expectedType === ResponseType.BOOLEAN;
 
     // Selección de modelo basada en complejidad
-    const primaryModel = needsVisual || needsDual ? 'gpt-4o' : 'gpt-4o-mini';
+    // Usar siempre el modelo configurado en variables de entorno
+    const configuredModel = process.env.OPENAI_MODEL || 'gpt-4o';
+    const primaryModel = needsVisual || needsDual ? 'gpt-4o' : configuredModel;
     
     const strategy: ProcessingStrategy = {
       useVisualAnalysis: needsVisual,

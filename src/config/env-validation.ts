@@ -74,7 +74,7 @@ export class EnvValidation {
     this.logger.log(`   - Entorno: ${process.env.NODE_ENV || 'development'}`);
     this.logger.log(`   - DB Host: ${process.env.DB_HOST}`);
     this.logger.log(`   - DB Name: ${process.env.DB_DATABASE || process.env.DB_NAME}`);
-    this.logger.log(`   - OpenAI Model: ${(process.env.OPENAI_MODEL || 'gpt-4o-mini').replace(/\s+/g, '-')}`);
+    this.logger.log(`   - OpenAI Model: ${(process.env.OPENAI_MODEL || 'gpt-4o').replace(/\s+/g, '-')}`);
     this.logger.log(`   - Max File Size: ${parseInt(process.env.MAX_FILE_SIZE) || 10485760} bytes`);
   }
 }

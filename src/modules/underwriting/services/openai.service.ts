@@ -628,7 +628,7 @@ Be very careful and thorough in your analysis.`;
 
       const completion = await this.retryWithBackoff(async () => {
         return await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: openaiConfig.model,
           messages: [
             { 
               role: 'system', 
@@ -693,7 +693,7 @@ Respond in JSON format:
 
       const completion = await this.retryWithBackoff(async () => {
         return await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini', // Usar modelo más rápido para clasificación
+          model: openaiConfig.model, // Usar modelo configurado
           messages: [
             { 
               role: 'system', 
