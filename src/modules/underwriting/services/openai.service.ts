@@ -1489,7 +1489,31 @@ Respond in this JSON format:
         'high'
       );
 
-      const arbitrationResponse = JSON.parse(completion.choices[0].message.content.trim());
+      // Manejo robusto de respuesta JSON de GPT-5 arbitraje
+      const rawArbitrationResponse = completion.choices[0].message.content?.trim() || '';
+      this.logger.debug(`🔍 Arbitration raw response (${rawArbitrationResponse.length} chars): ${rawArbitrationResponse.substring(0, 200)}...`);
+      
+      let arbitrationResponse;
+      try {
+        arbitrationResponse = JSON.parse(rawArbitrationResponse);
+      } catch (parseError) {
+        this.logger.error(`❌ Arbitration JSON parse error: ${parseError.message}`);
+        this.logger.error(`📝 Arbitration raw response: ${rawArbitrationResponse}`);
+        
+        // Intentar extraer JSON válido
+        const jsonMatch = rawArbitrationResponse.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          try {
+            arbitrationResponse = JSON.parse(jsonMatch[0]);
+            this.logger.log(`🔧 Recovered partial arbitration JSON`);
+          } catch (retryError) {
+            this.logger.error(`❌ Arbitration JSON recovery failed: ${retryError.message}`);
+            throw new Error(`Arbitration response parsing failed: ${parseError.message}`);
+          }
+        } else {
+          throw new Error(`Arbitration response parsing failed: ${parseError.message}`);
+        }
+      }
       
       const elapsedTime = Date.now() - startTime;
       this.logger.log(`⚖️ Arbitraje completado en ${elapsedTime}ms - Decisión: ${arbitrationResponse.selected_model}`);
@@ -1919,7 +1943,16 @@ Respond in this JSON format:
       response_format: { type: 'json_object' }
     });
     
-    const result = JSON.parse(response.choices[0].message.content);
+    // Manejo robusto de respuesta JSON
+    const rawContent = response.choices[0].message.content?.trim() || '';
+    let result;
+    try {
+      result = JSON.parse(rawContent);
+    } catch (parseError) {
+      this.logger.error(`❌ JSON parse error in evaluateComplexDocumentWithGPT5: ${parseError.message}`);
+      this.logger.error(`📝 Raw content: ${rawContent}`);
+      throw new Error(`GPT-5 response parsing failed: ${parseError.message}`);
+    }
     
     return {
       response: result.response || result.answer || 'No response',
@@ -1978,7 +2011,15 @@ Provide your arbitration decision in JSON format:
       response_format: { type: 'json_object' }
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    // Manejo robusto de respuesta JSON del juez final
+    const rawJudgeContent = response.choices[0].message.content?.trim() || '';
+    try {
+      return JSON.parse(rawJudgeContent);
+    } catch (parseError) {
+      this.logger.error(`❌ Final judge JSON parse error: ${parseError.message}`);
+      this.logger.error(`📝 Final judge raw content: ${rawJudgeContent}`);
+      throw new Error(`Final judge response parsing failed: ${parseError.message}`);
+    }
   }
 
   /**

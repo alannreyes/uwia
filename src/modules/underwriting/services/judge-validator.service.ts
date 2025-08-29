@@ -97,7 +97,31 @@ export class JudgeValidatorService {
         response_format: { type: "json_object" }
       });
 
-      const judgeResponse = JSON.parse(completion.choices[0].message.content.trim());
+      // Manejo robusto de respuesta JSON del juez
+      const rawJudgeResponse = completion.choices[0].message.content?.trim() || '';
+      this.logger.debug(`🔍 Judge raw response (${rawJudgeResponse.length} chars): ${rawJudgeResponse.substring(0, 200)}...`);
+      
+      let judgeResponse;
+      try {
+        judgeResponse = JSON.parse(rawJudgeResponse);
+      } catch (parseError) {
+        this.logger.error(`❌ Judge JSON parse error: ${parseError.message}`);
+        this.logger.error(`📝 Judge raw response: ${rawJudgeResponse}`);
+        
+        // Intentar extraer JSON válido
+        const jsonMatch = rawJudgeResponse.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          try {
+            judgeResponse = JSON.parse(jsonMatch[0]);
+            this.logger.log(`🔧 Recovered partial judge JSON`);
+          } catch (retryError) {
+            this.logger.error(`❌ Judge JSON recovery failed: ${retryError.message}`);
+            throw new Error(`Judge response parsing failed: ${parseError.message}`);
+          }
+        } else {
+          throw new Error(`Judge response parsing failed: ${parseError.message}`);
+        }
+      }
       
       // Log detallado de la respuesta del juez
       this.logger.log(`🧠 JUDGE GPT-4o RAW RESPONSE:`);

@@ -116,7 +116,31 @@ Respond in JSON format:
         'normal' // Prioridad normal para estrategias
       );
 
-      const strategy = JSON.parse(completion.choices[0].message.content.trim());
+      // Manejo robusto de respuesta JSON de GPT-5
+      const rawResponse = completion.choices[0].message.content?.trim() || '';
+      this.logger.debug(`🔍 GPT-5 raw response (${rawResponse.length} chars): ${rawResponse.substring(0, 200)}...`);
+      
+      let strategy;
+      try {
+        strategy = JSON.parse(rawResponse);
+      } catch (parseError) {
+        this.logger.error(`❌ JSON parse error for ${pmcField}: ${parseError.message}`);
+        this.logger.error(`📝 Raw response: ${rawResponse}`);
+        
+        // Intentar extraer JSON válido si está parcial
+        const jsonMatch = rawResponse.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          try {
+            strategy = JSON.parse(jsonMatch[0]);
+            this.logger.log(`🔧 Recovered partial JSON for ${pmcField}`);
+          } catch (retryError) {
+            this.logger.error(`❌ JSON recovery failed: ${retryError.message}`);
+            throw parseError; // Re-throw original error
+          }
+        } else {
+          throw parseError;
+        }
+      }
       
       const result: ProcessingStrategy = {
         useVisualAnalysis: strategy.use_visual && documentHasImages,
