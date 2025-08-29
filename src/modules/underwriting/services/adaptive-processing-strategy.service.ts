@@ -71,8 +71,8 @@ Respond in JSON format:
 {
   "use_visual": true/false,
   "use_dual_validation": true/false,
-  "primary_model": "gpt-4o" or "gpt-4o-mini",
-  "validation_model": "gpt-4o" or null,
+  "primary_model": "gpt-5" or "gpt-4o-mini",
+  "validation_model": "gpt-5" or null,
   "confidence_threshold": 0.70-0.95,
   "reasoning": "brief explanation of strategy choice"
 }`;
@@ -96,7 +96,7 @@ Respond in JSON format:
       const completion = await this.rateLimiter.executeWithRateLimit(
         async () => {
           return await openai.chat.completions.create({
-            model: 'gpt-4o', // Usar GPT-4o como decidiste
+            model: 'gpt-5', // Usar GPT-5 para mejor análisis
             messages: [
               {
                 role: 'system',
@@ -121,8 +121,8 @@ Respond in JSON format:
       const result: ProcessingStrategy = {
         useVisualAnalysis: strategy.use_visual && documentHasImages,
         useDualValidation: strategy.use_dual_validation,
-        primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-4o',
-        validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-4o') : undefined,
+        primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-5',
+        validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-5') : undefined,
         confidenceThreshold: strategy.confidence_threshold || 0.85,
         reasoning: strategy.reasoning || 'AI-determined strategy'
       };
@@ -145,7 +145,7 @@ Respond in JSON format:
         return {
           useVisualAnalysis: true,
           useDualValidation: false, // Reducir carga
-          primaryModel: 'gpt-4o',
+          primaryModel: 'gpt-5',
           confidenceThreshold: 0.70,
           reasoning: 'Rate limit fallback - visual analysis for signatures'
         };
@@ -239,13 +239,13 @@ Respond in JSON format:
     }
 
     // Si la confianza es baja y es visual, sugerir cambio de modelo
-    if (actualConfidence < 0.6 && originalStrategy.useVisualAnalysis && originalStrategy.primaryModel !== 'gpt-4o') {
-      this.logger.log(`🔄 Very low confidence (${actualConfidence}) for visual field ${pmcField} - upgrading to gpt-4o`);
+    if (actualConfidence < 0.6 && originalStrategy.useVisualAnalysis && originalStrategy.primaryModel !== 'gpt-5') {
+      this.logger.log(`🔄 Very low confidence (${actualConfidence}) for visual field ${pmcField} - upgrading to gpt-5`);
       
       return {
         ...originalStrategy,
-        primaryModel: 'gpt-4o',
-        reasoning: `${originalStrategy.reasoning} + Upgraded to gpt-4o for better visual analysis`
+        primaryModel: 'gpt-5',
+        reasoning: `${originalStrategy.reasoning} + Upgraded to gpt-5 for better visual analysis`
       };
     }
 

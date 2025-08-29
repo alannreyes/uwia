@@ -781,7 +781,7 @@ Respond in JSON format:
       const completion = await this.rateLimiter.executeWithRateLimit(
         async () => {
           return await this.openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-5",
             messages: [{
               role: "user",
               content: [
@@ -1835,7 +1835,7 @@ Respond in this JSON format:
     const fullPrompt = this.buildFullPrompt(systemPrompt, documentText, prompt, additionalContext);
     
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o', // TODO: Cambiar a 'gpt-5' cuando esté disponible
+      model: 'gpt-5',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: fullPrompt }
@@ -1851,7 +1851,7 @@ Respond in this JSON format:
       response: result.response || result.answer || 'No response',
       confidence: result.confidence || 0.8,
       reasoning: result.reasoning || 'GPT-5 reasoning',
-      model: 'gpt-4o' // TODO: 'gpt-5'
+      model: 'gpt-5'
     };
   }
 
@@ -1891,7 +1891,7 @@ Provide your arbitration decision in JSON format:
 }`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o', // TODO: Cambiar a 'gpt-5'
+      model: 'gpt-5',
       messages: [
         { 
           role: 'system', 
