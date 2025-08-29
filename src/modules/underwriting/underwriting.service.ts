@@ -228,9 +228,9 @@ export class UnderwritingService {
       const isCriticalDocument = documentName.toLowerCase().includes('lop') || 
                                  documentName.toLowerCase().includes('estimate');
       
-      // Configurar concurrencia basada en tipo de documento y campo
-      const concurrencyLimit = isCriticalDocument ? 1 : 2; // Secuencial para documentos críticos
-      const delayBetweenRequests = isCriticalDocument ? 5000 : 2000; // 5s para críticos, 2s para otros
+      // Configurar concurrencia basada en tipo de documento y campo - OPTIMIZADO
+      const concurrencyLimit = isCriticalDocument ? 2 : 3; // Moderada concurrencia para documentos críticos
+      const delayBetweenRequests = isCriticalDocument ? 2000 : 1000; // 2s para críticos, 1s para otros
       
       this.logger.log(`📋 Processing strategy for ${documentName}:`);
       this.logger.log(`   - Concurrency: ${concurrencyLimit}`);
@@ -238,8 +238,8 @@ export class UnderwritingService {
       this.logger.log(`   - Total prompts: ${prompts.length}`);
       
       const processPromise = async (prompt: any, index: number) => {
-        // Agregar delay entre requests para evitar rate limiting
-        if (index > 0 && isCriticalDocument) {
+        // Agregar delay moderado solo entre batches para evitar rate limiting
+        if (index > 0 && index % concurrencyLimit === 0) {
           await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
           this.logger.log(`⏳ Delay ${delayBetweenRequests}ms before processing ${prompt.pmcField}`);
         }
