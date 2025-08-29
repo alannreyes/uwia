@@ -176,8 +176,9 @@ export class OpenAiService {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          temperature: openaiConfig.temperature,
+          temperature: 0.3, // GPT-5 optimized: slightly higher for better reasoning
           max_tokens: openaiConfig.maxTokens,
+          reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
         });
       },
       `evaluate_${pmcField || 'field'}`,
@@ -628,8 +629,9 @@ Be very careful and thorough in your analysis.`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          temperature: openaiConfig.temperature,
+          temperature: 0.3, // GPT-5 optimized: slightly higher for better reasoning
           max_tokens: openaiConfig.maxTokens,
+          reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
         });
       },
       `validation_${modelToUse.replace(/[^a-zA-Z0-9]/g, '_')}`,
@@ -798,8 +800,9 @@ Respond in JSON format:
                 }
               ]
             }],
-            max_tokens: 300,
-            temperature: parseFloat(process.env.OPENAI_VISION_TEMPERATURE) || 0.1
+            max_tokens: 500, // GPT-5: increased for detailed visual analysis
+            temperature: 0.2, // GPT-5 optimized for vision tasks
+            reasoning_effort: "medium" // GPT-5: balanced visual analysis
           });
         },
         `vision_${pmcField || 'field'}_page${pageNumber}`,
@@ -886,58 +889,118 @@ If you cannot determine from text alone, respond "NO" with confidence 0.3 to ind
   }
 
   private buildVisionPrompt(prompt: string, expectedType: ResponseType, pmcField?: string): string {
+    // GPT-5 optimized response instructions
     const typeInstructions = {
-      boolean: 'Answer with ONLY "YES" or "NO".',
-      date: 'Answer with ONLY the date in MM-DD-YY format.',
-      text: 'Provide a brief, specific answer.',
-      number: 'Answer with ONLY the numeric value.',
-      json: 'Provide a valid JSON object.'
+      boolean: '<output_format>Answer with ONLY "YES" or "NO".</output_format>',
+      date: '<output_format>Answer with ONLY the date in YYYY-MM-DD format (e.g., 2025-07-18).</output_format>',
+      text: '<output_format>Provide a brief, specific textual answer.</output_format>',
+      number: '<output_format>Answer with ONLY the numeric value (no units or formatting).</output_format>',
+      json: '<output_format>Provide a valid JSON object.</output_format>'
     };
 
     const lowerField = (pmcField || '').toLowerCase();
     const isSignatureField = lowerField.includes('sign');
 
     if (isSignatureField) {
-      // Prompt optimizado específicamente para detección de firmas
-      return `You are an expert document analyst. Your task is to identify any form of signature or signing evidence in this document image.
+      // GPT-5 optimized signature detection prompt
+      return `<task>
+You are analyzing a document image to detect signatures or signing evidence using GPT-5's advanced visual capabilities.
+</task>
 
-QUESTION: ${prompt}
+<analysis_target>
+${prompt}
+</analysis_target>
 
-SIGNATURE EVIDENCE TO LOOK FOR:
-• Handwritten signatures (cursive, printed, or stylized writing)
-• Names written on signature lines
+<visual_search_criteria>
+Look systematically for:
+• Handwritten signatures (cursive, printed, stylized)
+• Names written on designated signature lines
 • "X" marks or signing indicators
-• Printed names near signature areas
-• Dates next to signature sections
-• Any marks indicating document signing or authorization
+• Printed names in signature areas
+• Dates associated with signature sections
+• Any marks indicating authorization or acknowledgment
+• Initials or abbreviated signatures
+</visual_search_criteria>
 
-ANALYSIS INSTRUCTIONS:
-Answer "YES" if you detect ANY of the above signature evidence.
-Answer "NO" only if signature areas are completely empty with no marks.
-Look carefully at the entire document - signatures may appear anywhere.
+<reasoning_process>
+1. SCAN: Examine entire document methodically
+2. IDENTIFY: Locate all signature areas and lines
+3. ANALYZE: Check each area for any form of marking
+4. EVALUATE: Determine if markings constitute signing evidence
+5. CONCLUDE: Make definitive YES/NO determination
+</reasoning_process>
+
+<decision_criteria>
+• Answer "YES" if ANY signature evidence is detected
+• Answer "NO" only if signature areas are completely unmarked
+• When uncertain, examine image more carefully before deciding
+• Consider both obvious and subtle signing indicators
+</decision_criteria>
 
 ${typeInstructions[expectedType] || ''}`;
     } else {
-      // Prompt estándar para otros campos
-      const visualHints = {
-        stamp: 'Look for official stamps, seals, or embossed marks.',
-        checkbox: 'Look for checkboxes, tickmarks, or selection indicators.',
-        handwriting: 'Look for handwritten text or filled form fields.'
-      };
+      // GPT-5 optimized general visual analysis prompt
+      const visualContext = this.getVisualAnalysisContext(lowerField);
 
-      let hint = '';
-      if (lowerField.includes('stamp') || lowerField.includes('seal')) hint = visualHints.stamp;
-      else if (lowerField.includes('check') || lowerField.includes('mark')) hint = visualHints.checkbox;
-      else if (lowerField.includes('handwrit') || lowerField.includes('filled')) hint = visualHints.handwriting;
+      return `<task>
+Analyze this document image using GPT-5's advanced visual processing to extract specific information.
+</task>
 
-      return `You are analyzing a document image. ${hint}
+<analysis_target>
+${prompt}
+</analysis_target>
 
-QUESTION: ${prompt}
+<visual_analysis_approach>
+${visualContext}
+1. EXAMINE: Scan document systematically for relevant information
+2. LOCATE: Find specific data points or visual elements
+3. EXTRACT: Pull exact information matching the request
+4. VALIDATE: Cross-check findings for accuracy
+5. FORMAT: Present answer in specified format
+</visual_analysis_approach>
+
+<quality_requirements>
+• Prioritize accuracy over speed
+• Use exact text when available
+• Maintain high confidence standards
+• Clearly indicate if information is not found
+</quality_requirements>
 
 ${typeInstructions[expectedType] || ''}
 
 Important: Base your answer ONLY on what you can visually see in the image. If you cannot clearly determine the answer from the visual evidence, respond with "NO" for boolean questions or "NOT FOUND" for other types.`;
     }
+  }
+
+  /**
+   * Provides context-specific visual analysis guidance for GPT-5
+   */
+  private getVisualAnalysisContext(fieldLower: string): string {
+    if (fieldLower.includes('date')) {
+      return `<visual_context>Date Analysis: Look for numerical date patterns, calendar references, or date stamps.</visual_context>`;
+    }
+    
+    if (fieldLower.includes('stamp') || fieldLower.includes('seal')) {
+      return `<visual_context>Stamp/Seal Analysis: Look for circular stamps, rectangular seals, embossed marks, or official insignia.</visual_context>`;
+    }
+    
+    if (fieldLower.includes('check') || fieldLower.includes('mark') || fieldLower.includes('box')) {
+      return `<visual_context>Checkbox Analysis: Look for checkmarks, X marks, filled boxes, or selection indicators.</visual_context>`;
+    }
+    
+    if (fieldLower.includes('handwrit') || fieldLower.includes('filled')) {
+      return `<visual_context>Handwriting Analysis: Look for handwritten text, filled form fields, or manual annotations.</visual_context>`;
+    }
+    
+    if (fieldLower.includes('address') || fieldLower.includes('street') || fieldLower.includes('city')) {
+      return `<visual_context>Address Analysis: Look for address blocks, street numbers, city/state information in forms.</visual_context>`;
+    }
+    
+    if (fieldLower.includes('amount') || fieldLower.includes('money') || fieldLower.includes('cost')) {
+      return `<visual_context>Amount Analysis: Look for dollar signs, numerical values, cost tables, or financial data.</visual_context>`;
+    }
+    
+    return `<visual_context>General Analysis: Examine all visible text, forms, and document elements systematically.</visual_context>`;
   }
 
   private analyzeConsensus(
@@ -1840,8 +1903,9 @@ Respond in this JSON format:
         { role: 'system', content: systemPrompt },
         { role: 'user', content: fullPrompt }
       ],
-      temperature: 0.1,
+      temperature: 0.2, // GPT-5 optimized for analytical tasks
       max_tokens: 2000,
+      reasoning_effort: "high", // GPT-5: deep analysis for complex documents
       response_format: { type: 'json_object' }
     });
     
@@ -1911,22 +1975,46 @@ Provide your arbitration decision in JSON format:
    * Construye system prompt optimizado para GPT-5
    */
   private buildGPT5SystemPrompt(expectedType: ResponseType): string {
-    return `You are an advanced AI assistant powered by GPT-5, specializing in insurance underwriting analysis.
+    return `<role>
+You are an expert insurance underwriting analyst powered by GPT-5. Your task is to extract precise information from insurance documents with high accuracy and confidence.
+</role>
 
+<domain_expertise>
+- Insurance policy analysis and interpretation
+- Document structure recognition and data extraction
+- Regulatory compliance and underwriting standards
+- Risk assessment and claim validation
+</domain_expertise>
+
+<response_requirements>
 Expected response type: ${expectedType}
 
-Instructions:
-1. Use advanced reasoning capabilities for complex decisions
-2. Be precise and confident in your analysis  
-3. Focus on underwriting-relevant information
-4. Consider edge cases and potential ambiguities
-
-Provide response in JSON format:
+<response_format>
+Provide your analysis in valid JSON format:
 {
-  "response": "your answer",
+  "response": "your precise answer based on document analysis",
   "confidence": 0.0 to 1.0,
-  "reasoning": "step-by-step reasoning"
-}`;
+  "reasoning": "detailed step-by-step reasoning process"
+}
+</response_format>
+</response_requirements>
+
+<analysis_instructions>
+1. READ: Thoroughly analyze the entire document content
+2. IDENTIFY: Locate relevant sections and data points
+3. EXTRACT: Pull exact information matching the expected response type
+4. VALIDATE: Cross-reference findings for accuracy
+5. REASON: Document your logical process clearly
+6. RESPOND: Provide precise, confident answers
+</analysis_instructions>
+
+<quality_standards>
+- Accuracy is paramount - never guess or approximate
+- Use exact quotes when possible
+- If uncertain, clearly state limitations
+- Maintain high confidence only when evidence is clear
+- For dates, always convert to YYYY-MM-DD format unless specified otherwise
+</quality_standards>`;
   }
 
   /**
