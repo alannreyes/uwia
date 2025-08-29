@@ -85,9 +85,97 @@ Respond in JSON format:
         return this.getFallbackStrategy(pmcField, question, expectedType);
       }
 
-      // SURGICAL FIX: Skip GPT-5 strategy analysis temporalmente para evitar JSON errors
-      // Usar directamente la estrategia fallback que funciona perfectamente
-      this.logger.log(`🔧 Using proven fallback strategy for ${pmcField} to avoid GPT-5 JSON parsing issues`);
+      // Intentar análisis con GPT-5 con reintentos limitados
+      const maxAttempts = 2;
+      let lastError = null;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const { OpenAI } = require('openai');
+          const openai = new OpenAI({
+            apiKey: openaiConfig.apiKey,
+            timeout: openaiConfig.timeout,
+            maxRetries: 1 // Solo 1 reintento por intento
+          });
+
+          // Usar rate limiter para estrategia con prioridad normal
+          const completion = await this.rateLimiter.executeWithRateLimit(
+            async () => {
+              // Intentar con max_tokens primero (podría funcionar)
+              return await openai.chat.completions.create({
+                model: 'gpt-5',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are an AI strategy expert. Analyze document processing requirements and recommend optimal AI strategies. Respond only with valid JSON.'
+                  },
+                  {
+                    role: 'user',
+                    content: analysisPrompt
+                  }
+                ],
+                max_tokens: 300, // Usar max_tokens que podría funcionar
+                response_format: { type: "json_object" }
+              });
+            },
+            `strategy_${pmcField}_attempt${attempt}`,
+            'normal'
+          );
+
+          // Manejo robusto de respuesta JSON de GPT-5
+          const rawResponse = completion.choices[0].message.content?.trim() || '';
+          
+          if (!rawResponse) {
+            throw new Error(`GPT-5 returned empty response on attempt ${attempt}`);
+          }
+          
+          this.logger.debug(`🔍 GPT-5 strategy response attempt ${attempt} (${rawResponse.length} chars): ${rawResponse.substring(0, 200)}...`);
+          
+          let strategy;
+          try {
+            strategy = JSON.parse(rawResponse);
+          } catch (parseError) {
+            // Intentar extraer JSON válido si está parcial
+            const jsonMatch = rawResponse.match(/\{[\s\S]*?\}/);
+            if (jsonMatch) {
+              try {
+                strategy = JSON.parse(jsonMatch[0]);
+                this.logger.log(`🔧 Recovered partial JSON for ${pmcField} on attempt ${attempt}`);
+              } catch (retryError) {
+                throw new Error(`JSON recovery failed on attempt ${attempt}: ${retryError.message}`);
+              }
+            } else {
+              throw new Error(`No valid JSON found on attempt ${attempt}`);
+            }
+          }
+          
+          // Si llegamos aquí, el análisis fue exitoso
+          const result: ProcessingStrategy = {
+            useVisualAnalysis: strategy.use_visual && documentHasImages,
+            useDualValidation: strategy.use_dual_validation,
+            primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-5',
+            validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-5') : undefined,
+            confidenceThreshold: strategy.confidence_threshold || 0.85,
+            reasoning: strategy.reasoning || 'AI-determined strategy'
+          };
+
+          this.logger.log(`✅ Strategy analysis successful for ${pmcField} on attempt ${attempt}`);
+          this.logger.log(`🎯 Strategy: Visual=${result.useVisualAnalysis}, Dual=${result.useDualValidation}, Model=${result.primaryModel}, Threshold=${result.confidenceThreshold}`);
+          
+          return result;
+          
+        } catch (error) {
+          lastError = error;
+          this.logger.warn(`⚠️ Strategy analysis attempt ${attempt}/${maxAttempts} failed for ${pmcField}: ${error.message}`);
+          
+          if (attempt === maxAttempts) {
+            this.logger.error(`❌ All strategy analysis attempts failed for ${pmcField}, using fallback`);
+          }
+        }
+      }
+      
+      // Si todos los intentos fallan, usar fallback
+      this.logger.log(`🔧 Using proven fallback strategy for ${pmcField} after ${maxAttempts} failed attempts`);
       return this.getFallbackStrategy(pmcField, question, expectedType);
 
     } catch (error) {

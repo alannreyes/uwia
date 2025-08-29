@@ -1917,7 +1917,7 @@ Respond in this JSON format:
   }
 
   /**
-   * Evalúa usando GPT-5 (placeholder - necesitará actualizar cuando GPT-5 esté disponible)
+   * Evalúa usando GPT-5 con fallback al método legacy si falla
    */
   private async evaluateWithGPT5(
     documentText: string,
@@ -1925,45 +1925,103 @@ Respond in this JSON format:
     expectedType: ResponseType,
     additionalContext?: string
   ): Promise<any> {
-    // Por ahora usar GPT-4o con configuración optimizada para simular GPT-5
-    // TODO: Reemplazar con GPT-5 real cuando esté disponible
-    
     const systemPrompt = this.buildGPT5SystemPrompt(expectedType);
     const fullPrompt = this.buildFullPrompt(systemPrompt, documentText, prompt, additionalContext);
     
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-5',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: fullPrompt }
-      ],
-      // temperature: 1 // GPT-5: Only default value (1) supported - removed parameter GPT-5 optimized for analytical tasks
-      max_completion_tokens: 2000,
-      reasoning_effort: "high", // GPT-5: deep analysis for complex documents
-      response_format: { type: 'json_object' }
-    });
-    
-    // Manejo robusto de respuesta JSON
-    const rawContent = response.choices[0].message.content?.trim() || '';
-    let result;
+    // Intentar primero con el método legacy que podría funcionar
     try {
-      result = JSON.parse(rawContent);
-    } catch (parseError) {
-      this.logger.error(`❌ JSON parse error in evaluateComplexDocumentWithGPT5: ${parseError.message}`);
-      this.logger.error(`📝 Raw content: ${rawContent}`);
-      throw new Error(`GPT-5 response parsing failed: ${parseError.message}`);
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: fullPrompt }
+        ],
+        max_tokens: 2000, // Intentar con max_tokens primero
+        response_format: { type: 'json_object' }
+      });
+      
+      const rawContent = response.choices[0].message.content?.trim() || '';
+      
+      if (!rawContent) {
+        throw new Error('GPT-5 returned empty response');
+      }
+      
+      let result;
+      try {
+        result = JSON.parse(rawContent);
+      } catch (parseError) {
+        // Si no es JSON válido, intentar extraerlo
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          result = JSON.parse(jsonMatch[0]);
+        } else {
+          throw parseError;
+        }
+      }
+      
+      this.logger.log(`✅ GPT-5 evaluation successful (legacy method)`);
+      
+      return {
+        response: result.response || result.answer || 'No response',
+        confidence: result.confidence || 0.8,
+        reasoning: result.reasoning || 'GPT-5 reasoning',
+        model: 'gpt-5'
+      };
+      
+    } catch (firstError) {
+      this.logger.warn(`⚠️ GPT-5 legacy method failed: ${firstError.message}`);
+      
+      // Fallback: Intentar con diferentes parámetros
+      try {
+        const response = await this.openai.chat.completions.create({
+          model: 'gpt-5',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: fullPrompt }
+          ],
+          max_completion_tokens: 2000, // Usar max_completion_tokens como alternativa
+          reasoning_effort: "medium", // Reducir reasoning effort
+          response_format: { type: 'json_object' }
+        });
+        
+        const rawContent = response.choices[0].message.content?.trim() || '';
+        
+        if (!rawContent) {
+          throw new Error('GPT-5 returned empty response (alternative params)');
+        }
+        
+        let result;
+        try {
+          result = JSON.parse(rawContent);
+        } catch (parseError) {
+          const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            result = JSON.parse(jsonMatch[0]);
+          } else {
+            throw parseError;
+          }
+        }
+        
+        this.logger.log(`✅ GPT-5 evaluation successful (alternative params)`);
+        
+        return {
+          response: result.response || result.answer || 'No response',
+          confidence: result.confidence || 0.8,
+          reasoning: result.reasoning || 'GPT-5 reasoning',
+          model: 'gpt-5'
+        };
+        
+      } catch (secondError) {
+        this.logger.error(`❌ All GPT-5 attempts failed`);
+        this.logger.error(`   First error: ${firstError.message}`);
+        this.logger.error(`   Second error: ${secondError.message}`);
+        throw new Error(`GPT-5 evaluation failed after all attempts: ${secondError.message}`);
+      }
     }
-    
-    return {
-      response: result.response || result.answer || 'No response',
-      confidence: result.confidence || 0.8,
-      reasoning: result.reasoning || 'GPT-5 reasoning',
-      model: 'gpt-5'
-    };
   }
 
   /**
-   * Invoca GPT-5 como juez árbitro
+   * Invoca GPT-5 como juez árbitro con manejo robusto de errores
    */
   private async invokeGPT5Judge(
     documentText: string,
@@ -1997,28 +2055,90 @@ Provide your arbitration decision in JSON format:
   "selectedModel": "gpt-5" | "gemini" | "synthesized"
 }`;
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-5',
-      messages: [
-        { 
-          role: 'system', 
-          content: 'You are an expert arbitrator for insurance underwriting decisions.' 
-        },
-        { role: 'user', content: judgePrompt }
-      ],
-      // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
-      max_completion_tokens: 1000,
-      response_format: { type: 'json_object' }
-    });
+    // Intentar con múltiples configuraciones de parámetros
+    let response;
+    try {
+      response = await this.openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an expert arbitrator for insurance underwriting decisions.' 
+          },
+          { role: 'user', content: judgePrompt }
+        ],
+        max_tokens: 1000, // Intentar con max_tokens primero
+        response_format: { type: 'json_object' }
+      });
+    } catch (firstError) {
+      this.logger.warn(`⚠️ GPT-5 judge first attempt failed: ${firstError.message}`);
+      
+      // Fallback con parámetros alternativos
+      try {
+        response = await this.openai.chat.completions.create({
+          model: 'gpt-5',
+          messages: [
+            { 
+              role: 'system', 
+              content: 'You are an expert arbitrator. Respond with valid JSON only.' 
+            },
+            { role: 'user', content: judgePrompt }
+          ],
+          max_completion_tokens: 1000,
+          reasoning_effort: "minimal", // Reducir esfuerzo para respuesta más rápida
+          response_format: { type: 'json_object' }
+        });
+      } catch (secondError) {
+        this.logger.error(`❌ GPT-5 judge failed completely: ${secondError.message}`);
+        // Fallback simple: elegir el de mayor confianza
+        const higherConfidence = result1.confidence >= result2.confidence ? result1 : result2;
+        return {
+          finalAnswer: higherConfidence.response,
+          confidence: higherConfidence.confidence * 0.9, // Reducir confianza por falta de arbitraje
+          reasoning: `Fallback: Selected ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'} due to higher confidence`,
+          selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+        };
+      }
+    }
 
     // Manejo robusto de respuesta JSON del juez final
     const rawJudgeContent = response.choices[0].message.content?.trim() || '';
+    
+    if (!rawJudgeContent) {
+      this.logger.error(`❌ GPT-5 judge returned empty response`);
+      const higherConfidence = result1.confidence >= result2.confidence ? result1 : result2;
+      return {
+        finalAnswer: higherConfidence.response,
+        confidence: higherConfidence.confidence * 0.9,
+        reasoning: `Fallback: GPT-5 judge returned empty, using ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'}`,
+        selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+      };
+    }
+    
     try {
       return JSON.parse(rawJudgeContent);
     } catch (parseError) {
+      // Intentar extraer JSON parcial
+      const jsonMatch = rawJudgeContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (retryError) {
+          this.logger.error(`❌ Final judge JSON recovery failed: ${retryError.message}`);
+        }
+      }
+      
       this.logger.error(`❌ Final judge JSON parse error: ${parseError.message}`);
       this.logger.error(`📝 Final judge raw content: ${rawJudgeContent}`);
-      throw new Error(`Final judge response parsing failed: ${parseError.message}`);
+      
+      // Fallback final
+      const higherConfidence = result1.confidence >= result2.confidence ? result1 : result2;
+      return {
+        finalAnswer: higherConfidence.response,
+        confidence: higherConfidence.confidence * 0.85,
+        reasoning: `Fallback: Judge parsing failed, using ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'}`,
+        selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+      };
     }
   }
 
