@@ -1742,7 +1742,15 @@ Respond in this JSON format:
         secondaryResult = geminiResult.value;
         this.logger.log(`✅ Gemini: confidence ${secondaryResult.confidence}`);
       } else {
-        this.logger.error(`❌ Gemini failed: ${geminiResult.reason?.message}`);
+        // Check if Gemini is intentionally disabled vs. actual error
+        const errorMsg = geminiResult.reason?.message || '';
+        const isIntentionallyDisabled = errorMsg.includes('no está disponible') || errorMsg.includes('está deshabilitado');
+        
+        if (isIntentionallyDisabled) {
+          this.logger.debug(`🔕 Gemini intencionalmente deshabilitado: ${errorMsg}`);
+        } else {
+          this.logger.error(`❌ Gemini failed: ${errorMsg}`);
+        }
       }
       
       // 4. Análisis de consenso
@@ -1810,7 +1818,9 @@ Respond in this JSON format:
       // 5. Fallback si solo uno funciona
       const workingResult = primaryResult || secondaryResult;
       if (workingResult) {
-        this.logger.warn(`⚠️ Solo un modelo funcionó: ${primaryResult ? 'GPT-5' : 'Gemini'}`);
+        const workingModel = primaryResult ? 'GPT-5' : 'Gemini';
+        const failedModel = primaryResult ? 'Gemini' : 'GPT-5';
+        this.logger.log(`🔄 Usando modo single-model: ${workingModel} (${failedModel} no disponible)`);
         
         return {
           response: workingResult.response,

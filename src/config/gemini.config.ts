@@ -12,8 +12,8 @@ export const geminiConfig = {
   maxContextTokens: 2000000, // 2M tokens - masivo contexto
   maxDocumentLength: parseInt(process.env.GEMINI_MAX_DOCUMENT_LENGTH) || 5000000, // 5M chars
   
-  // Estado del servicio - TEMPORALMENTE DESHABILITADO (quota limits)
-  enabled: false, // process.env.GEMINI_ENABLED === 'true' && !!process.env.GEMINI_API_KEY,
+  // Estado del servicio - HABILITADO (cliente configuró cuenta correctamente)
+  enabled: process.env.GEMINI_ENABLED === 'true' && !!process.env.GEMINI_API_KEY,
   
   // Parámetros de generación
   temperature: parseFloat(process.env.GEMINI_TEMPERATURE) || 0.3,
