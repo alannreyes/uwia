@@ -107,7 +107,7 @@ Respond in JSON format:
                 content: analysisPrompt
               }
             ],
-            temperature: 0.1,
+            // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
             max_completion_tokens: 300,
             response_format: { type: "json_object" }
           });

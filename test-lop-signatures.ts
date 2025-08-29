@@ -100,7 +100,7 @@ Be thorough but decisive - signatures can appear in various forms and locations 
                 ]
               }
             ],
-            temperature: 0.1,
+            // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
             max_completion_tokens: 10
           });
 
