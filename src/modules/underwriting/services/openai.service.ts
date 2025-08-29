@@ -1769,14 +1769,14 @@ Respond in this JSON format:
       
       if (gpt5Result.status === 'fulfilled') {
         primaryResult = gpt5Result.value;
-        this.logger.log(`✅ GPT-5: confidence ${primaryResult.confidence}`);
+        this.logger.log(`✅ GPT-5 found: "${primaryResult.response}" (confidence: ${primaryResult.confidence})`);
       } else {
         this.logger.error(`❌ GPT-5 failed: ${gpt5Result.reason?.message}`);
       }
       
       if (geminiResult.status === 'fulfilled') {
         secondaryResult = geminiResult.value;
-        this.logger.log(`✅ Gemini: confidence ${secondaryResult.confidence}`);
+        this.logger.log(`✅ Gemini found: "${secondaryResult.response}" (confidence: ${secondaryResult.confidence})`);
       } else {
         // Check if Gemini is intentionally disabled vs. actual error
         const errorMsg = geminiResult.reason?.message || '';
@@ -1792,7 +1792,11 @@ Respond in this JSON format:
       // 4. Análisis de consenso
       if (primaryResult && secondaryResult) {
         const agreement = this.calculateNewAgreement(primaryResult.response, secondaryResult.response);
-        this.logger.log(`🤝 Acuerdo entre modelos: ${(agreement * 100).toFixed(1)}%`);
+        this.logger.log(`🤝 Models agree ${(agreement * 100).toFixed(1)}% - Final: "${primaryResult.response}"`);
+        
+        if (agreement < 0.8) {
+          this.logger.warn(`⚖️ Low agreement (${(agreement * 100).toFixed(1)}%), invoking judge...`);
+        }
         
         if (agreement >= 0.8) {
           // Alto consenso - usar resultado con mayor confianza
@@ -1818,7 +1822,6 @@ Respond in this JSON format:
           };
         } else {
           // Bajo consenso - invocar juez GPT-5
-          this.logger.warn(`⚖️ Bajo consenso, invocando juez GPT-5...`);
           
           const judgeResult = await this.invokeGPT5Judge(
             processedContent,
@@ -1971,7 +1974,7 @@ Respond in this JSON format:
         }
       }
       
-      this.logger.log(`✅ GPT-5 evaluation successful (legacy method)`);
+      this.logger.log(`✅ GPT-5 found: "${result.response}" (confidence: ${result.confidence}) - legacy method`);
       
       return {
         response: result.response || result.answer || 'No response',
@@ -2014,7 +2017,7 @@ Respond in this JSON format:
           }
         }
         
-        this.logger.log(`✅ GPT-5 evaluation successful (alternative params)`);
+        this.logger.log(`✅ GPT-5 found: "${result.response}" (confidence: ${result.confidence}) - alternative params`);
         
         return {
           response: result.response || result.answer || 'No response',

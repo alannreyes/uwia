@@ -159,8 +159,7 @@ Respond in JSON format:
             reasoning: strategy.reasoning || 'AI-determined strategy'
           };
 
-          this.logger.log(`✅ Strategy analysis successful for ${pmcField} on attempt ${attempt}`);
-          this.logger.log(`🎯 Strategy: Visual=${result.useVisualAnalysis}, Dual=${result.useDualValidation}, Model=${result.primaryModel}, Threshold=${result.confidenceThreshold}`);
+          this.logger.log(`✅ Strategy for ${pmcField}: Visual=${result.useVisualAnalysis}, Dual=${result.useDualValidation}, Model=${result.primaryModel}, Threshold=${result.confidenceThreshold}`);
           
           return result;
           
@@ -259,7 +258,7 @@ Respond in JSON format:
       reasoning: 'Fallback heuristic strategy - AI analysis unavailable'
     };
 
-    this.logger.warn(`⚠️ Using fallback strategy for ${pmcField}: ${JSON.stringify(strategy)}`);
+    this.logger.warn(`⚠️ Fallback strategy for ${pmcField}: Visual=${strategy.useVisualAnalysis}, Dual=${strategy.useDualValidation}, Model=${strategy.primaryModel}`);
     return strategy;
   }
 
