@@ -1598,8 +1598,14 @@ Respond in this JSON format:
    */
   private calculateAgreement(response1: string, response2: string, expectedType: ResponseType): number {
     // Normalizar respuestas para comparación
-    const norm1 = response1.toLowerCase().trim();
-    const norm2 = response2.toLowerCase().trim();
+    const responseStr1 = typeof response1 === 'string' 
+      ? response1 
+      : (response1 as any)?.response || JSON.stringify(response1);
+    const responseStr2 = typeof response2 === 'string' 
+      ? response2 
+      : (response2 as any)?.response || JSON.stringify(response2);
+    const norm1 = responseStr1.toLowerCase().trim();
+    const norm2 = responseStr2.toLowerCase().trim();
 
     // Acuerdo perfecto
     if (norm1 === norm2) return 1.0;
@@ -1942,7 +1948,7 @@ Respond in this JSON format:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: fullPrompt }
         ],
-        max_tokens: 2000, // Intentar con max_tokens primero
+        max_completion_tokens: 2000, // CORRECTO para GPT-5
         response_format: { type: 'json_object' }
       });
       
@@ -2073,7 +2079,7 @@ Provide your arbitration decision in JSON format:
           },
           { role: 'user', content: judgePrompt }
         ],
-        max_tokens: 1000, // Intentar con max_tokens primero
+        max_completion_tokens: 1000, // CORRECTO para GPT-5
         response_format: { type: 'json_object' }
       });
     } catch (firstError) {
@@ -2236,7 +2242,10 @@ Provide your analysis in valid JSON format:
    * Normaliza respuesta para comparación (versión simplificada)
    */
   private normalizeNewResponse(response: string): string {
-    return response
+    const responseStr = typeof response === 'string' 
+      ? response 
+      : (response as any)?.response || JSON.stringify(response);
+    return responseStr
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
       .replace(/\s+/g, ' ')

@@ -279,7 +279,8 @@ export class ClaudeChunkingService {
 
         // Early exit if we found a high-confidence answer - more aggressive for large docs
         const confidenceThreshold = chunks.length > 4 ? 0.85 : 0.9; // Lower threshold for large docs
-        if (result.confidence > confidenceThreshold && !result.response.toLowerCase().includes('not_found')) {
+        const responseStr = typeof result.response === 'string' ? result.response : (result.response as any)?.response || JSON.stringify(result.response);
+        if (result.confidence > confidenceThreshold && !responseStr.toLowerCase().includes('not_found')) {
           this.logger.log(`🎯 High confidence answer found in chunk ${i + 1} (confidence: ${result.confidence}), stopping processing`);
           return { 
             response: result.response, 
@@ -470,10 +471,11 @@ export class ClaudeChunkingService {
   ): { response: string; confidence: number; chunksProcessed: number } {
     
     // Filter out NOT_FOUND responses
-    const validResults = results.filter(r => 
-      !r.response.toLowerCase().includes('not_found') && 
-      !r.response.toLowerCase().includes('not_found_in_chunk')
-    );
+    const validResults = results.filter(r => {
+      const responseStr = typeof r.response === 'string' ? r.response : (r.response as any)?.response || JSON.stringify(r.response);
+      return !responseStr.toLowerCase().includes('not_found') && 
+             !responseStr.toLowerCase().includes('not_found_in_chunk');
+    });
 
     if (validResults.length === 0) {
       // No valid results found
