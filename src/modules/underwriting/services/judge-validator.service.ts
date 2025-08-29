@@ -93,7 +93,7 @@ export class JudgeValidatorService {
           }
         ],
         temperature: 0.1, // Muy baja para consistencia
-        max_tokens: 500,
+        max_completion_tokens: 500,
         response_format: { type: "json_object" }
       });
 

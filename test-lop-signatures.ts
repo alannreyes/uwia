@@ -101,7 +101,7 @@ Be thorough but decisive - signatures can appear in various forms and locations 
               }
             ],
             temperature: 0.1,
-            max_tokens: 10
+            max_completion_tokens: 10
           });
 
           const answer = response.choices[0].message.content?.trim().toUpperCase() || 'NO';

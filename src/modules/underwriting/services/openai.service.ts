@@ -177,7 +177,7 @@ export class OpenAiService {
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.3, // GPT-5 optimized: slightly higher for better reasoning
-          max_tokens: openaiConfig.maxTokens,
+          max_completion_tokens: openaiConfig.maxTokens,
           reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
         });
       },
@@ -630,7 +630,7 @@ Be very careful and thorough in your analysis.`;
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.3, // GPT-5 optimized: slightly higher for better reasoning
-          max_tokens: openaiConfig.maxTokens,
+          max_completion_tokens: openaiConfig.maxTokens,
           reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
         });
       },
@@ -669,7 +669,7 @@ Be very careful and thorough in your analysis.`;
             { role: 'user', content: batchPrompt }
           ],
           temperature: 0.1,
-          max_tokens: 1000,
+          max_completion_tokens: 1000,
           response_format: { type: "json_object" }
         });
       });
@@ -734,7 +734,7 @@ Respond in JSON format:
             { role: 'user', content: classificationPrompt }
           ],
           temperature: 0.1, // Baja temperatura para respuestas consistentes
-          max_tokens: 150,
+          max_completion_tokens: 150,
           response_format: { type: "json_object" }
         });
       });
@@ -800,7 +800,7 @@ Respond in JSON format:
                 }
               ]
             }],
-            max_tokens: 500, // GPT-5: increased for detailed visual analysis
+            max_completion_tokens: 500, // GPT-5: increased for detailed visual analysis
             temperature: 0.2, // GPT-5 optimized for vision tasks
             reasoning_effort: "medium" // GPT-5: balanced visual analysis
           });
@@ -1191,7 +1191,7 @@ ${chunkPrompt}`;
           async () => {
             return await this.claudeClient.messages.create({
               model: modelConfig.claude.model,
-              max_tokens: modelConfig.claude.maxTokens,
+              max_completion_tokens: modelConfig.claude.maxTokens,
               temperature: modelConfig.claude.temperature,
               system: systemPrompt,
               messages: [
@@ -1481,7 +1481,7 @@ Respond in this JSON format:
               { role: 'user', content: arbitrationPrompt }
             ],
             temperature: 0.1, // Baja temperatura para decisiones consistentes
-            max_tokens: 500,
+            max_completion_tokens: 500,
             response_format: { type: "json_object" }
           });
         },
@@ -1914,7 +1914,7 @@ Respond in this JSON format:
         { role: 'user', content: fullPrompt }
       ],
       temperature: 0.2, // GPT-5 optimized for analytical tasks
-      max_tokens: 2000,
+      max_completion_tokens: 2000,
       reasoning_effort: "high", // GPT-5: deep analysis for complex documents
       response_format: { type: 'json_object' }
     });
@@ -1974,7 +1974,7 @@ Provide your arbitration decision in JSON format:
         { role: 'user', content: judgePrompt }
       ],
       temperature: 0.05,
-      max_tokens: 1000,
+      max_completion_tokens: 1000,
       response_format: { type: 'json_object' }
     });
 
