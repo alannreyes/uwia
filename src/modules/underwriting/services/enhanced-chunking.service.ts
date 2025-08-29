@@ -144,9 +144,10 @@ export class EnhancedChunkingService {
    * Determina la estrategia de chunking basada en el tamaño
    */
   private determineStrategy(sizeInMB: number): string {
-    if (sizeInMB < 5) return 'none';
-    if (sizeInMB < 25) return 'smart';
-    if (sizeInMB < 60) return 'aggressive';
+    // GPT-5 tiene límite de ~128K tokens (≈0.5MB), usar límites más agresivos
+    if (sizeInMB < 0.4) return 'none';      // <400KB = sin chunking
+    if (sizeInMB < 2) return 'smart';       // 400KB-2MB = smart chunking
+    if (sizeInMB < 10) return 'aggressive'; // 2MB-10MB = aggressive
     if (sizeInMB <= 100) return 'semantic';
     return 'emergency';
   }
