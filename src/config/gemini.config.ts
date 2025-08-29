@@ -54,7 +54,7 @@ export const geminiConfig = {
   
   // Configuración de chunking (para casos extremos >2M tokens)
   emergencyChunking: {
-    enabled: process.env.GEMINI_EMERGENCY_CHUNKING === 'true',
+    enabled: process.env.GEMINI_EMERGENCY_CHUNKING !== 'false', // Default: true
     maxChunkSize: 1500000, // 1.5M tokens por chunk
     overlapSize: 50000,     // 50K tokens de overlap
   }

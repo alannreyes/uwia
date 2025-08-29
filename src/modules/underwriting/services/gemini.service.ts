@@ -117,12 +117,7 @@ export class GeminiService {
       // Ejecutar evaluación con thinking mode si está habilitado
       let result;
       if (geminiConfig.useThinkingMode) {
-        result = await this.model.generateContent([
-          {
-            role: 'user',
-            parts: [{ text: `Think step by step before answering.\n\n${fullPrompt}` }]
-          }
-        ]);
+        result = await this.model.generateContent(`Think step by step before answering.\n\n${fullPrompt}`);
       } else {
         result = await this.model.generateContent(fullPrompt);
       }

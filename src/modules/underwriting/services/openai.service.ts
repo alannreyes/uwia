@@ -1630,7 +1630,7 @@ Respond in this JSON format:
       let chunkMetadata = null;
       
       // Si el documento es muy grande, usar enhanced chunking
-      if (documentText.length > 5 * 1024 * 1024) { // >5MB
+      if (documentText.length > 400 * 1024) { // >400KB (aproximadamente 100K tokens)
         this.logger.log('📦 Documento grande detectado, usando enhanced chunking...');
         
         const chunkResult = await this.enhancedChunking!.processDocument(
