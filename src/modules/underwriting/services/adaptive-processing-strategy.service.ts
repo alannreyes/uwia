@@ -85,8 +85,8 @@ Respond in JSON format:
         return this.getFallbackStrategy(pmcField, question, expectedType);
       }
 
-      // Intentar análisis con GPT-5 con reintentos limitados
-      const maxAttempts = 2;
+      // Intentar análisis con GPT-5 con reintentos limitados - fallback rápido si falla
+      const maxAttempts = 1; // Reducir a 1 intento para acelerar fallback
       let lastError = null;
       
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -168,7 +168,7 @@ Respond in JSON format:
           this.logger.warn(`⚠️ Strategy analysis attempt ${attempt}/${maxAttempts} failed for ${pmcField}: ${error.message}`);
           
           if (attempt === maxAttempts) {
-            this.logger.error(`❌ All strategy analysis attempts failed for ${pmcField}, using fallback`);
+            this.logger.warn(`⚠️ Strategy analysis failed for ${pmcField} (${error.message}), using proven fallback`);
           }
         }
       }
