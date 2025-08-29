@@ -114,7 +114,7 @@ Respond in JSON format:
                     content: analysisPrompt
                   }
                 ],
-                max_tokens: 300, // Usar max_tokens que podría funcionar
+                max_completion_tokens: 300, // CORRECTO para GPT-5
                 response_format: { type: "json_object" }
               });
             },

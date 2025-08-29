@@ -1,0 +1,212 @@
+================================================================================
+                    REPORTE DE ERRORES - SISTEMA UWIA
+                         29 de Agosto de 2025
+================================================================================
+
+RESUMEN EJECUTIVO
+-----------------
+Sistema: UWIA - Underwriting IA
+Fecha: 29/08/2025
+Horario: 21:22 - 21:34 (12 minutos de procesamiento)
+Record ID: 175568
+Total Preguntas Esperadas: 31
+Total Respuestas Recibidas: ~12-15 (menos del 50%)
+
+================================================================================
+ERRORES CRÍTICOS IDENTIFICADOS
+================================================================================
+
+1. ERROR TIPO JAVASCRIPT: response.toLowerCase is not a function
+   -------------------------------------------------------------
+   - Frecuencia: Aparece en CADA evaluación del campo wind_gust1
+   - Línea de código afectada: openai.service.ts (no especificada)
+   - Mensaje completo: "❌ Error en nueva arquitectura: response.toLowerCase is not a function"
+   - Impacto: Fuerza fallback constante al sistema anterior
+   - CAUSA PROBABLE: La respuesta de GPT-5 o Gemini está retornando un objeto 
+     en lugar de un string, y el código intenta aplicar .toLowerCase() directamente
+
+2. PARÁMETRO INCORRECTO GPT-5: max_tokens vs max_completion_tokens
+   -----------------------------------------------------------------
+   - Error: "400 Unsupported parameter: 'max_tokens' is not supported with this model"
+   - Ubicación: adaptive-processing-strategy.service.ts línea 117
+   - Código problemático:
+     ```typescript
+     max_tokens: 300, // Usar max_tokens que podría funcionar
+     ```
+   - SOLUCIÓN REQUERIDA: Cambiar a max_completion_tokens
+   - Impacto: Circuit breaker abierto con 45 fallos consecutivos
+
+3. TIMEOUTS MASIVOS EN DOCUMENTOS
+   --------------------------------
+   - LOP.pdf: 511,784ms (8.5 minutos) - TIMEOUT
+   - WEATHER.pdf: 773,320ms (12.8 minutos) - TIMEOUT
+   - POLICY.pdf: Procesado pero con respuestas vacías
+   - Timeout configurado: 300,000ms (5 minutos)
+   - PROBLEMA: El sistema no respeta el timeout configurado
+
+4. DOCUMENTOS NO CONFIGURADOS
+   ----------------------------
+   - INVOICES.pdf: "No questions configured for document: INVOICES.pdf"
+   - Estado: SKIPPED
+   - Impacto: Pérdida de información potencial
+
+================================================================================
+DETALLE DE RESPUESTAS POR DOCUMENTO
+================================================================================
+
+CERTIFICATE.pdf (1/1 respondida)
+---------------------------------
+✅ date_of_completion1: "2025-07-18" (92% confianza)
+
+INVOICES.pdf (0/0 - NO CONFIGURADO)
+------------------------------------
+❌ SKIPPED - No hay preguntas configuradas en el sistema
+
+LOP.pdf (0/18 - TIMEOUT COMPLETO)
+----------------------------------
+❌ mechanics_lien: NO RESPONDIDO
+❌ lop_date1: NO RESPONDIDO
+❌ lop_signed_by_client1: NO RESPONDIDO
+❌ lop_signed_by_ho1: NO RESPONDIDO
+❌ onb_street_match: NO RESPONDIDO
+❌ onb_zip_match: NO RESPONDIDO
+❌ onb_address_match: NO RESPONDIDO
+❌ onb_city_match: NO RESPONDIDO
+❌ onb_date_of_loss_match: NO RESPONDIDO
+❌ onb_policy_number_match: NO RESPONDIDO
+❌ onb_claim_number_match: NO RESPONDIDO
+❌ onb_claim_number1: NO RESPONDIDO
+... (6 preguntas más no listadas)
+
+POLICY.pdf (6/8 respondidas parcialmente)
+------------------------------------------
+✅ policy_valid_from1: "2024-08-12" (99% confianza)
+✅ policy_valid_to1: "NOT_FOUND" (50% confianza)
+❌ matching_insured_name: "" (VACÍO - 50% confianza)
+✅ matching_insured_company: "Yes" (99% confianza)
+✅ policy_covers_type_job: "Yes" (100% confianza)
+✅ policy_exclusion: "NOT_FOUND" (83% confianza)
+✅ policy_covers_dol: "YES" (98% confianza)
+❌ policy_comprehensive_analysis: "" (VACÍO - 50% confianza)
+
+WEATHER.pdf (1/2 - TIMEOUT PARCIAL)
+------------------------------------
+❌ windspeed1: NO RESPONDIDO (timeout)
+✅ wind_gust1: "63" (100% confianza) - Pero con múltiples errores
+
+================================================================================
+PATRONES DE ERROR DETECTADOS
+================================================================================
+
+1. CIRCUIT BREAKER PERMANENTEMENTE ABIERTO
+   ----------------------------------------
+   - Consecutive failures: 45
+   - Estado: OPEN
+   - Causa: Parámetro max_tokens incorrecto
+   - Resultado: Sistema no puede analizar estrategias adaptativas
+
+2. FALLBACK EXCESIVO A GEMINI
+   ----------------------------
+   - GPT-5 falla constantemente
+   - Gemini responde correctamente pero sin validación dual
+   - Pérdida del sistema de consenso
+
+3. PROCESAMIENTO SECUENCIAL INEFICIENTE
+   --------------------------------------
+   - LOP.pdf procesando campo por campo con delays de 5000ms
+   - Total: 18 campos × 5s = 90s mínimo solo en delays
+   - Sin contar el procesamiento real
+
+================================================================================
+RECOMENDACIONES URGENTES
+================================================================================
+
+1. INMEDIATO - Corregir error toLowerCase
+   ----------------------------------------
+   BUSCAR en openai.service.ts:
+   - Líneas donde se use .toLowerCase()
+   - Verificar tipo de dato antes de aplicar
+   
+   SOLUCIÓN:
+   ```typescript
+   const responseStr = typeof response === 'string' 
+     ? response 
+     : response?.response || JSON.stringify(response);
+   const normalized = responseStr.toLowerCase();
+   ```
+
+2. INMEDIATO - Corregir parámetro GPT-5 en estrategia adaptativa
+   ---------------------------------------------------------------
+   ARCHIVO: adaptive-processing-strategy.service.ts
+   LÍNEA: 117
+   CAMBIAR:
+   ```typescript
+   max_tokens: 300, // INCORRECTO
+   ```
+   POR:
+   ```typescript
+   max_completion_tokens: 300, // CORRECTO
+   ```
+
+3. URGENTE - Implementar timeout real
+   ------------------------------------
+   - Configurar AbortController para llamadas API
+   - Cancelar procesamiento si excede 5 minutos
+   - Implementar procesamiento paralelo para LOP.pdf
+
+4. CONFIGURAR - Preguntas para INVOICES.pdf
+   ------------------------------------------
+   - Agregar configuración en base de datos
+   - O skipear inteligentemente si no es necesario
+
+5. OPTIMIZACIÓN - Procesamiento paralelo
+   ---------------------------------------
+   - Procesar múltiples campos simultáneamente
+   - Reducir delays entre campos (5000ms es excesivo)
+   - Usar batch processing donde sea posible
+
+================================================================================
+MÉTRICAS DE IMPACTO
+================================================================================
+
+- Tasa de éxito actual: ~40% (12-15 de 31 preguntas)
+- Tiempo promedio por documento: >5 minutos
+- Fallos de circuit breaker: 45 consecutivos
+- Timeouts: 2 de 5 documentos (40%)
+- Respuestas vacías: 2 de 8 en POLICY.pdf (25%)
+
+================================================================================
+LOGS CRÍTICOS PARA DEBUGGING
+================================================================================
+
+1. Circuit Breaker Stats:
+   - Consecutive failures: 45
+   - Recent requests: 12 in last minute
+   - Estado: PERMANENTLY OPEN
+
+2. Tiempos de procesamiento:
+   - LOP.pdf: 511,784ms (timeout)
+   - WEATHER.pdf: 773,320ms (timeout)
+   - POLICY.pdf: ~180,000ms (3 minutos)
+
+3. Errores más frecuentes:
+   - "response.toLowerCase is not a function" (>30 veces)
+   - "max_tokens is not supported" (45 veces)
+   - "GPT-5 returned empty response" (múltiples)
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El sistema tiene 4 problemas críticos que impiden su funcionamiento correcto:
+1. Error de tipo en toLowerCase() que rompe el flujo
+2. Parámetro incorrecto para GPT-5 que mantiene el circuit breaker abierto
+3. Timeouts no respetados que causan pérdida de respuestas
+4. Procesamiento secuencial ineficiente con delays excesivos
+
+Con estos errores corregidos, el sistema debería poder procesar las 31 preguntas
+en menos de 2 minutos con una tasa de éxito superior al 95%.
+
+================================================================================
+                           FIN DEL REPORTE
+================================================================================

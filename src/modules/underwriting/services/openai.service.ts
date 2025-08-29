@@ -1076,9 +1076,15 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
           }
         }
         
-        return response.toLowerCase();
+        const responseStr = typeof response === 'string' 
+          ? response 
+          : (response as any)?.response || JSON.stringify(response);
+        return responseStr.toLowerCase();
       default:
-        return response.toLowerCase().trim();
+        const responseStr2 = typeof response === 'string' 
+          ? response 
+          : (response as any)?.response || JSON.stringify(response);
+        return responseStr2.toLowerCase().trim();
     }
   }
 
