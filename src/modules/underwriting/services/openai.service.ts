@@ -6,6 +6,9 @@ import { JudgeValidatorService } from './judge-validator.service';
 import { RateLimiterService } from './rate-limiter.service';
 import { ClaudeRateLimiterService } from './claude-rate-limiter.service';
 import { ClaudeChunkingService } from './claude-chunking.service';
+// NUEVO: Servicios mejorados (inicialmente no se usan)
+import { GeminiService } from './gemini.service';
+import { EnhancedChunkingService } from './enhanced-chunking.service';
 
 const { OpenAI } = require('openai');
 const { Anthropic } = require('@anthropic-ai/sdk');
@@ -27,11 +30,26 @@ export class OpenAiService {
   private rateLimiter: RateLimiterService;
   private claudeRateLimiter: ClaudeRateLimiterService;
   private claudeChunking: ClaudeChunkingService;
+  
+  // NUEVO: Servicios mejorados (inicialmente no se usan)
+  private geminiService?: GeminiService;
+  private enhancedChunking?: EnhancedChunkingService;
 
   constructor(private judgeValidator: JudgeValidatorService) {
     this.rateLimiter = new RateLimiterService();
     this.claudeRateLimiter = new ClaudeRateLimiterService();
     this.claudeChunking = new ClaudeChunkingService();
+    
+    // NUEVO: Inicializar servicios mejorados solo si están habilitados
+    if (modelConfig.migration.shouldUseNewSystem()) {
+      try {
+        this.geminiService = new GeminiService();
+        this.enhancedChunking = new EnhancedChunkingService();
+        this.logger.log('🚀 Servicios mejorados inicializados (modo: ' + modelConfig.migration.mode + ')');
+      } catch (error) {
+        this.logger.warn(`⚠️ No se pudieron inicializar servicios mejorados: ${error.message}`);
+      }
+    }
     
     // Inicializar cliente OpenAI (existente)
     if (!openaiConfig.enabled) {
@@ -94,7 +112,13 @@ export class OpenAiService {
         throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
       }
 
-      // Selección de estrategia de validación basada en configuración
+      // NUEVO: Verificar si usar sistema de migración
+      if (modelConfig.migration.shouldUseNewSystem() && this.geminiService && this.enhancedChunking) {
+        this.logger.log('🆕 Usando sistema de migración: GPT-5 + Gemini 2.5 Pro');
+        return await this.evaluateWithNewArchitecture(documentText, prompt, expectedType, additionalContext, pmcField);
+      }
+      
+      // SISTEMA ACTUAL: Selección de estrategia de validación basada en configuración
       const validationStrategy = modelConfig.getValidationStrategy();
       
       if (validationStrategy === 'triple' && this.claudeClient) {
@@ -1580,5 +1604,377 @@ Respond in this JSON format:
   resetClaudeRateLimiter(): void {
     this.claudeRateLimiter.reset();
     this.logger.log('🔄 Claude rate limiter has been reset');
+  }
+
+  // ===== NUEVO SISTEMA DE MIGRACIÓN =====
+  
+  /**
+   * Evalúa usando la nueva arquitectura: GPT-5 + Gemini 2.5 Pro + Enhanced Chunking
+   * SOLO se ejecuta si MIGRATION_MODE está activado
+   */
+  private async evaluateWithNewArchitecture(
+    documentText: string,
+    prompt: string,
+    expectedType: ResponseType,
+    additionalContext?: string,
+    pmcField?: string
+  ): Promise<EvaluationResult> {
+    const startTime = Date.now();
+    
+    try {
+      this.logger.log(`🚀 === NUEVA ARQUITECTURA ACTIVADA ===`);
+      this.logger.log(`📄 Documento: ${documentText.length} chars, Campo: ${pmcField}`);
+      
+      // 1. Enhanced Chunking para documentos grandes
+      let processedContent = documentText;
+      let chunkMetadata = null;
+      
+      // Si el documento es muy grande, usar enhanced chunking
+      if (documentText.length > 5 * 1024 * 1024) { // >5MB
+        this.logger.log('📦 Documento grande detectado, usando enhanced chunking...');
+        
+        const chunkResult = await this.enhancedChunking!.processDocument(
+          documentText,
+          pmcField || 'unknown',
+          { id: pmcField || 'unknown', size: documentText.length, type: 'pdf' }
+        );
+        
+        this.logger.log(`📊 Chunking: ${chunkResult.totalChunks} chunks, estrategia: ${chunkResult.strategy}`);
+        
+        // Para esta implementación inicial, tomar solo los chunks más importantes
+        const topChunks = chunkResult.chunks
+          .filter(c => c.priority === 'critical' || c.priority === 'high')
+          .slice(0, 3); // Top 3 chunks más importantes
+        
+        processedContent = topChunks.map(c => c.content).join('\n\n--- SECTION ---\n\n');
+        chunkMetadata = {
+          totalChunks: chunkResult.totalChunks,
+          selectedChunks: topChunks.length,
+          strategy: chunkResult.strategy,
+          recommendedModel: chunkResult.recommendedModel
+        };
+        
+        this.logger.log(`✂️ Contenido reducido de ${documentText.length} a ${processedContent.length} chars`);
+      }
+      
+      // 2. Evaluación dual: GPT-5 + Gemini
+      this.logger.log('🤖 Iniciando evaluación dual: GPT-5 + Gemini...');
+      
+      const [gpt5Result, geminiResult] = await Promise.allSettled([
+        this.evaluateWithGPT5(processedContent, prompt, expectedType, additionalContext),
+        this.geminiService!.evaluateDocument(processedContent, prompt, expectedType, additionalContext, pmcField)
+      ]);
+      
+      // 3. Procesar resultados
+      let primaryResult, secondaryResult;
+      
+      if (gpt5Result.status === 'fulfilled') {
+        primaryResult = gpt5Result.value;
+        this.logger.log(`✅ GPT-5: confidence ${primaryResult.confidence}`);
+      } else {
+        this.logger.error(`❌ GPT-5 failed: ${gpt5Result.reason?.message}`);
+      }
+      
+      if (geminiResult.status === 'fulfilled') {
+        secondaryResult = geminiResult.value;
+        this.logger.log(`✅ Gemini: confidence ${secondaryResult.confidence}`);
+      } else {
+        this.logger.error(`❌ Gemini failed: ${geminiResult.reason?.message}`);
+      }
+      
+      // 4. Análisis de consenso
+      if (primaryResult && secondaryResult) {
+        const agreement = this.calculateNewAgreement(primaryResult.response, secondaryResult.response);
+        this.logger.log(`🤝 Acuerdo entre modelos: ${(agreement * 100).toFixed(1)}%`);
+        
+        if (agreement >= 0.8) {
+          // Alto consenso - usar resultado con mayor confianza
+          const bestResult = primaryResult.confidence > secondaryResult.confidence ? primaryResult : secondaryResult;
+          const avgConfidence = (primaryResult.confidence + secondaryResult.confidence) / 2;
+          
+          return {
+            response: bestResult.response,
+            confidence: primaryResult.confidence,
+            validation_response: secondaryResult.response,
+            validation_confidence: secondaryResult.confidence,
+            final_confidence: Math.min(0.99, avgConfidence + 0.1), // Bonus por consenso
+            openai_metadata: {
+              architecture: 'new',
+              primary_model: 'gpt-5',
+              secondary_model: 'gemini-2.5-pro',
+              agreement_level: agreement,
+              chunking_applied: !!chunkMetadata,
+              chunk_metadata: chunkMetadata,
+              processing_time: Date.now() - startTime,
+              consensus: true
+            }
+          };
+        } else {
+          // Bajo consenso - invocar juez GPT-5
+          this.logger.warn(`⚖️ Bajo consenso, invocando juez GPT-5...`);
+          
+          const judgeResult = await this.invokeGPT5Judge(
+            processedContent,
+            prompt,
+            primaryResult,
+            secondaryResult,
+            expectedType,
+            pmcField
+          );
+          
+          return {
+            response: judgeResult.finalAnswer,
+            confidence: judgeResult.confidence,
+            validation_response: judgeResult.reasoning,
+            validation_confidence: judgeResult.confidence,
+            final_confidence: judgeResult.confidence,
+            openai_metadata: {
+              architecture: 'new',
+              primary_model: 'gpt-5',
+              secondary_model: 'gemini-2.5-pro',
+              arbitrator_model: 'gpt-5',
+              agreement_level: agreement,
+              chunking_applied: !!chunkMetadata,
+              chunk_metadata: chunkMetadata,
+              processing_time: Date.now() - startTime,
+              consensus: false,
+              judge_decision: judgeResult.selectedModel
+            }
+          };
+        }
+      }
+      
+      // 5. Fallback si solo uno funciona
+      const workingResult = primaryResult || secondaryResult;
+      if (workingResult) {
+        this.logger.warn(`⚠️ Solo un modelo funcionó: ${primaryResult ? 'GPT-5' : 'Gemini'}`);
+        
+        return {
+          response: workingResult.response,
+          confidence: workingResult.confidence,
+          validation_response: workingResult.response,
+          validation_confidence: workingResult.confidence,
+          final_confidence: Math.max(0.5, workingResult.confidence - 0.1), // Penalizar falta de validación
+          openai_metadata: {
+            architecture: 'new',
+            fallback_used: true,
+            working_model: primaryResult ? 'gpt-5' : 'gemini-2.5-pro',
+            chunking_applied: !!chunkMetadata,
+            chunk_metadata: chunkMetadata,
+            processing_time: Date.now() - startTime
+          }
+        };
+      }
+      
+      // 6. Fallback total al sistema anterior
+      this.logger.error('❌ Ambos modelos nuevos fallaron, usando sistema anterior');
+      
+      if (modelConfig.migration.allowFallbackToOldSystem) {
+        this.logger.log('🔄 Fallback al sistema anterior activado');
+        
+        // Llamar recursivamente pero desactivando migración temporalmente
+        const originalMode = process.env.MIGRATION_MODE;
+        process.env.MIGRATION_MODE = 'off';
+        
+        try {
+          const fallbackResult = await this.evaluateWithValidation(
+            documentText, prompt, expectedType, additionalContext, pmcField
+          );
+          
+          return {
+            ...fallbackResult,
+            openai_metadata: {
+              ...fallbackResult.openai_metadata,
+              fallback_to_old_system: true,
+              original_architecture_failed: true
+            }
+          };
+        } finally {
+          process.env.MIGRATION_MODE = originalMode;
+        }
+      }
+      
+      throw new Error('Todos los modelos fallaron y fallback está deshabilitado');
+      
+    } catch (error) {
+      this.logger.error(`❌ Error en nueva arquitectura: ${error.message}`);
+      
+      // Fallback de emergencia
+      if (modelConfig.migration.allowFallbackToOldSystem) {
+        this.logger.warn('🚨 Fallback de emergencia al sistema anterior');
+        
+        const originalMode = process.env.MIGRATION_MODE;
+        process.env.MIGRATION_MODE = 'off';
+        
+        try {
+          return await this.evaluateWithValidation(
+            documentText, prompt, expectedType, additionalContext, pmcField
+          );
+        } finally {
+          process.env.MIGRATION_MODE = originalMode;
+        }
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Evalúa usando GPT-5 (placeholder - necesitará actualizar cuando GPT-5 esté disponible)
+   */
+  private async evaluateWithGPT5(
+    documentText: string,
+    prompt: string,
+    expectedType: ResponseType,
+    additionalContext?: string
+  ): Promise<any> {
+    // Por ahora usar GPT-4o con configuración optimizada para simular GPT-5
+    // TODO: Reemplazar con GPT-5 real cuando esté disponible
+    
+    const systemPrompt = this.buildGPT5SystemPrompt(expectedType);
+    const fullPrompt = this.buildFullPrompt(systemPrompt, documentText, prompt, additionalContext);
+    
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o', // TODO: Cambiar a 'gpt-5' cuando esté disponible
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: fullPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
+    
+    const result = JSON.parse(response.choices[0].message.content);
+    
+    return {
+      response: result.response || result.answer || 'No response',
+      confidence: result.confidence || 0.8,
+      reasoning: result.reasoning || 'GPT-5 reasoning',
+      model: 'gpt-4o' // TODO: 'gpt-5'
+    };
+  }
+
+  /**
+   * Invoca GPT-5 como juez árbitro
+   */
+  private async invokeGPT5Judge(
+    documentText: string,
+    prompt: string,
+    result1: any,
+    result2: any,
+    expectedType: ResponseType,
+    pmcField?: string
+  ): Promise<any> {
+    const judgePrompt = `As an expert arbitrator, analyze these two AI evaluations and determine the correct answer.
+
+Document Context: ${documentText.substring(0, 3000)}...
+Question: ${prompt}
+Field: ${pmcField}
+
+Evaluation 1 (GPT-5): 
+Response: ${result1.response}
+Confidence: ${result1.confidence}
+Reasoning: ${result1.reasoning || 'No reasoning provided'}
+
+Evaluation 2 (Gemini 2.5 Pro):
+Response: ${result2.response}  
+Confidence: ${result2.confidence}
+Reasoning: ${result2.reasoning || 'No reasoning provided'}
+
+Provide your arbitration decision in JSON format:
+{
+  "finalAnswer": "your definitive answer",
+  "confidence": 0.0 to 1.0,
+  "reasoning": "detailed explanation of your decision",
+  "selectedModel": "gpt-5" | "gemini" | "synthesized"
+}`;
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o', // TODO: Cambiar a 'gpt-5'
+      messages: [
+        { 
+          role: 'system', 
+          content: 'You are an expert arbitrator for insurance underwriting decisions.' 
+        },
+        { role: 'user', content: judgePrompt }
+      ],
+      temperature: 0.05,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' }
+    });
+
+    return JSON.parse(response.choices[0].message.content);
+  }
+
+  /**
+   * Construye system prompt optimizado para GPT-5
+   */
+  private buildGPT5SystemPrompt(expectedType: ResponseType): string {
+    return `You are an advanced AI assistant powered by GPT-5, specializing in insurance underwriting analysis.
+
+Expected response type: ${expectedType}
+
+Instructions:
+1. Use advanced reasoning capabilities for complex decisions
+2. Be precise and confident in your analysis  
+3. Focus on underwriting-relevant information
+4. Consider edge cases and potential ambiguities
+
+Provide response in JSON format:
+{
+  "response": "your answer",
+  "confidence": 0.0 to 1.0,
+  "reasoning": "step-by-step reasoning"
+}`;
+  }
+
+  /**
+   * Construye prompt completo
+   */
+  private buildFullPrompt(
+    systemPrompt: string,
+    documentText: string,
+    prompt: string,
+    additionalContext?: string
+  ): string {
+    let fullPrompt = '';
+    
+    if (additionalContext) {
+      fullPrompt += `Additional Context: ${additionalContext}\n\n`;
+    }
+    
+    fullPrompt += `Document Content:\n${documentText}\n\n`;
+    fullPrompt += `Question: ${prompt}`;
+    
+    return fullPrompt;
+  }
+
+  /**
+   * Calcula nivel de acuerdo entre dos respuestas (versión simplificada)
+   */
+  private calculateNewAgreement(response1: string, response2: string): number {
+    const normalized1 = this.normalizeNewResponse(response1);
+    const normalized2 = this.normalizeNewResponse(response2);
+    
+    if (normalized1 === normalized2) return 1.0;
+    
+    // Similitud básica por palabras
+    const words1 = normalized1.split(' ');
+    const words2 = normalized2.split(' ');
+    const intersection = words1.filter(w => words2.includes(w));
+    
+    return intersection.length / Math.max(words1.length, words2.length, 1);
+  }
+
+  /**
+   * Normaliza respuesta para comparación (versión simplificada)
+   */
+  private normalizeNewResponse(response: string): string {
+    return response
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

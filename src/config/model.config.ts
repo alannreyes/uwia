@@ -5,6 +5,8 @@
 
 // Importar configuración existente para mantener compatibilidad
 import { openaiConfig } from './openai.config';
+// NUEVO: Importar configuración de Gemini (sin afectar sistema actual)
+import { geminiConfig, isGeminiAvailable } from './gemini.config';
 
 /**
  * Configuración de Claude (Anthropic)
@@ -119,6 +121,9 @@ export const modelConfig = {
   // Qwen-Long (DEPRECATED - mantenido por compatibilidad)
   qwen: qwenConfig,
   
+  // NUEVO: Gemini 2.5 Pro - Inicialmente deshabilitado
+  gemini: geminiConfig,
+  
   // Sistema de validación
   validation: {
     // Validación dual existente
@@ -158,6 +163,11 @@ export const modelConfig = {
     return claudeConfig.enabled && !!claudeConfig.apiKey;
   },
   
+  // NUEVO: Helper para verificar disponibilidad de Gemini
+  isGeminiAvailable(): boolean {
+    return isGeminiAvailable();
+  },
+  
   // Helper para obtener configuración de modelo por nombre
   getModelConfig(modelName: string) {
     switch (modelName) {
@@ -168,6 +178,45 @@ export const modelConfig = {
         return openaiConfig;
     }
   },
+  
+  // NUEVO: Sistema de migración gradual - NO AFECTA SISTEMA ACTUAL
+  migration: {
+    // Feature flags para control granular
+    gpt5Enabled: process.env.OPENAI_GPT5_ENABLED === 'true',
+    geminiEnabled: geminiConfig.enabled,
+    
+    // Modo de migración: 'off' | 'testing' | 'canary' | 'full'
+    mode: process.env.MIGRATION_MODE || 'off',
+    canaryPercentage: parseInt(process.env.CANARY_PERCENTAGE) || 0,
+    
+    // Configuración de modelos nuevos
+    newModels: {
+      primary: process.env.MIGRATION_PRIMARY_MODEL || 'gpt-5',
+      independent: process.env.MIGRATION_INDEPENDENT_MODEL || 'gemini-2.5-pro',
+      arbitrator: process.env.MIGRATION_ARBITRATOR_MODEL || 'gpt-5',
+    },
+    
+    // Fallback estrategia
+    allowFallbackToOldSystem: process.env.MIGRATION_ALLOW_FALLBACK !== 'false',
+    
+    // Función para determinar si usar nuevo sistema
+    shouldUseNewSystem(): boolean {
+      if (!this.gpt5Enabled && !this.geminiEnabled) return false;
+      
+      switch (this.mode) {
+        case 'off':
+          return false;
+        case 'testing':
+          return process.env.NODE_ENV === 'development';
+        case 'canary':
+          return Math.random() * 100 < this.canaryPercentage;
+        case 'full':
+          return true;
+        default:
+          return false;
+      }
+    }
+  }
 };
 
 // Exportar configuración por defecto
