@@ -841,19 +841,36 @@ Respond in JSON format:
           this.logger.log(`👁️ === GPT-4o VISION === "${cleanResponse}" (confidence: ${confidence}) ===`);
           this.logger.log(`👁️ === GEMINI VISION === "${geminiVisionResult.response}" (confidence: ${geminiVisionResult.confidence}) ===`);
           
-          // Calcular consenso entre ambos modelos de visión
-          const agreement = this.calculateNewAgreement(cleanResponse, geminiVisionResult.response);
+          // Normalizar respuestas para comparación (especialmente fechas)
+          const normalizedGpt = this.normalizeForComparison(cleanResponse, expectedType);
+          const normalizedGemini = this.normalizeForComparison(geminiVisionResult.response, expectedType);
+          
+          // Calcular consenso con valores normalizados
+          const agreement = this.calculateNewAgreement(normalizedGpt, normalizedGemini);
           this.logger.log(`🏆 === CONSENSO VISUAL === ${(agreement * 100).toFixed(1)}% agreement ===`);
           
-          // Si hay alto consenso, usar el de mayor confianza
-          if (agreement >= 0.8) {
-            if (geminiVisionResult.confidence > confidence) {
+          // SIEMPRE usar el modelo con mayor confianza, independientemente del consenso
+          if (geminiVisionResult.confidence > confidence) {
+            finalResponse = geminiVisionResult.response;
+            finalConfidence = geminiVisionResult.confidence;
+            this.logger.log(`✅ Usando Gemini Vision (confianza: ${geminiVisionResult.confidence} vs GPT-4o: ${confidence})`);
+          } else if (confidence > geminiVisionResult.confidence) {
+            // GPT-4o tiene mayor confianza (raro pero posible)
+            this.logger.log(`✅ Usando GPT-4o Vision (confianza: ${confidence} vs Gemini: ${geminiVisionResult.confidence})`);
+          } else {
+            // Misma confianza, preferir el que tenga respuesta más específica
+            if (geminiVisionResult.response !== 'NOT_FOUND' && cleanResponse === 'NOT_FOUND') {
               finalResponse = geminiVisionResult.response;
               finalConfidence = geminiVisionResult.confidence;
-              this.logger.log(`✅ Usando respuesta de Gemini Vision (mayor confianza)`);
+              this.logger.log(`✅ Usando Gemini Vision (tiene respuesta específica)`);
+            } else {
+              this.logger.log(`✅ Usando GPT-4o Vision (confianza igual, es primario)`);
             }
-          } else {
-            this.logger.warn(`⚠️ Bajo consenso visual (${(agreement * 100).toFixed(1)}%) para ${pmcField}`);
+          }
+          
+          // Log de advertencia solo si hay bajo consenso
+          if (agreement < 0.8) {
+            this.logger.warn(`⚠️ Bajo consenso visual (${(agreement * 100).toFixed(1)}%) para ${pmcField} - Usando ${finalResponse === geminiVisionResult.response ? 'Gemini' : 'GPT-4o'}`);
           }
         }
       } catch (geminiError) {
@@ -2269,6 +2286,81 @@ Provide your analysis in valid JSON format:
     fullPrompt += `Question: ${prompt}`;
     
     return fullPrompt;
+  }
+
+  /**
+   * Normaliza respuestas para comparación (especialmente fechas)
+   */
+  private normalizeForComparison(response: string, expectedType: ResponseType): string {
+    if (!response || response === 'NOT_FOUND') {
+      return response;
+    }
+    
+    // Para fechas, normalizar diferentes formatos a YYYY-MM-DD
+    if (expectedType === ResponseType.DATE) {
+      // Intentar parsear diferentes formatos de fecha
+      const datePatterns = [
+        /(\d{2})-(\d{2})-(\d{2})/,       // 25-07-17
+        /(\d{4})-(\d{2})-(\d{2})/,      // 2025-07-17
+        /(\d{2})\/(\d{2})\/(\d{2})/,    // 07/17/25
+        /(\d{2})\/(\d{2})\/(\d{4})/,    // 07/17/2025
+        /(\d{4})\/(\d{2})\/(\d{2})/,    // 2025/07/17
+      ];
+      
+      for (const pattern of datePatterns) {
+        const match = response.match(pattern);
+        if (match) {
+          let year = match[1];
+          let month = match[2];
+          let day = match[3];
+          
+          // Para formatos como MM-DD-YY o DD-MM-YY
+          if (pattern.source.includes('(\\d{2})-(\\d{2})-(\\d{2})')) {
+            // Asumir formato DD-MM-YY basado en contexto LOP
+            day = match[1];
+            month = match[2];
+            year = match[3];
+            
+            // Convertir año corto a largo
+            if (year.length === 2) {
+              const currentYear = new Date().getFullYear();
+              const currentCentury = Math.floor(currentYear / 100) * 100;
+              year = String(currentCentury + parseInt(year));
+            }
+          }
+          
+          // Para formatos YYYY-MM-DD ya está correcto
+          if (pattern.source.includes('(\\d{4})-(\\d{2})-(\\d{2})')) {
+            // Ya está en formato correcto
+            return response;
+          }
+          
+          // Para formatos MM/DD/YY
+          if (pattern.source.includes('\\/')) {
+            if (year.length === 2) {
+              const currentYear = new Date().getFullYear();
+              const currentCentury = Math.floor(currentYear / 100) * 100;
+              year = String(currentCentury + parseInt(year));
+            }
+            // Intercambiar mes y día si es necesario (formato americano)
+            // Mantener como está por ahora, puede necesitar ajuste según contexto
+          }
+          
+          // Normalizar a YYYY-MM-DD
+          return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+      }
+    }
+    
+    // Para booleanos, normalizar variaciones
+    if (expectedType === ResponseType.BOOLEAN) {
+      const lower = response.toLowerCase().trim();
+      if (lower === 'yes' || lower === 'true' || lower === '1') return 'YES';
+      if (lower === 'no' || lower === 'false' || lower === '0') return 'NO';
+    }
+    
+    // Para otros tipos, limpiar espacios y normalizar caso
+    return response.trim().toLowerCase();
   }
 
   /**
