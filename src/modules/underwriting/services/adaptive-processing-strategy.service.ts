@@ -28,7 +28,8 @@ export class AdaptiveProcessingStrategyService {
     
     const complexFields = [
       'matching_insured_name', 'policy_comprehensive_analysis', 
-      'onb_address_match', 'onb_policy_number_match'
+      'onb_address_match', 'onb_policy_number_match',
+      'policy_valid_from1', 'policy_valid_to1'
     ];
 
     // Pre-configurar estrategias para campos visuales
