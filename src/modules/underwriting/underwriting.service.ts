@@ -228,9 +228,9 @@ export class UnderwritingService {
       const isCriticalDocument = documentName.toLowerCase().includes('lop') || 
                                  documentName.toLowerCase().includes('estimate');
       
-      // Configurar concurrencia basada en tipo de documento y campo - OPTIMIZADO PARA LOP
-      const concurrencyLimit = isCriticalDocument ? 3 : 3; // Aumentado para LOP
-      const delayBetweenRequests = isCriticalDocument ? 500 : 1000; // Reducido a 0.5s para LOP
+      // Configurar concurrencia basada en tipo de documento y campo - OPTIMIZADO AGRESIVAMENTE PARA LOP
+      const concurrencyLimit = isCriticalDocument ? 6 : 3; // Duplicado para LOP - procesar 6 campos simultáneos
+      const delayBetweenRequests = isCriticalDocument ? 100 : 1000; // Reducido a 0.1s para LOP - mínimo delay
       
       this.logger.log(`📋 Processing strategy for ${documentName}:`);
       this.logger.log(`   - Concurrency: ${concurrencyLimit}`);
@@ -238,8 +238,9 @@ export class UnderwritingService {
       this.logger.log(`   - Total prompts: ${prompts.length}`);
       
       const processPromise = async (prompt: any, index: number) => {
-        // Agregar delay moderado solo entre batches para evitar rate limiting
-        if (index > 0 && index % concurrencyLimit === 0) {
+        // OPTIMIZACIÓN PARA LOP: Reducir delays aún más
+        const shouldDelay = !isCriticalDocument || (index > 0 && index % concurrencyLimit === 0);
+        if (shouldDelay && delayBetweenRequests > 0) {
           await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
           this.logger.log(`⏳ Delay ${delayBetweenRequests}ms before processing ${prompt.pmcField}`);
         }
@@ -295,7 +296,9 @@ export class UnderwritingService {
           }
 
           let needsVisual = strategy.useVisualAnalysis;
-          let useDualValidation = strategy.useDualValidation;
+          // OPTIMIZACIÓN: Desactivar dual validation para LOP para acelerar procesamiento
+          const isLopField = documentName.toLowerCase().includes('lop');
+          let useDualValidation = isLopField ? false : strategy.useDualValidation;
           
           // Si no hay texto y la pregunta lo requiere, forzar análisis visual
           if (!extractedText) {
@@ -317,9 +320,13 @@ export class UnderwritingService {
             let bestConfidence = 0;
             let foundPositiveAnswer = false;
             
-            // Iterar através de todas las páginas (priorizar primeras páginas para campos comunes)
+            // OPTIMIZACIÓN AGRESIVA PARA LOP: Solo analizar 1 página para reducir tiempo
+            const isLopDocument = documentName.toLowerCase().includes('lop');
             const prioritizedPages = this.prioritizePages(pageNumbers, prompt.pmcField);
-            for (const pageNumber of prioritizedPages) {
+            // Para LOP, limitar a solo la primera página prioritaria para reducir tiempo de Vision API
+            const pagesToAnalyze = isLopDocument ? prioritizedPages.slice(0, 1) : prioritizedPages;
+            
+            for (const pageNumber of pagesToAnalyze) {
               const pageImage = preparedDocument.images.get(pageNumber);
               
               if (pageImage) {
