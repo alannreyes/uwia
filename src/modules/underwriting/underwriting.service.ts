@@ -582,38 +582,32 @@ export class UnderwritingService {
     processor: (item: T, index: number) => Promise<R>,
     concurrencyLimit: number
   ): Promise<R[]> {
-    const results: (R | null)[] = new Array(items.length).fill(null);
-    const executing: Promise<void>[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const index = i; // Capturar índice para mantener orden
-      const item = items[index];
+    const results: R[] = [];
+    
+    // Procesar items en chunks del tamaño de concurrencyLimit
+    for (let i = 0; i < items.length; i += concurrencyLimit) {
+      const chunk = items.slice(i, i + concurrencyLimit);
       
-      const promise = processor(item, index).then(
-        result => {
-          results[index] = result; // Guardar en posición correcta
-        },
-        error => {
-          this.logger.error(`Error processing item at index ${index}:`, error);
-          results[index] = null; // Marcar error pero mantener posición
+      // Procesar chunk en paralelo
+      const chunkPromises = chunk.map((item, chunkIndex) => {
+        const globalIndex = i + chunkIndex;
+        return processor(item, globalIndex).catch(error => {
+          this.logger.error(`Error processing item at index ${globalIndex}:`, error);
+          return null;
+        });
+      });
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      
+      // Agregar resultados válidos
+      chunkResults.forEach(result => {
+        if (result !== null) {
+          results.push(result);
         }
-      );
-
-      executing.push(promise);
-
-      if (executing.length >= concurrencyLimit) {
-        await Promise.race(executing);
-        // Limpiar promesas completadas
-        for (let j = executing.length - 1; j >= 0; j--) {
-          if (await Promise.race([executing[j], Promise.resolve('pending')]) !== 'pending') {
-            executing.splice(j, 1);
-          }
-        }
-      }
+      });
     }
 
-    await Promise.all(executing);
-    return results.filter(r => r !== null) as R[]; // Retornar solo resultados válidos
+    return results;
   }
 
   async evaluateClaimBatch(
