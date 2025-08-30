@@ -22,14 +22,14 @@ export class AdaptiveProcessingStrategyService {
   private initializeStrategyCache(): void {
     // Cache de estrategias conocidas para campos comunes
     const visualFields = [
-      'lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount',
-      'mechanics_lien', 'lop_date1'
+      'lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount'
     ];
     
     const complexFields = [
       'matching_insured_name', 'policy_comprehensive_analysis', 
       'onb_address_match', 'onb_policy_number_match',
-      'policy_valid_from1', 'policy_valid_to1'
+      'policy_valid_from1', 'policy_valid_to1',
+      'mechanics_lien', 'lop_date1'
     ];
 
     // Pre-configurar estrategias para campos visuales
@@ -268,7 +268,7 @@ Respond in JSON format:
     // Detectar necesidad de análisis visual - MEJORADO para campos de firma
     const visualKeywords = [
       'sign', 'signature', 'initial', 'stamp', 'seal', 'mark', 
-      'handwrit', 'visual', 'check', 'box', 'x mark', 'drawn'
+      'handwrit', 'x mark', 'drawn', 'checkbox', 'tick box'
     ];
     
     // Patrones específicos para campos de firma LOP
