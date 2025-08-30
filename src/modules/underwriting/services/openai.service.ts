@@ -791,7 +791,7 @@ Respond in JSON format:
       const completion = await this.rateLimiter.executeWithRateLimit(
         async () => {
           return await this.openai.chat.completions.create({
-            model: "gpt-5",
+            model: "gpt-4o",
             messages: [{
               role: "user",
               content: [
@@ -808,9 +808,8 @@ Respond in JSON format:
                 }
               ]
             }],
-            max_completion_tokens: 250, // GPT-5: optimized for speed
-            // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter // GPT-5 optimized for vision tasks
-            reasoning_effort: "medium" // GPT-5: balanced visual analysis
+            max_tokens: 250, // GPT-4o compatible
+            temperature: 0.3 // GPT-4o optimized for precise vision tasks
           });
         },
         `vision_${pmcField || 'field'}_page${pageNumber}`,
@@ -829,7 +828,7 @@ Respond in JSON format:
         validation_confidence: confidence,
         final_confidence: confidence,
         openai_metadata: {
-          primary_model: 'gpt-4o',
+          primary_model: 'gpt-4o-vision',
           validation_model: 'none',
           primary_tokens: completion.usage?.total_tokens || 0,
           validation_tokens: 0,
