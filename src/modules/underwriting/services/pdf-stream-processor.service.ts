@@ -50,7 +50,7 @@ export class PdfStreamProcessorService {
       maxMemoryUsage: options.maxMemoryUsage || parseInt(process.env.MAX_PDF_MEMORY_USAGE) || 104857600, // 100MB
       enableStreaming: options.enableStreaming ?? true,
       fallbackToOcr: options.fallbackToOcr ?? true,
-      timeoutMs: options.timeoutMs || parseInt(process.env.LARGE_FILE_TIMEOUT) || 300000 // 5 minutos
+      timeoutMs: options.timeoutMs || parseInt(process.env.LARGE_FILE_TIMEOUT) || 480000 // 8 minutos
     };
 
     const fileSize = buffer.length;

@@ -166,8 +166,8 @@ export class PdfParserService {
       // Detectar archivos grandes y aplicar timeout mayor
       const isLargeFile = buffer.length > 20971520; // 20MB
       const timeout = isLargeFile ? 
-        parseInt(process.env.LARGE_FILE_TIMEOUT) || 300000 : // 5 min para grandes
-        60000; // 1 min para normales
+        parseInt(process.env.LARGE_FILE_TIMEOUT) || 480000 : // 8 min para grandes
+        90000; // 1.5 min para normales
       
       this.logger.log(`PDF size: ${(buffer.length / 1048576).toFixed(2)}MB - Timeout: ${timeout/1000}s`);
       
