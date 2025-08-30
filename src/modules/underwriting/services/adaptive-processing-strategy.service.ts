@@ -22,14 +22,15 @@ export class AdaptiveProcessingStrategyService {
   private initializeStrategyCache(): void {
     // Cache de estrategias conocidas para campos comunes
     const visualFields = [
-      'lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount'
+      'lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount',
+      'lop_date1' // Necesita análisis visual para detectar fechas manuscritas
     ];
     
     const complexFields = [
       'matching_insured_name', 'policy_comprehensive_analysis', 
       'onb_address_match', 'onb_policy_number_match',
       'policy_valid_from1', 'policy_valid_to1',
-      'mechanics_lien', 'lop_date1'
+      'mechanics_lien'
     ];
 
     // Pre-configurar estrategias para campos visuales
