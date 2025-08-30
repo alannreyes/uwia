@@ -310,6 +310,105 @@ Provide your response in JSON format:
   }
 
   /**
+   * Analiza una imagen usando Gemini Vision
+   * Compatible con GPT-4o Vision para dual validation
+   */
+  async analyzeWithVision(
+    imageBase64: string,
+    prompt: string,
+    expectedType: ResponseType,
+    pmcField?: string,
+    pageNumber: number = 1
+  ): Promise<GeminiEvaluationResult> {
+    const startTime = Date.now();
+    
+    if (!this.isAvailable()) {
+      throw new Error('Gemini Vision no está disponible');
+    }
+    
+    try {
+      this.logger.log(`👁️ Gemini Vision for: ${pmcField} (page ${pageNumber})`);
+      
+      // Rate limiting
+      await this.rateLimiter.checkLimit('gemini-vision');
+      
+      // Construir prompt específico para análisis visual
+      const visionPrompt = this.buildVisionPrompt(prompt, expectedType, pmcField);
+      
+      // Gemini acepta imágenes en formato inline
+      const result = await this.model.generateContent([
+        visionPrompt,
+        {
+          inlineData: {
+            mimeType: "image/png",
+            data: imageBase64
+          }
+        }
+      ]);
+      
+      const response = await result.response;
+      const text = response.text();
+      
+      // Parsear respuesta
+      const parsedResponse = this.parseResponse(text, expectedType);
+      
+      const processingTime = Date.now() - startTime;
+      
+      this.logger.log(`✅ Gemini Vision completado en ${processingTime}ms`);
+      this.logger.log(`👁️ Gemini Vision found: "${parsedResponse.response}" (confidence: ${parsedResponse.confidence})`);
+      
+      return {
+        ...parsedResponse,
+        processingTime,
+        tokensUsed: response.usageMetadata?.totalTokenCount || 0,
+        model: 'gemini-2.5-pro-vision'
+      };
+      
+    } catch (error) {
+      const processingTime = Date.now() - startTime;
+      this.logger.error(`❌ Error en Gemini Vision: ${error.message}`);
+      
+      // Métricas de error
+      this.performanceMetrics.totalRequests++;
+      this.performanceMetrics.errorRate = 
+        ((this.performanceMetrics.totalRequests - this.performanceMetrics.successfulRequests) / 
+         this.performanceMetrics.totalRequests) * 100;
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Construye prompt optimizado para análisis visual
+   */
+  private buildVisionPrompt(prompt: string, expectedType: ResponseType, pmcField?: string): string {
+    const typeInstructions = {
+      [ResponseType.BOOLEAN]: 'Answer with YES or NO only.',
+      [ResponseType.DATE]: 'Provide the date in YYYY-MM-DD format. If no date is found, respond with NOT_FOUND.',
+      [ResponseType.TEXT]: 'Provide a concise text response.',
+      [ResponseType.NUMBER]: 'Provide only the numeric value.',
+    };
+    
+    return `You are analyzing a document image. ${prompt}
+
+${typeInstructions[expectedType] || ''}
+
+IMPORTANT: Look carefully at the visual elements in the image including:
+- Handwritten text, signatures, initials
+- Stamps, seals, marks
+- Dates written by hand
+- Checkboxes and their marks
+- Any visual annotations
+
+Respond in JSON format:
+{
+  "response": "your answer here",
+  "confidence": 0.0-1.0,
+  "reasoning": "brief explanation"
+}`;
+  }
+
+  /**
    * Agrega resultados de múltiples chunks
    */
   private aggregateChunkResults(results: GeminiEvaluationResult[]): GeminiEvaluationResult {

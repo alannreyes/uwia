@@ -820,18 +820,58 @@ Respond in JSON format:
       const confidence = this.extractConfidence(response);
       const cleanResponse = this.cleanResponse(response, expectedType);
 
-      // Para Vision, no usamos validación dual (ya es el modelo más avanzado)
+      // Ahora también usamos Gemini Vision para dual validation
+      let geminiVisionResult = null;
+      let finalResponse = cleanResponse;
+      let finalConfidence = confidence;
+      
+      try {
+        // Intentar dual validation con Gemini Vision si está disponible
+        if (this.geminiService && this.geminiService.isAvailable()) {
+          this.logger.log(`👁️ Ejecutando Gemini Vision para dual validation de ${pmcField}`);
+          
+          geminiVisionResult = await this.geminiService.analyzeWithVision(
+            imageBase64,
+            prompt,
+            expectedType,
+            pmcField,
+            pageNumber
+          );
+          
+          this.logger.log(`👁️ === GPT-4o VISION === "${cleanResponse}" (confidence: ${confidence}) ===`);
+          this.logger.log(`👁️ === GEMINI VISION === "${geminiVisionResult.response}" (confidence: ${geminiVisionResult.confidence}) ===`);
+          
+          // Calcular consenso entre ambos modelos de visión
+          const agreement = this.calculateNewAgreement(cleanResponse, geminiVisionResult.response);
+          this.logger.log(`🏆 === CONSENSO VISUAL === ${(agreement * 100).toFixed(1)}% agreement ===`);
+          
+          // Si hay alto consenso, usar el de mayor confianza
+          if (agreement >= 0.8) {
+            if (geminiVisionResult.confidence > confidence) {
+              finalResponse = geminiVisionResult.response;
+              finalConfidence = geminiVisionResult.confidence;
+              this.logger.log(`✅ Usando respuesta de Gemini Vision (mayor confianza)`);
+            }
+          } else {
+            this.logger.warn(`⚠️ Bajo consenso visual (${(agreement * 100).toFixed(1)}%) para ${pmcField}`);
+          }
+        }
+      } catch (geminiError) {
+        this.logger.warn(`⚠️ Gemini Vision no disponible o falló: ${geminiError.message}`);
+        // Continuar solo con GPT-4o Vision
+      }
+      
       return {
-        response: cleanResponse,
-        confidence: confidence,
-        validation_response: cleanResponse,
-        validation_confidence: confidence,
-        final_confidence: confidence,
+        response: finalResponse,
+        confidence: finalConfidence,
+        validation_response: geminiVisionResult?.response || cleanResponse,
+        validation_confidence: geminiVisionResult?.confidence || confidence,
+        final_confidence: finalConfidence,
         openai_metadata: {
           primary_model: 'gpt-4o-vision',
-          validation_model: 'none',
+          validation_model: geminiVisionResult ? 'gemini-vision' : 'none',
           primary_tokens: completion.usage?.total_tokens || 0,
-          validation_tokens: 0,
+          validation_tokens: geminiVisionResult?.tokensUsed || 0,
           visual_analysis: true,
           page_analyzed: pageNumber
         }
