@@ -228,9 +228,9 @@ export class UnderwritingService {
       const isCriticalDocument = documentName.toLowerCase().includes('lop') || 
                                  documentName.toLowerCase().includes('estimate');
       
-      // Configurar concurrencia basada en tipo de documento y campo - OPTIMIZADO
-      const concurrencyLimit = isCriticalDocument ? 2 : 3; // Moderada concurrencia para documentos críticos
-      const delayBetweenRequests = isCriticalDocument ? 2000 : 1000; // 2s para críticos, 1s para otros
+      // Configurar concurrencia basada en tipo de documento y campo - OPTIMIZADO PARA LOP
+      const concurrencyLimit = isCriticalDocument ? 3 : 3; // Aumentado para LOP
+      const delayBetweenRequests = isCriticalDocument ? 500 : 1000; // Reducido a 0.5s para LOP
       
       this.logger.log(`📋 Processing strategy for ${documentName}:`);
       this.logger.log(`   - Concurrency: ${concurrencyLimit}`);

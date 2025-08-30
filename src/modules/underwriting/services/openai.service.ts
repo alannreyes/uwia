@@ -177,7 +177,7 @@ export class OpenAiService {
             { role: 'user', content: userPrompt }
           ],
           // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
-          max_completion_tokens: openaiConfig.maxTokens,
+          max_completion_tokens: pmcField === 'policy_comprehensive_analysis' ? 2000 : openaiConfig.maxTokens,
           reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
         });
       },
@@ -215,6 +215,11 @@ export class OpenAiService {
     if (isCriticalField) {
       basePrompt += `IMPORTANT: Search thoroughly. Extract ANY relevant info. Do NOT return empty.\n`;
     }
+    
+    // Instrucciones especiales para campos de POLICY.pdf para evitar NOT_FOUND
+    if (pmcField && (pmcField.includes('policy_') || pmcField.includes('_policy'))) {
+      basePrompt += `CRITICAL: For POLICY documents, search exhaustively. Use partial matches, inferences, and contextual clues. Avoid "not found" responses.\n`;
+    }
 
     basePrompt += `FORMAT:\n`;
 
@@ -228,13 +233,26 @@ export class OpenAiService {
           basePrompt += `YES/NO only\n[CONFIDENCE: 0.XX]`;
           break;
         case ResponseType.DATE:
-          basePrompt += `MM-DD-YY or "not found"\n[CONFIDENCE: 0.XX]`;
+          if (pmcField && (pmcField.includes('policy_') || pmcField.includes('_policy'))) {
+            basePrompt += `MM-DD-YY format. Extract from any date format found.\n[CONFIDENCE: 0.XX]`;
+          } else {
+            basePrompt += `MM-DD-YY or "not found"\n[CONFIDENCE: 0.XX]`;
+          }
           break;
         case ResponseType.TEXT:
-          basePrompt += `Max 100 chars\n[CONFIDENCE: 0.XX]`;
+          // Formato especial para análisis comprensivo
+          if (pmcField === 'policy_comprehensive_analysis') {
+            basePrompt += `Comprehensive analysis (max 2000 chars). Consolidate all findings.\n[CONFIDENCE: 0.XX]`;
+          } else {
+            basePrompt += `Max 100 chars\n[CONFIDENCE: 0.XX]`;
+          }
           break;
         case ResponseType.NUMBER:
-          basePrompt += `Number only or "not found"\n[CONFIDENCE: 0.XX]`;
+          if (pmcField && (pmcField.includes('policy_') || pmcField.includes('_policy'))) {
+            basePrompt += `Extract any numerical value found. Use context clues.\n[CONFIDENCE: 0.XX]`;
+          } else {
+            basePrompt += `Number only or "not found"\n[CONFIDENCE: 0.XX]`;
+          }
           break;
         case ResponseType.JSON:
           basePrompt += `Valid JSON with "confidence": 0.XX`;

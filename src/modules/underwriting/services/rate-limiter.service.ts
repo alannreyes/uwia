@@ -53,13 +53,13 @@ export class RateLimiterService {
 
   private readonly config: RateLimitConfig = {
     maxRetries: 10,
-    baseDelay: 10000, // 10 segundos
-    maxDelay: 60000,  // 60 segundos
-    backoffMultiplier: 1.5,
+    baseDelay: 5000,  // Reducido a 5 segundos para LOP
+    maxDelay: 30000,  // Reducido a 30 segundos máximo
+    backoffMultiplier: 1.3, // Reducir escalamiento
     jitter: true,
-    requestsPerMinute: 60, // Aumentado para mejor throughput
-    maxQueueSize: 200, // Aumentado para manejar más requests concurrentes
-    maxWaitTimeMs: 120000 // 2 minutos máximo de espera (reducido)
+    requestsPerMinute: 80, // Aumentado para LOP processing
+    maxQueueSize: 500, // Aumentado significativamente para 18 campos LOP
+    maxWaitTimeMs: 300000 // Aumentado a 5 minutos para permitir LOP completo
   };
 
   /**
