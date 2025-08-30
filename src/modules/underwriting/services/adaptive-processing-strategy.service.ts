@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { openaiConfig } from '../../../config/openai.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
-import { RateLimiterService } from './rate-limiter.service';
 
 export interface ProcessingStrategy {
   useVisualAnalysis: boolean;
@@ -15,10 +13,46 @@ export interface ProcessingStrategy {
 @Injectable()
 export class AdaptiveProcessingStrategyService {
   private readonly logger = new Logger(AdaptiveProcessingStrategyService.name);
-  private rateLimiter: RateLimiterService;
+  private strategyCache = new Map<string, ProcessingStrategy>();
   
   constructor() {
-    this.rateLimiter = new RateLimiterService();
+    this.initializeStrategyCache();
+  }
+
+  private initializeStrategyCache(): void {
+    // Cache de estrategias conocidas para campos comunes
+    const visualFields = [
+      'lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount',
+      'mechanics_lien', 'lop_date1'
+    ];
+    
+    const complexFields = [
+      'matching_insured_name', 'policy_comprehensive_analysis', 
+      'onb_address_match', 'onb_policy_number_match'
+    ];
+
+    // Pre-configurar estrategias para campos visuales
+    visualFields.forEach(field => {
+      this.strategyCache.set(field, {
+        useVisualAnalysis: true,
+        useDualValidation: false,
+        primaryModel: 'gpt-4o',
+        confidenceThreshold: 0.75,
+        reasoning: 'Pre-configured visual field strategy'
+      });
+    });
+
+    // Pre-configurar estrategias para campos complejos
+    complexFields.forEach(field => {
+      this.strategyCache.set(field, {
+        useVisualAnalysis: false,
+        useDualValidation: true,
+        primaryModel: 'gpt-4o',
+        validationModel: 'gpt-4o',
+        confidenceThreshold: 0.85,
+        reasoning: 'Pre-configured complex field strategy'
+      });
+    });
   }
 
   /**
@@ -32,7 +66,25 @@ export class AdaptiveProcessingStrategyService {
     documentHasImages: boolean = true
   ): Promise<ProcessingStrategy> {
     
+    // Primero verificar cache
+    if (this.strategyCache.has(pmcField)) {
+      const cached = this.strategyCache.get(pmcField);
+      this.logger.log(`📦 Using cached strategy for ${pmcField}: Visual=${cached.useVisualAnalysis}, Model=${cached.primaryModel}`);
+      return cached;
+    }
+    
+    // Si no está en cache, usar fallback directo sin GPT-5
+    const strategy = this.getFallbackStrategy(pmcField, question, expectedType);
+    
+    // Guardar en cache para uso futuro
+    this.strategyCache.set(pmcField, strategy);
+    this.logger.log(`💾 Cached new strategy for ${pmcField}: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
+    
+    return strategy;
+    
+    /* COMENTADO: Análisis con GPT-5 deshabilitado para mejorar velocidad
     try {
+      /* DESHABILITADO: Análisis con GPT-5
       // Análisis semántico del prompt para determinar estrategia
       const analysisPrompt = `Analyze this document processing question and determine the optimal AI strategy.
 
@@ -197,7 +249,7 @@ Respond in JSON format:
       }
       
       return this.getFallbackStrategy(pmcField, question, expectedType);
-    }
+    */
   }
 
   /**

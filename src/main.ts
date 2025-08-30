@@ -6,7 +6,16 @@ import { EnvValidation } from './config/env-validation';
 async function bootstrap() {
   // Validar variables de entorno al iniciar
   EnvValidation.validate();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Aumentar timeout a 8 minutos (480 segundos)
+    rawBody: true,
+  });
+  
+  // Configurar timeout del servidor a 8 minutos
+  const server = app.getHttpServer();
+  server.setTimeout(8 * 60 * 1000); // 8 minutos en milisegundos
+  server.headersTimeout = 8 * 60 * 1000 + 1000; // Un poco más que el timeout regular
+  server.keepAliveTimeout = 8 * 60 * 1000;
   
   // Configurar validación global
   app.useGlobalPipes(new ValidationPipe({

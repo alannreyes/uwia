@@ -317,8 +317,9 @@ export class UnderwritingService {
             let bestConfidence = 0;
             let foundPositiveAnswer = false;
             
-            // Iterar através de todas las páginas
-            for (const pageNumber of pageNumbers) {
+            // Iterar através de todas las páginas (priorizar primeras páginas para campos comunes)
+            const prioritizedPages = this.prioritizePages(pageNumbers, prompt.pmcField);
+            for (const pageNumber of prioritizedPages) {
               const pageImage = preparedDocument.images.get(pageNumber);
               
               if (pageImage) {
@@ -335,9 +336,22 @@ export class UnderwritingService {
                   
                   this.logger.log(`📊 Page ${pageNumber} result: ${pageResponse.response} (confidence: ${pageResponse.confidence})`);
                   
-                  // Para campos de firma/booleanos, si encontramos un "YES", usarlo inmediatamente
-                  if (prompt.expectedType === 'boolean' && pageResponse.response === 'YES') {
-                    this.logger.log(`✅ Found positive answer on page ${pageNumber} (confidence: ${pageResponse.confidence}) - using this result`);
+                  // EARLY EXIT: Para campos de firma/booleanos, si encontramos un "YES" con buena confianza
+                  if (prompt.expectedType === 'boolean' && 
+                      pageResponse.response === 'YES' && 
+                      pageResponse.confidence >= 0.7) {
+                    this.logger.log(`✅ EARLY EXIT: Found positive answer on page ${pageNumber} (confidence: ${pageResponse.confidence})`);
+                    aiResponse = pageResponse;
+                    foundPositiveAnswer = true;
+                    break;
+                  }
+                  
+                  // EARLY EXIT: Para campos de texto/fecha/número con alta confianza
+                  if ((prompt.expectedType === 'text' || prompt.expectedType === 'date' || prompt.expectedType === 'number') &&
+                      pageResponse.response !== 'not found' && 
+                      pageResponse.response !== '' &&
+                      pageResponse.confidence >= 0.85) {
+                    this.logger.log(`✅ EARLY EXIT: Found confident answer on page ${pageNumber}: ${pageResponse.response} (${pageResponse.confidence})`);
                     aiResponse = pageResponse;
                     foundPositiveAnswer = true;
                     break;
@@ -1023,6 +1037,29 @@ export class UnderwritingService {
       'type_of_job': dto.type_of_job || contextData.type_of_job,
       'cause_of_loss': dto.cause_of_loss || contextData.cause_of_loss
     };
+  }
+
+  /**
+   * Prioriza páginas para análisis basándose en el tipo de campo
+   */
+  private prioritizePages(pageNumbers: number[], pmcField: string): number[] {
+    const fieldLower = pmcField.toLowerCase();
+    
+    // Para campos de firma, priorizar primeras y últimas páginas
+    if (fieldLower.includes('sign') || fieldLower.includes('signature')) {
+      const first = pageNumbers.slice(0, 2);
+      const last = pageNumbers.slice(-2);
+      const middle = pageNumbers.slice(2, -2);
+      return [...new Set([...first, ...last, ...middle])];
+    }
+    
+    // Para fechas y datos generales, priorizar primeras páginas
+    if (fieldLower.includes('date') || fieldLower.includes('policy') || fieldLower.includes('claim')) {
+      return pageNumbers; // Mantener orden original (primera a última)
+    }
+    
+    // Por defecto, mantener orden original
+    return pageNumbers;
   }
 
   /**

@@ -203,49 +203,41 @@ export class OpenAiService {
 
 
   private buildSystemPrompt(expectedType: ResponseType, additionalContext?: string, isValidation = false, pmcField?: string): string {
-    let basePrompt = `You are a precise document analyzer for underwriting purposes. `;
+    // Prompts optimizados para campos problemáticos
+    const criticalFields = ['matching_insured_name', 'policy_comprehensive_analysis', 'lop_signed_by_client1'];
+    const isCriticalField = pmcField && criticalFields.includes(pmcField);
     
-    if (isValidation) {
-      basePrompt += `You are performing a validation check on a previous analysis. `;
+    let basePrompt = isValidation 
+      ? `Validate this analysis.\n`
+      : `Analyze document precisely.\n`;
+    
+    // Instrucciones especiales para campos críticos que devuelven vacío
+    if (isCriticalField) {
+      basePrompt += `IMPORTANT: Search thoroughly. Extract ANY relevant info. Do NOT return empty.\n`;
     }
 
-    basePrompt += `Your responses must be extremely accurate and reliable.
-
-RESPONSE FORMAT REQUIREMENTS:
-`;
+    basePrompt += `FORMAT:\n`;
 
     // Formato especial para el campo 'state'
     if (pmcField === 'state') {
-      basePrompt += `- Respond with state in format "XX StateName" (e.g., "CA California", "TX Texas", "FL Florida")
-- Use the 2-letter state code followed by space and full state name
-- If no state found, respond "not found"
-- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+      basePrompt += `XX StateName (e.g., "FL Florida")\n[CONFIDENCE: 0.XX]`;
     } else {
       // Formatos normales para otros campos
       switch (expectedType) {
         case ResponseType.BOOLEAN:
-          basePrompt += `- Respond with ONLY "YES" or "NO" (uppercase)
-- Do NOT use lowercase "yes" or "no"
-- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+          basePrompt += `YES/NO only\n[CONFIDENCE: 0.XX]`;
           break;
         case ResponseType.DATE:
-          basePrompt += `- Respond with date in MM-DD-YY format only (e.g., 12-25-24 for December 25, 2024)
-- If no date found, respond "not found"
-- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+          basePrompt += `MM-DD-YY or "not found"\n[CONFIDENCE: 0.XX]`;
           break;
         case ResponseType.TEXT:
-          basePrompt += `- Provide concise, factual response
-- Maximum 100 characters
-- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+          basePrompt += `Max 100 chars\n[CONFIDENCE: 0.XX]`;
           break;
         case ResponseType.NUMBER:
-          basePrompt += `- Respond with number only (no currency symbols or units unless specified)
-- If no number found, respond "not found"
-- Include confidence level: [CONFIDENCE: 0.XX] at the end`;
+          basePrompt += `Number only or "not found"\n[CONFIDENCE: 0.XX]`;
           break;
         case ResponseType.JSON:
-          basePrompt += `- Respond with valid JSON only
-- Include confidence level inside JSON as "confidence": 0.XX`;
+          basePrompt += `Valid JSON with "confidence": 0.XX`;
           break;
       }
     }
@@ -258,19 +250,17 @@ RESPONSE FORMAT REQUIREMENTS:
   }
 
   private buildUserPrompt(documentText: string, prompt: string): string {
-    return `DOCUMENT TEXT:
+    return `DOCUMENT:
 ${documentText}
 
 QUESTION: ${prompt}
 
-Please analyze the document and provide your response following the format requirements.`;
+ANSWER:`;
   }
 
   private buildValidationPrompt(originalPrompt: string, originalResponse: string, expectedType: ResponseType): string {
-    return `VALIDATION CHECK: Please verify if the response "${originalResponse}" is correct for the question: "${originalPrompt}". 
-    
-If you agree with the response, provide the same answer. If you disagree, provide the correct answer. 
-Be very careful and thorough in your analysis.`;
+    return `Verify: "${originalResponse}" for "${originalPrompt}"
+Same if correct, else provide correct answer.`;
   }
 
   private extractConfidence(response: string): number {
@@ -800,7 +790,7 @@ Respond in JSON format:
                 }
               ]
             }],
-            max_completion_tokens: 500, // GPT-5: increased for detailed visual analysis
+            max_completion_tokens: 250, // GPT-5: optimized for speed
             // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter // GPT-5 optimized for vision tasks
             reasoning_effort: "medium" // GPT-5: balanced visual analysis
           });
