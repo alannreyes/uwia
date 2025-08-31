@@ -415,10 +415,18 @@ Same if correct, else provide correct answer.`;
   }
 
   private extractRelevantChunks(documentText: string, prompt: string): string {
-    // LÍMITE ABSOLUTO - no procesar documentos mayores a 50k caracteres
+    const sizeMB = documentText.length / (1024 * 1024);
+    
+    // Para documentos ultra masivos (>100MB de texto), usar estrategia inteligente
+    if (documentText.length > 100 * 1024 * 1024) {
+      this.logger.warn(`🔥 DOCUMENTO ULTRA MASIVO: ${sizeMB.toFixed(2)}MB de texto - usando chunking avanzado`);
+      return this.processUltraMassiveDocument(documentText, prompt);
+    }
+    
+    // Para documentos muy grandes (>50K chars), usar chunking inteligente mejorado
     if (documentText.length > 50000) {
-      this.logger.warn(`⚠️ Documento muy largo (${documentText.length} chars) - truncando a 8000 caracteres`);
-      return documentText.substring(0, 8000) + "\n\n...[DOCUMENTO TRUNCADO - MUY LARGO]";
+      this.logger.log(`📊 Documento grande: ${(documentText.length/1000).toFixed(0)}K chars - usando chunking inteligente`);
+      return this.processLargeDocumentWithChunking(documentText, prompt);
     }
     
     // Si el documento es pequeño, retornarlo completo
@@ -2389,5 +2397,116 @@ Provide your analysis in valid JSON format:
       .replace(/[^\w\s]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  /**
+   * Procesa documentos ultra masivos (>100MB de texto) con chunking inteligente
+   */
+  private processUltraMassiveDocument(documentText: string, prompt: string): string {
+    this.logger.log(`🚀 Iniciando procesamiento ultra masivo: ${(documentText.length/1024/1024).toFixed(2)}MB`);
+    
+    // Estrategia: Buscar solo en secciones relevantes
+    const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
+    const ULTRA_CHUNK_SIZE = 20000; // 20K chars por chunk
+    const MAX_CHUNKS_TO_ANALYZE = 10; // Máximo 10 chunks (200K chars total)
+    
+    const chunks: Array<{content: string, score: number, position: number}> = [];
+    
+    // Dividir en chunks
+    for (let i = 0; i < documentText.length; i += ULTRA_CHUNK_SIZE) {
+      const chunk = documentText.slice(i, Math.min(i + ULTRA_CHUNK_SIZE, documentText.length));
+      const score = this.scoreChunkRelevance(chunk, keywordMap);
+      
+      chunks.push({
+        content: chunk,
+        score: score,
+        position: i
+      });
+      
+      // Procesar solo una muestra para encontrar chunks relevantes rápidamente
+      if (chunks.length > 50) break;
+    }
+    
+    // Ordenar por relevancia y tomar los mejores
+    const bestChunks = chunks
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_CHUNKS_TO_ANALYZE)
+      .map(chunk => chunk.content);
+    
+    const result = bestChunks.join('\n\n---CHUNK SEPARATOR---\n\n');
+    this.logger.log(`✅ Procesamiento ultra masivo completado: ${bestChunks.length} chunks, ${result.length} chars`);
+    
+    return result;
+  }
+
+  /**
+   * Procesa documentos grandes con chunking mejorado
+   */
+  private processLargeDocumentWithChunking(documentText: string, prompt: string): string {
+    this.logger.log(`📊 Procesamiento con chunking mejorado: ${(documentText.length/1000).toFixed(0)}K chars`);
+    
+    const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
+    const CHUNK_SIZE = 8000;
+    const OVERLAP = 500;
+    const MAX_FINAL_SIZE = 25000; // 25K chars máximo
+    
+    const chunks: string[] = [];
+    
+    // Crear chunks con overlap
+    for (let i = 0; i < documentText.length; i += CHUNK_SIZE - OVERLAP) {
+      const chunk = documentText.slice(i, i + CHUNK_SIZE);
+      chunks.push(chunk);
+      
+      if (chunks.length > 20) break; // Máximo 20 chunks para evaluar
+    }
+    
+    // Scoring y selección de mejores chunks
+    const scoredChunks = chunks.map((chunk, index) => ({
+      content: chunk,
+      score: this.scoreChunkRelevance(chunk, keywordMap),
+      index: index
+    }));
+    
+    // Seleccionar mejores chunks hasta llenar el límite
+    const selectedChunks: string[] = [];
+    let totalSize = 0;
+    
+    scoredChunks
+      .sort((a, b) => b.score - a.score)
+      .forEach(chunk => {
+        if (totalSize + chunk.content.length <= MAX_FINAL_SIZE) {
+          selectedChunks.push(chunk.content);
+          totalSize += chunk.content.length;
+        }
+      });
+    
+    const result = selectedChunks.join('\n\n---SECTION---\n\n');
+    this.logger.log(`✅ Chunking completado: ${selectedChunks.length} chunks, ${result.length} chars`);
+    
+    return result;
+  }
+
+  /**
+   * Puntúa la relevancia de un chunk basado en palabras clave
+   */
+  private scoreChunkRelevance(chunk: string, keywordMap: string[]): number {
+    const chunkLower = chunk.toLowerCase();
+    let score = 0;
+    
+    // Puntuación por palabras clave
+    keywordMap.forEach(keyword => {
+      const occurrences = (chunkLower.match(new RegExp(keyword.toLowerCase(), 'g')) || []).length;
+      score += occurrences * 2; // 2 puntos por cada ocurrencia
+    });
+    
+    // Bonus por presencia de números (importante para fechas, cantidades, etc.)
+    const numberMatches = chunk.match(/\d+/g) || [];
+    score += numberMatches.length * 0.5;
+    
+    // Bonus por presencia de fechas
+    const dateMatches = chunk.match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/g) || [];
+    score += dateMatches.length * 3;
+    
+    return score;
   }
 }
