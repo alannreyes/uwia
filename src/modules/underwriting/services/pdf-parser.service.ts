@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PdfFormExtractorService } from './pdf-form-extractor.service';
+import { largePdfConfig } from '../../../config/large-pdf.config';
 const pdfParse = require('pdf-parse');
 
 // Importar pdfjs-dist de forma segura (versión 3.x con CommonJS)
@@ -58,6 +59,15 @@ export class PdfParserService {
   ) {}
 
   async extractText(buffer: Buffer): Promise<string> {
+    const fileSizeMB = buffer.length / (1024 * 1024);
+    
+    // NUEVA LÓGICA: Para archivos grandes, usar método progresivo
+    if (largePdfConfig.requiresLargePdfProcessing(fileSizeMB)) {
+      this.logger.log(`📊 Large PDF detected (${fileSizeMB.toFixed(2)}MB) - using progressive extraction`);
+      return this.extractTextWithProgressive(buffer, fileSizeMB);
+    }
+    
+    // LÓGICA EXISTENTE: Para archivos normales, mantener método actual
     this.logger.log('Iniciando extracción de texto del PDF con múltiples métodos');
     
     // MÉTODO 0: pdf-lib (JavaScript puro, extrae campos de formulario)
@@ -612,5 +622,270 @@ export class PdfParserService {
     } catch (error) {
       throw new Error(`Basic info extraction failed: ${error.message}`);
     }
+  }
+
+  // ==================== NUEVOS MÉTODOS PARA LARGE PDF ====================
+
+  /**
+   * Extracción progresiva para PDFs grandes
+   * Divide el PDF en chunks y procesa de forma inteligente
+   */
+  async extractTextWithProgressive(buffer: Buffer, fileSizeMB: number): Promise<string> {
+    this.logger.log(`🚀 Starting progressive extraction for ${fileSizeMB.toFixed(2)}MB PDF`);
+
+    try {
+      // Intentar método estándar primero con timeout extendido
+      const timeout = largePdfConfig.timeouts.getTimeoutForSize(fileSizeMB);
+      
+      this.logger.log(`⏱️ Using extended timeout: ${timeout / 1000}s for large PDF`);
+      
+      const standardResult = await Promise.race([
+        this.extractTextStandardMethods(buffer),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Standard extraction timeout')), timeout)
+        )
+      ]);
+
+      if (standardResult && standardResult.length > largePdfConfig.thresholds.minTextCharsForSuccess) {
+        this.logger.log(`✅ Standard extraction succeeded: ${standardResult.length} chars`);
+        return standardResult;
+      }
+
+      this.logger.warn(`⚠️ Standard extraction insufficient (${standardResult?.length || 0} chars), using chunked approach`);
+
+    } catch (error) {
+      this.logger.warn(`⚠️ Standard extraction failed: ${error.message}, falling back to chunked`);
+    }
+
+    // Fallback: Chunking inteligente
+    return this.extractTextWithIntelligentChunking(buffer, fileSizeMB);
+  }
+
+  /**
+   * Método estándar con todas las optimizaciones actuales
+   */
+  private async extractTextStandardMethods(buffer: Buffer): Promise<string> {
+    // Usar exactamente la misma lógica que el método actual
+    // pero sin logs redundantes para evitar spam en archivos grandes
+    
+    // MÉTODO 0: pdf-lib
+    try {
+      const formData = await this.pdfFormExtractor.extractFormFields(buffer);
+      if (formData.text && formData.text.length > 0) {
+        return formData.text;
+      }
+    } catch (error) {
+      // Silent fail para archivos grandes
+    }
+    
+    // MÉTODO 1: pdf-parse
+    let pdfParseText = '';
+    try {
+      const data = await pdfParse(buffer);
+      pdfParseText = data.text?.trim() || '';
+    } catch (error) {
+      // Silent fail para archivos grandes
+    }
+
+    // MÉTODO 2: pdfjs-dist
+    try {
+      const pdfjsText = await this.extractWithPdfJs(buffer);
+      if (pdfjsText && pdfjsText.length > pdfParseText.length) {
+        return pdfjsText;
+      }
+    } catch (error) {
+      // Silent fail para archivos grandes
+    }
+
+    // MÉTODO 2.5: Enhanced text
+    if (pdfParseText && pdfParseText.length > 0) {
+      try {
+        const enhancedText = await this.enhancePdfParseText(buffer, pdfParseText);
+        if (enhancedText.length > pdfParseText.length) {
+          return enhancedText;
+        }
+        return pdfParseText;
+      } catch (error) {
+        return pdfParseText;
+      }
+    }
+
+    // MÉTODO 3: Basic info
+    try {
+      return await this.extractBasicInfo(buffer);
+    } catch (error) {
+      throw new Error('All extraction methods failed');
+    }
+  }
+
+  /**
+   * Chunking inteligente para archivos muy grandes
+   */
+  private async extractTextWithIntelligentChunking(buffer: Buffer, fileSizeMB: number): Promise<string> {
+    this.logger.log(`📦 Using intelligent chunking for ${fileSizeMB.toFixed(2)}MB PDF`);
+
+    const chunkSize = largePdfConfig.chunking.getChunkSizeForFile(fileSizeMB);
+    const maxParallelChunks = largePdfConfig.chunking.maxParallelChunks;
+    const delayBetweenChunks = largePdfConfig.chunking.chunkProcessingDelay;
+
+    // Dividir en chunks inteligentes
+    const chunks = this.createIntelligentChunks(buffer, chunkSize);
+    this.logger.log(`📊 Created ${chunks.length} chunks of ~${(chunkSize / 1024 / 1024).toFixed(1)}MB each`);
+
+    let extractedText = '';
+    let successfulChunks = 0;
+    let totalChunks = chunks.length;
+
+    // Procesar chunks en grupos pequeños para evitar memory issues
+    for (let i = 0; i < chunks.length; i += maxParallelChunks) {
+      const chunkBatch = chunks.slice(i, i + maxParallelChunks);
+      const batchPromises = chunkBatch.map((chunk, batchIndex) => 
+        this.processChunkWithTimeout(chunk, i + batchIndex + 1, totalChunks)
+      );
+
+      try {
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled' && result.value) {
+            extractedText += result.value + '\n\n';
+            successfulChunks++;
+          }
+        }
+
+        // Progress tracking
+        this.logger.log(`📈 Progress: ${successfulChunks}/${totalChunks} chunks processed`);
+
+        // Delay entre batches para rate limiting
+        if (i + maxParallelChunks < chunks.length) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenChunks));
+        }
+
+      } catch (error) {
+        this.logger.error(`❌ Batch processing failed: ${error.message}`);
+      }
+    }
+
+    const successRate = (successfulChunks / totalChunks) * 100;
+    this.logger.log(`📊 Chunking complete: ${successfulChunks}/${totalChunks} chunks (${successRate.toFixed(1)}% success)`);
+
+    if (extractedText.length < largePdfConfig.thresholds.minTextCharsForSuccess) {
+      throw new Error(`Chunked extraction failed: only ${extractedText.length} chars extracted from ${fileSizeMB.toFixed(2)}MB PDF`);
+    }
+
+    this.logger.log(`✅ Chunked extraction successful: ${extractedText.length} chars total`);
+    return extractedText.trim();
+  }
+
+  /**
+   * Crea chunks inteligentes preservando estructura del PDF
+   */
+  private createIntelligentChunks(buffer: Buffer, chunkSize: number): Buffer[] {
+    const chunks: Buffer[] = [];
+    let offset = 0;
+
+    while (offset < buffer.length) {
+      const remainingBytes = buffer.length - offset;
+      const actualChunkSize = Math.min(chunkSize, remainingBytes);
+      
+      // Para chunks intermedios, intentar cortar en boundaries de objetos PDF
+      let endOffset = offset + actualChunkSize;
+      
+      if (endOffset < buffer.length) {
+        // Buscar próximo boundary de objeto PDF para cortar limpiamente
+        endOffset = this.findNextPdfBoundary(buffer, endOffset, offset + actualChunkSize + 10000);
+      }
+
+      const chunk = buffer.subarray(offset, endOffset);
+      chunks.push(chunk);
+      
+      offset = endOffset;
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Encuentra el próximo boundary seguro para cortar un PDF
+   */
+  private findNextPdfBoundary(buffer: Buffer, startPos: number, maxPos: number): number {
+    const boundaries = [
+      Buffer.from('endobj'),
+      Buffer.from('stream'),
+      Buffer.from('endstream'),
+      Buffer.from('startxref')
+    ];
+
+    let bestBoundary = startPos;
+    
+    for (const boundary of boundaries) {
+      const pos = buffer.indexOf(boundary, startPos);
+      if (pos !== -1 && pos < maxPos && pos > bestBoundary) {
+        bestBoundary = pos + boundary.length;
+      }
+    }
+
+    // Si no encontramos boundary, usar posición original
+    return bestBoundary > startPos ? bestBoundary : Math.min(maxPos, buffer.length);
+  }
+
+  /**
+   * Procesa un chunk individual con timeout
+   */
+  private async processChunkWithTimeout(
+    chunk: Buffer, 
+    chunkIndex: number, 
+    totalChunks: number
+  ): Promise<string> {
+    
+    const timeout = largePdfConfig.timeouts.getTimeoutForSize(chunk.length / 1024 / 1024);
+    
+    try {
+      const startTime = Date.now();
+      
+      const result = await Promise.race([
+        this.extractTextStandardMethods(chunk),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Chunk timeout')), timeout)
+        )
+      ]);
+
+      const processingTime = Date.now() - startTime;
+      this.logger.debug(`✅ Chunk ${chunkIndex}/${totalChunks}: ${result?.length || 0} chars in ${processingTime}ms`);
+      
+      return result || '';
+
+    } catch (error) {
+      this.logger.warn(`⚠️ Chunk ${chunkIndex}/${totalChunks} failed: ${error.message}`);
+      
+      // Fallback: intentar solo pdf-parse para este chunk
+      try {
+        const fallbackData = await pdfParse(chunk);
+        const fallbackText = fallbackData.text?.trim() || '';
+        
+        if (fallbackText.length > 0) {
+          this.logger.debug(`🔄 Chunk ${chunkIndex}/${totalChunks} fallback: ${fallbackText.length} chars`);
+          return fallbackText;
+        }
+      } catch (fallbackError) {
+        this.logger.debug(`❌ Chunk ${chunkIndex}/${totalChunks} fallback also failed`);
+      }
+      
+      return ''; // Return empty string instead of failing completely
+    }
+  }
+
+  /**
+   * Helper para verificar si el OCR falló y necesita vision fallback
+   */
+  checkIfNeedsVisionFallback(fileSizeMB: number, extractedText: string): boolean {
+    return largePdfConfig.needsVisionFallback(fileSizeMB, extractedText.length);
+  }
+
+  /**
+   * Helper para obtener configuración optimizada para un archivo
+   */
+  getOptimizedConfig(fileSizeMB: number, extractedTextLength: number, pageCount: number) {
+    return largePdfConfig.getOptimizedConfigForFile(fileSizeMB, extractedTextLength, pageCount);
   }
 }

@@ -15,6 +15,9 @@ import { PdfImageService } from './services/pdf-image.service';
 import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
 import { openaiConfig } from '../../config/openai.config';
+import { IntelligentPageSelectorService } from './services/intelligent-page-selector.service';
+import { LargePdfVisionService } from './services/large-pdf-vision.service';
+import { largePdfConfig } from '../../config/large-pdf.config';
 
 @Injectable()
 export class UnderwritingService {
@@ -33,6 +36,8 @@ export class UnderwritingService {
     private pdfStreamProcessor: PdfStreamProcessorService,
     private pdfImageService: PdfImageService,
     private adaptiveStrategy: AdaptiveProcessingStrategyService,
+    private pageSelector: IntelligentPageSelectorService,
+    private largePdfVision: LargePdfVisionService,
   ) {}
 
   async evaluateClaim(dto: EvaluateClaimRequestDto): Promise<EvaluateClaimResponseDto> {
@@ -308,7 +313,47 @@ export class UnderwritingService {
           
           let aiResponse;
           
-          if (needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
+          // NUEVA LÓGICA: Detectar si requiere procesamiento de Large PDF
+          if (preparedDocument.needsLargePdfProcessing && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
+            
+            this.logger.log(`🎯 Using Large PDF Vision processing for: ${prompt.pmcField} - ${preparedDocument.fileSizeMB?.toFixed(2)}MB PDF`);
+            
+            // Usar el nuevo servicio de Large PDF Vision
+            try {
+              const largePdfResults = await this.largePdfVision.processLargePdfWithVision(
+                [{
+                  pmc_field: prompt.pmcField,
+                  question: processedQuestion,
+                  expected_type: prompt.expectedType
+                }],
+                Array.from(preparedDocument.images.values()).map(base64 => Buffer.from(base64, 'base64')),
+                extractedText || '',
+                preparedDocument.fileSizeMB || 0
+              );
+
+              if (largePdfResults && largePdfResults.length > 0) {
+                const result = largePdfResults[0];
+                aiResponse = {
+                  answer: result.answer,
+                  confidence: result.confidence,
+                  processing_time_ms: result.processing_time_ms
+                };
+                
+                this.logger.log(`🎯 Large PDF result: ${result.answer} (confidence: ${result.confidence}, strategy: ${result.strategy_used})`);
+              } else {
+                throw new Error('Large PDF processing returned no results');
+              }
+              
+            } catch (largePdfError) {
+              this.logger.error(`❌ Large PDF processing failed for ${prompt.pmcField}: ${largePdfError.message}`);
+              // Fallback a procesamiento estándar
+              this.logger.log(`🔄 Falling back to standard vision processing`);
+              needsVisual = true; // Asegurar que continúe con análisis visual estándar
+            }
+          }
+          
+          // LÓGICA EXISTENTE: Para archivos normales o cuando Large PDF falla
+          if (!aiResponse && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
             // Usar Vision API para preguntas visuales analizando TODAS las páginas
             this.logger.log(`📸 Using Vision API for: ${prompt.pmcField} - Analyzing ${preparedDocument.images.size} page(s)`);
             
@@ -863,20 +908,54 @@ export class UnderwritingService {
   private async prepareDocument(
     pdfContent: string | null,
     requirements: { needsText: boolean; needsVisual: boolean; visualPages: number[] }
-  ): Promise<{ text?: string; images?: Map<number, string> }> {
-    const prepared: { text?: string; images?: Map<number, string> } = {};
+  ): Promise<{ text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean }> {
+    const prepared: { text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean } = {};
     
     if (!pdfContent) {
       return prepared;
     }
 
-    // Extraer texto si es necesario
+    // NUEVA LÓGICA: Detectar archivos grandes y calcular tamaño
+    const cleanBase64 = pdfContent.replace(/^data:application\/pdf;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const fileSizeMB = buffer.length / (1024 * 1024);
+    
+    prepared.fileSizeMB = fileSizeMB;
+    prepared.needsLargePdfProcessing = largePdfConfig.requiresLargePdfProcessing(fileSizeMB);
+
+    if (prepared.needsLargePdfProcessing) {
+      this.logger.log(`📊 Large PDF detected: ${fileSizeMB.toFixed(2)}MB - using enhanced processing`);
+    }
+
+    // Extraer texto si es necesario (ahora con soporte para archivos grandes)
     if (requirements.needsText) {
       try {
-        prepared.text = await this.extractTextEnhanced(pdfContent, 'document');
+        // MEJORADO: Para archivos grandes, usar método progresivo
+        if (prepared.needsLargePdfProcessing) {
+          this.logger.log(`🚀 Using progressive text extraction for ${fileSizeMB.toFixed(2)}MB PDF`);
+          prepared.text = await this.pdfParserService.extractTextWithProgressive(buffer, fileSizeMB);
+        } else {
+          // Lógica existente para archivos normales
+          prepared.text = await this.extractTextEnhanced(pdfContent, 'document');
+        }
+
+        // NUEVA VERIFICACIÓN: Detectar si OCR falló en archivos grandes
+        if (prepared.needsLargePdfProcessing && 
+            this.pdfParserService.checkIfNeedsVisionFallback(fileSizeMB, prepared.text || '')) {
+          this.logger.warn(`⚠️ OCR extraction insufficient for ${fileSizeMB.toFixed(2)}MB PDF: ${prepared.text?.length || 0} chars - will use vision fallback`);
+          // Marcar que necesitará procesamiento visual aunque el texto esté disponible
+          requirements.needsVisual = true;
+        }
+
       } catch (error) {
         this.logger.error('❌ Error extracting text:', error);
-        this.logger.warn(`⚠️ Text extraction failed, continuing with visual analysis if needed`);
+        
+        // Para archivos grandes que fallan OCR, forzar análisis visual
+        if (prepared.needsLargePdfProcessing) {
+          this.logger.warn(`⚠️ Large PDF text extraction failed - forcing visual analysis`);
+          requirements.needsVisual = true;
+        }
+        
         prepared.text = ''; // Continuar sin texto
       }
     }

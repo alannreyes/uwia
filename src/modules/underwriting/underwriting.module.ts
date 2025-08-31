@@ -11,6 +11,10 @@ import { PdfImageService } from './services/pdf-image.service';
 import { VisualClassifierService } from './services/visual-classifier.service';
 import { JudgeValidatorService } from './services/judge-validator.service';
 import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
+import { IntelligentPageSelectorService } from './services/intelligent-page-selector.service';
+import { LargePdfVisionService } from './services/large-pdf-vision.service';
+import { GeminiService } from './services/gemini.service';
+import { RateLimiterService } from './services/rate-limiter.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
 
@@ -30,6 +34,10 @@ import { ClaimEvaluation } from './entities/claim-evaluation.entity';
     VisualClassifierService,
     JudgeValidatorService,
     AdaptiveProcessingStrategyService,
+    IntelligentPageSelectorService,
+    LargePdfVisionService,
+    GeminiService,
+    RateLimiterService,
   ],
   exports: [UnderwritingService],
 })
