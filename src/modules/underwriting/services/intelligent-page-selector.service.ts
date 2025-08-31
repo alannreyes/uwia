@@ -96,15 +96,19 @@ Respond with JSON array format:
 ]`;
 
     try {
+      // Usar solo la primera imagen del sample para el análisis
+      const firstImageBase64 = samplesToAnalyze[0].image.toString('base64');
       const analysisResult = await this.geminiService.analyzeWithVision(
-        samplesToAnalyze.map(sample => sample.image),
+        firstImageBase64,
         analysisPrompt,
-        'page_classification'
+        'text' as any, // tipo de respuesta esperada
+        'page_classification',
+        1
       );
 
       // Parsear respuesta JSON y expandir a todas las páginas
       const parsedAnalysis = this.parseAndExpandAnalysis(
-        analysisResult.answer, 
+        analysisResult.response, 
         samplesToAnalyze,
         images.length
       );

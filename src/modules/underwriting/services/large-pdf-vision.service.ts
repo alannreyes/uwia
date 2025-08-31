@@ -47,6 +47,9 @@ export class LargePdfVisionService {
 
     const startTime = Date.now();
     const results: LargePdfProcessingResult[] = [];
+    
+    // PASO 2: Determinar estrategia de procesamiento (movido fuera del try para que esté disponible en catch)
+    const strategy = this.determineProcessingStrategy(fileSizeMB, images.length, extractedText.length);
 
     try {
       // PASO 1: Análisis inteligente de páginas
@@ -54,9 +57,6 @@ export class LargePdfVisionService {
         images, 
         prompts
       );
-
-      // PASO 2: Determinar estrategia de procesamiento
-      const strategy = this.determineProcessingStrategy(fileSizeMB, images.length, extractedText.length);
       
       this.logger.log(`📋 Using strategy: targeted=${strategy.useTargetedPages}, maxPages=${strategy.maxPagesPerField}, geminiPrimary=${strategy.useGeminiPrimary}`);
 
@@ -268,7 +268,7 @@ export class LargePdfVisionService {
 
       return {
         pmc_field: field.pmc_field,
-        answer: result.answer,
+        answer: result.response,
         confidence: result.confidence,
         processing_time_ms: processingTime,
         pages_analyzed: targetPages,
@@ -310,14 +310,18 @@ export class LargePdfVisionService {
       }
 
       // Para página única, análisis directo
+      // Convertir Buffer a base64 para la primera imagen
+      const imageBase64 = targetImages[0].toString('base64');
       const result = await this.geminiService.analyzeWithVision(
-        targetImages,
+        imageBase64,
         field.question,
-        field.pmc_field
+        field.expected_type,
+        field.pmc_field,
+        1
       );
 
       return {
-        answer: result.answer,
+        answer: result.response,
         confidence: result.confidence
       };
 
@@ -327,14 +331,16 @@ export class LargePdfVisionService {
       // Fallback a texto si disponible
       if (extractedText && extractedText.length > 1000) {
         try {
-          const textResult = await this.geminiService.evaluatePrompt(
-            field.question,
+          const textResult = await this.geminiService.evaluateDocument(
             extractedText,
+            field.question,
+            field.expected_type,
+            '',
             field.pmc_field
           );
           
           return {
-            answer: textResult.answer,
+            answer: textResult.response,
             confidence: textResult.confidence * 0.8 // Penalizar por usar fallback
           };
         } catch (textError) {
@@ -358,20 +364,27 @@ export class LargePdfVisionService {
 
     try {
       // Usar el método existente de dual validation pero con páginas específicas
-      const gptResult = await this.openaiService.analyzeWithVision(
-        targetImages,
+      // Convertir el primer Buffer a base64 para análisis
+      const imageBase64 = targetImages[0].toString('base64');
+      
+      const gptResult = await this.openaiService.evaluateWithVision(
+        imageBase64,
         field.question,
-        field.pmc_field
+        field.expected_type,
+        field.pmc_field,
+        1
       );
 
       const geminiResult = await this.geminiService.analyzeWithVision(
-        targetImages,
+        imageBase64,
         field.question,
-        field.pmc_field
+        field.expected_type,
+        field.pmc_field,
+        1
       );
 
       // Determinar consenso
-      const consensus = this.calculateConsensus(gptResult.answer, geminiResult.answer);
+      const consensus = this.calculateConsensus(gptResult.response, geminiResult.response);
       
       if (consensus.agreement >= 0.8) {
         return {
@@ -383,10 +396,16 @@ export class LargePdfVisionService {
       // Bajo consenso: usar respuesta con mayor confianza
       if (geminiResult.confidence > gptResult.confidence) {
         this.logger.debug(`🤖 ${field.pmc_field}: Using Gemini (${geminiResult.confidence} vs ${gptResult.confidence})`);
-        return geminiResult;
+        return {
+          answer: geminiResult.response,
+          confidence: geminiResult.confidence
+        };
       } else {
         this.logger.debug(`🤖 ${field.pmc_field}: Using GPT-4o (${gptResult.confidence} vs ${geminiResult.confidence})`);
-        return gptResult;
+        return {
+          answer: gptResult.response,
+          confidence: gptResult.confidence
+        };
       }
 
     } catch (error) {
@@ -405,19 +424,21 @@ export class LargePdfVisionService {
   ): Promise<{answer: string, confidence: number}> {
 
     for (let i = 0; i < targetImages.length; i++) {
-      const pageImage = [targetImages[i]];
+      const pageImageBase64 = targetImages[i].toString('base64');
       
       try {
         let result;
         
         if (model === 'gemini') {
           result = await this.geminiService.analyzeWithVision(
-            pageImage,
+            pageImageBase64,
             field.question,
-            field.pmc_field
+            field.expected_type,
+            field.pmc_field,
+            i + 1
           );
         } else {
-          result = await this.processWithDualVision(field, pageImage, '', {
+          result = await this.processWithDualVision(field, [targetImages[i]], '', {
             useTargetedPages: true,
             maxPagesPerField: 1,
             enableEarlyExit: false,
@@ -427,14 +448,14 @@ export class LargePdfVisionService {
         }
 
         // Early exit si encontramos respuesta confiable
-        if (result.confidence >= 0.8 && result.answer !== 'NOT_FOUND') {
+        if (result.confidence >= 0.8 && result.response !== 'NOT_FOUND') {
           this.logger.debug(`✅ Early exit for ${field.pmc_field}: found answer on page ${i + 1} (confidence: ${result.confidence})`);
           return result;
         }
 
         // Para campos de firma, early exit en respuestas positivas
         if (field.pmc_field.toLowerCase().includes('sign') && 
-            (result.answer === 'YES' || result.answer === 'Yes') && 
+            (result.response === 'YES' || result.response === 'Yes') && 
             result.confidence >= 0.6) {
           this.logger.debug(`✅ Signature early exit for ${field.pmc_field}: found positive on page ${i + 1}`);
           return result;
@@ -593,15 +614,19 @@ export class LargePdfVisionService {
           fallbackImages.push(images[images.length - 1]);
         }
         
+        // Usar solo la primera imagen del fallback
+        const imageBase64 = fallbackImages[0].toString('base64');
         const result = await this.geminiService.analyzeWithVision(
-          fallbackImages,
+          imageBase64,
           field.question,
-          field.pmc_field
+          field.expected_type,
+          field.pmc_field,
+          1
         );
         
         results.push({
           pmc_field: field.pmc_field,
-          answer: result.answer,
+          answer: result.response,
           confidence: result.confidence * 0.7, // Penalizar por usar fallback
           processing_time_ms: Date.now() - startTime,
           pages_analyzed: [1, images.length].slice(0, fallbackImages.length),
