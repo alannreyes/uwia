@@ -2408,7 +2408,13 @@ Provide your analysis in valid JSON format:
     // Estrategia: Buscar solo en secciones relevantes
     const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
     const ULTRA_CHUNK_SIZE = 20000; // 20K chars por chunk
-    const MAX_CHUNKS_TO_ANALYZE = 10; // Máximo 10 chunks (200K chars total)
+    
+    // Calcular límite dinámico basado en configuración
+    const configLimit = openaiConfig.maxTextLength;
+    const safeLimit = Math.min(configLimit * 0.8, 12000); // 80% del límite configurado, máximo 12K
+    const maxChunks = Math.max(1, Math.floor(safeLimit / 2000)); // Mínimo 1 chunk
+    
+    this.logger.log(`📊 Límite configurado: ${configLimit}, límite seguro: ${safeLimit}, max chunks: ${maxChunks}`);
     
     const chunks: Array<{content: string, score: number, position: number}> = [];
     
@@ -2430,11 +2436,25 @@ Provide your analysis in valid JSON format:
     // Ordenar por relevancia y tomar los mejores
     const bestChunks = chunks
       .sort((a, b) => b.score - a.score)
-      .slice(0, MAX_CHUNKS_TO_ANALYZE)
+      .slice(0, maxChunks)
       .map(chunk => chunk.content);
     
-    const result = bestChunks.join('\n\n---CHUNK SEPARATOR---\n\n');
-    this.logger.log(`✅ Procesamiento ultra masivo completado: ${bestChunks.length} chunks, ${result.length} chars`);
+    // Ensamblar resultado respetando el límite
+    let result = '';
+    let totalSize = 0;
+    for (const chunk of bestChunks) {
+      const separator = result ? '\n\n---CHUNK SEPARATOR---\n\n' : '';
+      const addition = separator + chunk;
+      
+      if (totalSize + addition.length <= safeLimit) {
+        result += addition;
+        totalSize += addition.length;
+      } else {
+        break; // Parar antes de exceder el límite
+      }
+    }
+    
+    this.logger.log(`✅ Procesamiento ultra masivo completado: ${bestChunks.length} chunks disponibles, ${result.length} chars finales`);
     
     return result;
   }
@@ -2448,7 +2468,12 @@ Provide your analysis in valid JSON format:
     const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
     const CHUNK_SIZE = 8000;
     const OVERLAP = 500;
-    const MAX_FINAL_SIZE = 25000; // 25K chars máximo
+    
+    // Calcular límite dinámico basado en configuración
+    const configLimit = openaiConfig.maxTextLength;
+    const MAX_FINAL_SIZE = Math.min(configLimit * 0.8, 12000); // 80% del límite configurado
+    
+    this.logger.log(`📊 Límite configurado: ${configLimit}, límite final: ${MAX_FINAL_SIZE}`);
     
     const chunks: string[] = [];
     
