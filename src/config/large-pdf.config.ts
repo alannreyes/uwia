@@ -7,9 +7,9 @@
  * Configuración de thresholds y límites
  */
 export const largePdfThresholds = {
-  // Tamaños de archivo
-  standardSizeLimit: parseInt(process.env.LARGE_PDF_THRESHOLD_MB) || 50, // MB
-  ultraLargeSizeLimit: parseInt(process.env.ULTRA_LARGE_PDF_THRESHOLD_MB) || 90, // MB
+  // Tamaños de archivo - REDUCED from 50MB to 30MB for better large file detection
+  standardSizeLimit: parseInt(process.env.LARGE_PDF_THRESHOLD_MB) || 30, // MB
+  ultraLargeSizeLimit: parseInt(process.env.ULTRA_LARGE_PDF_THRESHOLD_MB) || 80, // MB
   
   // Límites de texto extraído para detectar fallo de OCR
   minTextCharsForSuccess: parseInt(process.env.MIN_TEXT_CHARS_SUCCESS) || 1000,

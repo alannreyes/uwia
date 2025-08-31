@@ -923,8 +923,13 @@ export class UnderwritingService {
     prepared.fileSizeMB = fileSizeMB;
     prepared.needsLargePdfProcessing = largePdfConfig.requiresLargePdfProcessing(fileSizeMB);
 
+    // Log detallado para debugging
+    this.logger.log(`📊 PDF size check: ${fileSizeMB.toFixed(2)}MB, threshold: ${largePdfConfig.thresholds.standardSizeLimit}MB`);
+    
     if (prepared.needsLargePdfProcessing) {
-      this.logger.log(`📊 Large PDF detected: ${fileSizeMB.toFixed(2)}MB - using enhanced processing`);
+      this.logger.log(`🎯 Large PDF detected: ${fileSizeMB.toFixed(2)}MB - will use enhanced processing`);
+    } else {
+      this.logger.log(`📄 Standard PDF: ${fileSizeMB.toFixed(2)}MB - using normal processing`);
     }
 
     // Extraer texto si es necesario (ahora con soporte para archivos grandes)
@@ -1060,10 +1065,18 @@ export class UnderwritingService {
       const cleanBase64 = fileContent.replace(/^data:application\/pdf;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
       const fileSize = buffer.length;
+      const fileSizeMB = fileSize / 1048576;
       
-      this.logger.log(`📊 Tamaño: ${(fileSize / 1048576).toFixed(2)}MB`);
+      this.logger.log(`📊 Tamaño: ${fileSizeMB.toFixed(2)}MB`);
 
-      // PASO 1: Análisis del tipo de PDF
+      // CRITICAL FIX: Check if file is large and should use progressive extraction
+      if (largePdfConfig.requiresLargePdfProcessing(fileSizeMB)) {
+        this.logger.log(`🚨 Large file detected in extractTextEnhanced: ${fileSizeMB.toFixed(2)}MB`);
+        this.logger.log(`🔄 Redirecting to progressive extraction for large PDF`);
+        return await this.pdfParserService.extractTextWithProgressive(buffer, fileSizeMB);
+      }
+
+      // PASO 1: Análisis del tipo de PDF (solo para archivos normales)
       const pdfAnalysis = await this.pdfParserService.analyzePdfType(buffer);
       this.logger.log(`🔍 Tipo: ${pdfAnalysis.type} (${(pdfAnalysis.confidence * 100).toFixed(0)}%) - Método: ${pdfAnalysis.analysis.suggestedMethod}`);
 
