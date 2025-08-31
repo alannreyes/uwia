@@ -1068,13 +1068,9 @@ export class UnderwritingService {
       this.logger.log(`🔍 Tipo: ${pdfAnalysis.type} (${(pdfAnalysis.confidence * 100).toFixed(0)}%) - Método: ${pdfAnalysis.analysis.suggestedMethod}`);
 
       // PASO 2: Extracción según el análisis
-      if (fileSize > 52428800) { // 50MB+
-        this.logger.log('📦 Archivo muy grande - streaming');
-        const streamResult = await this.pdfStreamProcessor.processLargeFile(buffer);
-        if (streamResult.success) {
-          return streamResult.text;
-        }
-      } else if (pdfAnalysis.type === 'form' && pdfAnalysis.analysis.filledFieldCount > 0) {
+      // REMOVED: Hardcoded streaming bypass that prevented Large PDF processing
+      // Large files now handled by progressive OCR in prepareDocument method
+      if (pdfAnalysis.type === 'form' && pdfAnalysis.analysis.filledFieldCount > 0) {
         this.logger.log('📋 Formulario con campos - extractor especializado');
         const formData = await this.pdfFormExtractor.extractFormFields(buffer);
         if (formData.text && formData.text.length > 50) {
