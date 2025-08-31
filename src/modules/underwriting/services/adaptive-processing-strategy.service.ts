@@ -71,7 +71,7 @@ export class AdaptiveProcessingStrategyService {
     // Primero verificar cache
     if (this.strategyCache.has(pmcField)) {
       const cached = this.strategyCache.get(pmcField);
-      this.logger.log(`📦 Using cached strategy for ${pmcField}: Visual=${cached.useVisualAnalysis}, Model=${cached.primaryModel}`);
+      this.logger.debug(`📦 Using cached strategy for ${pmcField}: Visual=${cached.useVisualAnalysis}, Model=${cached.primaryModel}`);
       return cached;
     }
     
@@ -80,7 +80,7 @@ export class AdaptiveProcessingStrategyService {
     
     // Guardar en cache para uso futuro
     this.strategyCache.set(pmcField, strategy);
-    this.logger.log(`💾 Cached new strategy for ${pmcField}: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
+    this.logger.debug(`💾 Cached new strategy for ${pmcField}: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
     
     return strategy;
     

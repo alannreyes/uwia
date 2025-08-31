@@ -1785,8 +1785,7 @@ Respond in this JSON format:
     const startTime = Date.now();
     
     try {
-      this.logger.log(`🚀 === NUEVA ARQUITECTURA ACTIVADA ===`);
-      this.logger.log(`📄 Documento: ${documentText.length} chars, Campo: ${pmcField}`);
+      this.logger.log(`🤖 ${pmcField}: GPT-5 + Gemini dual evaluation`);
       
       // 1. Enhanced Chunking para documentos grandes
       let processedContent = documentText;
@@ -1794,7 +1793,6 @@ Respond in this JSON format:
       
       // Si el documento es muy grande, usar enhanced chunking
       if (documentText.length > 400 * 1024) { // >400KB (aproximadamente 100K tokens)
-        this.logger.log('📦 Documento grande detectado, usando enhanced chunking...');
         
         const chunkResult = await this.enhancedChunking!.processDocument(
           documentText,
@@ -1802,7 +1800,7 @@ Respond in this JSON format:
           { id: pmcField || 'unknown', size: documentText.length, type: 'pdf' }
         );
         
-        this.logger.log(`📊 Chunking: ${chunkResult.totalChunks} chunks, estrategia: ${chunkResult.strategy}`);
+        this.logger.debug(`📊 Chunking: ${chunkResult.totalChunks} chunks, estrategia: ${chunkResult.strategy}`);
         
         // Para esta implementación inicial, tomar solo los chunks más importantes
         const topChunks = chunkResult.chunks
@@ -1817,11 +1815,10 @@ Respond in this JSON format:
           recommendedModel: chunkResult.recommendedModel
         };
         
-        this.logger.log(`✂️ Contenido reducido de ${documentText.length} a ${processedContent.length} chars`);
+        this.logger.debug(`✂️ Contenido reducido de ${documentText.length} a ${processedContent.length} chars`);
       }
       
       // 2. Evaluación dual: GPT-5 + Gemini
-      this.logger.log('🤖 Iniciando evaluación dual: GPT-5 + Gemini...');
       
       const [gpt5Result, geminiResult] = await Promise.allSettled([
         this.evaluateWithGPT5(processedContent, prompt, expectedType, additionalContext),

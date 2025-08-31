@@ -62,7 +62,7 @@ export class PdfParserService {
     
     // MÉTODO 0: pdf-lib (JavaScript puro, extrae campos de formulario)
     try {
-      this.logger.log('📄 Método 0: Usando pdf-lib para extracción de formularios');
+      this.logger.debug('📄 Método 0: Usando pdf-lib para extracción de formularios');
       const formData = await this.pdfFormExtractor.extractFormFields(buffer);
       
       if (formData.text && formData.text.length > 0) {
@@ -76,7 +76,7 @@ export class PdfParserService {
     // MÉTODO 1: pdf-parse (más simple, pero no extrae campos de formulario)
     let pdfParseText = '';
     try {
-      this.logger.log('📄 Método 1: Usando pdf-parse para extracción básica');
+      this.logger.debug('📄 Método 1: Usando pdf-parse para extracción básica');
       const data = await pdfParse(buffer);
       pdfParseText = data.text?.trim() || '';
       
@@ -89,7 +89,7 @@ export class PdfParserService {
 
     // MÉTODO 2: pdfjs-dist (más robusto Y extrae campos de formulario)
     try {
-      this.logger.log('📄 Método 2: Usando pdfjs-dist con extracción de campos de formulario');
+      this.logger.debug('📄 Método 2: Usando pdfjs-dist con extracción de campos de formulario');
       const pdfjsText = await this.extractWithPdfJs(buffer);
       
       if (pdfjsText && pdfjsText.length > 0) {
@@ -103,13 +103,16 @@ export class PdfParserService {
         }
       }
     } catch (error) {
-      this.logger.warn(`⚠️ pdfjs-dist falló: ${error.message}`);
+      // pdfjs-dist siempre falla con Buffer format - silenciar este error conocido
+      if (!error.message.includes('Please provide binary data as `Uint8Array`')) {
+        this.logger.warn(`⚠️ pdfjs-dist falló: ${error.message}`);
+      }
     }
 
     // MÉTODO 2.5: Análisis mejorado de pdf-parse para simular campos
     if (pdfParseText && pdfParseText.length > 0) {
       try {
-        this.logger.log('📄 Método 2.5: Mejorando extracción con análisis de patrones');
+        this.logger.debug('📄 Método 2.5: Mejorando extracción con análisis de patrones');
         const enhancedText = await this.enhancePdfParseText(buffer, pdfParseText);
         if (enhancedText.length > pdfParseText.length) {
           this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres`);
@@ -123,7 +126,7 @@ export class PdfParserService {
     // MÉTODO 2.5: Análisis mejorado de pdf-parse para detectar campos llenados
     if (pdfParseText && pdfParseText.length > 0) {
       try {
-        this.logger.log('📄 Método 2.5: Mejorando extracción con análisis de campos llenados');
+        this.logger.debug('📄 Método 2.5: Mejorando extracción con análisis de campos llenados');
         const enhancedText = await this.extractFilledFormFields(buffer, pdfParseText);
         if (enhancedText.length > pdfParseText.length) {
           this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres (${enhancedText.length - pdfParseText.length} caracteres adicionales de campos)`);
@@ -198,7 +201,7 @@ export class PdfParserService {
       suggestedMethod: 'form-extraction' | 'text-extraction' | 'ocr' | 'hybrid';
     };
   }> {
-    this.logger.log('🔍 Analizando tipo de PDF para optimizar extracción...');
+    this.logger.debug('🔍 Analizando tipo de PDF para optimizar extracción...');
     
     const analysis = {
       hasFormFields: false,
@@ -250,7 +253,7 @@ export class PdfParserService {
         type = 'document';
         confidence = 0.8;
         analysis.suggestedMethod = 'text-extraction';
-        this.logger.log(`📄 PDF de documento con texto extractable`);
+        this.logger.debug(`📄 PDF de documento con texto extractable`);
       } else {
         type = 'scanned';
         confidence = 0.6;
