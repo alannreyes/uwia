@@ -220,16 +220,33 @@ export class PdfStreamProcessorService {
     try {
       this.logger.log('🔤 Ejecutando OCR fallback para archivo problemático...');
       
-      // Convertir solo primera página para ahorrar memoria y tiempo
+      // Usar configuración de sample pages para OCR más eficaz
+      const maxSamplePages = parseInt(process.env.LARGE_PDF_MAX_SAMPLE_PAGES) || 10;
       const pdfBase64 = buffer.toString('base64');
-      const imageMap = await this.pdfImageService.convertPages(pdfBase64, [1]);
-      const firstPageImage = Array.from(imageMap.values())[0];
-
-      if (!firstPageImage) {
-        throw new Error('No se pudo convertir a imagen para OCR');
+      
+      // Para archivos grandes, usar páginas estratégicas (inicio, medio, final)
+      // en lugar de solo la primera página
+      const fileSizeMB = buffer.length / (1024 * 1024);
+      let pagesToConvert: number[];
+      
+      if (fileSizeMB > 50) {
+        // Para archivos muy grandes, usar estrategia de muestreo
+        pagesToConvert = [1, 2, 3]; // Primeras 3 páginas por defecto
+        this.logger.log(`📄 OCR fallback: procesando ${pagesToConvert.length} páginas iniciales de archivo ${fileSizeMB.toFixed(1)}MB`);
+      } else {
+        pagesToConvert = Array.from({length: Math.min(maxSamplePages, 5)}, (_, i) => i + 1);
+        this.logger.log(`📄 OCR fallback: procesando ${pagesToConvert.length} páginas de archivo ${fileSizeMB.toFixed(1)}MB`);
       }
 
-      // OCR simplificado con tesseract
+      const imageMap = await this.pdfImageService.convertPages(pdfBase64, pagesToConvert);
+      
+      if (imageMap.size === 0) {
+        throw new Error('No se pudieron convertir páginas a imágenes para OCR');
+      }
+
+      this.logger.log(`🖼️ Convertidas ${imageMap.size} páginas a imágenes para OCR`);
+
+      // OCR con páginas múltiples
       const ocrAnalysis = await this.pdfHybridAnalyzer.analyzeDocument(
         buffer,
         [], // Sin prompts específicos
@@ -240,7 +257,10 @@ export class PdfStreamProcessorService {
         }
       );
 
-      return ocrAnalysis.ocrText || 'OCR no extrajo contenido';
+      const extractedText = ocrAnalysis.ocrText || 'OCR no extrajo contenido';
+      this.logger.log(`✅ OCR fallback completado: ${extractedText.length} caracteres extraídos de ${imageMap.size} páginas`);
+      
+      return extractedText;
 
     } catch (ocrError) {
       this.logger.error(`❌ OCR fallback falló: ${ocrError.message}`);
