@@ -111,7 +111,7 @@ export class OpenAiService {
 
       // NUEVO: Verificar si usar sistema de migración
       if (modelConfig.migration.shouldUseNewSystem() && this.geminiService && this.enhancedChunking) {
-        this.logger.log('🆕 Usando sistema de migración: GPT-5 + Gemini 2.5 Pro');
+        this.logger.debug(`[${pmcField}] 🆕 Using dual validation system`);
         return await this.evaluateWithNewArchitecture(documentText, prompt, expectedType, additionalContext, pmcField);
       }
       
@@ -1792,7 +1792,6 @@ Respond in this JSON format:
     const startTime = Date.now();
     
     try {
-      this.logger.log(`🤖 ${pmcField}: GPT-5 + Gemini dual evaluation`);
       
       // 1. Enhanced Chunking para documentos grandes
       let processedContent = documentText;
@@ -1862,7 +1861,7 @@ Respond in this JSON format:
         const agreement = this.calculateNewAgreement(primaryResult.response, secondaryResult.response);
         if (agreement < 0.7) {
           this.logger.warn(`[${pmcField}] ⚠️ Low consensus: ${(agreement * 100).toFixed(1)}%`);
-          this.logger.warn(`⚖️ === LOW AGREEMENT === ${(agreement * 100).toFixed(1)}%, invoking judge... ===`);
+          this.logger.debug(`[${pmcField}] ⚖️ Invoking judge for low agreement`);
         }
         
         if (agreement >= 0.8) {

@@ -134,7 +134,6 @@ export class GeminiService {
       this.updatePerformanceMetrics(true, processingTime, actualTokens);
       
       this.logger.log(`[${pmcField}] ✅ Gemini completed in ${processingTime}ms`);
-      this.logger.log(`📊 Confianza: ${evaluation.confidence}, Tokens: ${actualTokens.toLocaleString()}`);
       
       return {
         response: evaluation.response,
