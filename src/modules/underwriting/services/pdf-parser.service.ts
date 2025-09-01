@@ -883,4 +883,127 @@ export class PdfParserService {
   getOptimizedConfig(fileSizeMB: number, extractedTextLength: number, pageCount: number) {
     return largePdfConfig.getOptimizedConfigForFile(fileSizeMB, extractedTextLength, pageCount);
   }
+
+  /**
+   * Extrae texto truncado para archivos extremadamente grandes
+   * Solo procesa las primeras y últimas páginas para evitar timeouts
+   */
+  async extractTextTruncated(
+    buffer: Buffer,
+    options: {
+      maxPages?: number;
+      firstPercentage?: number;
+      lastPercentage?: number;
+    } = {}
+  ): Promise<string> {
+    const maxPages = options.maxPages || 10;
+    const firstPercentage = options.firstPercentage || 0.3;
+    const lastPercentage = options.lastPercentage || 0.2;
+    
+    this.logger.warn(`🔧 TRUNCATED EXTRACTION: Processing limited pages to prevent timeout`);
+    
+    try {
+      // Intentar obtener información básica del PDF
+      const pdfData = await pdfParse(buffer, { max: maxPages });
+      const totalPages = pdfData.numpages || 0;
+      
+      if (totalPages === 0) {
+        throw new Error('Could not determine page count');
+      }
+      
+      this.logger.log(`📊 PDF has ${totalPages} pages, extracting truncated content`);
+      
+      // Calcular páginas a extraer
+      const firstPagesToExtract = Math.min(
+        Math.ceil(totalPages * firstPercentage),
+        Math.floor(maxPages * 0.6)
+      );
+      const lastPagesToExtract = Math.min(
+        Math.ceil(totalPages * lastPercentage),
+        Math.floor(maxPages * 0.4)
+      );
+      
+      let extractedText = '';
+      
+      // Extraer primeras páginas
+      this.logger.log(`📄 Extracting first ${firstPagesToExtract} pages...`);
+      try {
+        const firstPart = await pdfParse(buffer, { 
+          max: firstPagesToExtract,
+          version: 'v1.10.100' // Use specific version for stability
+        });
+        extractedText += firstPart.text || '';
+      } catch (error) {
+        this.logger.warn(`⚠️ Error extracting first pages: ${error.message}`);
+      }
+      
+      // Agregar marcador de truncación
+      extractedText += '\n\n[... DOCUMENT CONTENT TRUNCATED FOR PROCESSING ...]\n\n';
+      
+      // Extraer últimas páginas (más complejo, necesita estrategia diferente)
+      if (lastPagesToExtract > 0 && totalPages > firstPagesToExtract) {
+        this.logger.log(`📄 Extracting last ${lastPagesToExtract} pages...`);
+        
+        try {
+          // Para las últimas páginas, usar pdfjs-dist que permite más control
+          const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+          const loadingTask = pdfjsLib.getDocument({ data: buffer });
+          const pdfDoc = await loadingTask.promise;
+          
+          // Extraer las últimas páginas
+          const startPage = Math.max(totalPages - lastPagesToExtract + 1, firstPagesToExtract + 1);
+          
+          for (let pageNum = startPage; pageNum <= totalPages && pageNum <= startPage + lastPagesToExtract; pageNum++) {
+            try {
+              const page = await pdfDoc.getPage(pageNum);
+              const textContent = await page.getTextContent();
+              const pageText = textContent.items
+                .map((item: any) => item.str)
+                .join(' ');
+              
+              if (pageText) {
+                extractedText += `\n[Page ${pageNum}]\n${pageText}\n`;
+              }
+            } catch (pageError) {
+              this.logger.debug(`⚠️ Could not extract page ${pageNum}: ${pageError.message}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`⚠️ Error extracting last pages with pdfjs: ${error.message}`);
+          
+          // Fallback: intentar con pdf-parse desde el final (menos preciso)
+          try {
+            // This is a workaround - extract all and take last portion
+            const fullData = await pdfParse(buffer, { max: totalPages });
+            const fullText = fullData.text || '';
+            const lastChars = Math.floor(fullText.length * lastPercentage);
+            extractedText += fullText.substring(fullText.length - lastChars);
+          } catch (fallbackError) {
+            this.logger.warn(`⚠️ Fallback extraction also failed: ${fallbackError.message}`);
+          }
+        }
+      }
+      
+      this.logger.log(`✅ Truncated extraction complete: ${extractedText.length} characters`);
+      return extractedText;
+      
+    } catch (error) {
+      this.logger.error(`❌ Truncated extraction failed: ${error.message}`);
+      
+      // Ultra-fallback: intentar extraer al menos algo
+      try {
+        const minimalData = await pdfParse(buffer, { max: 3 }); // Solo 3 páginas
+        const minimalText = minimalData.text || '';
+        
+        if (minimalText.length > 0) {
+          this.logger.warn(`🔄 Ultra-fallback: extracted ${minimalText.length} chars from first 3 pages`);
+          return minimalText + '\n\n[EXTREME TRUNCATION DUE TO PROCESSING ERROR]';
+        }
+      } catch (ultraError) {
+        this.logger.error(`❌ Ultra-fallback also failed: ${ultraError.message}`);
+      }
+      
+      return '[ERROR: Could not extract any text from extreme file]';
+    }
+  }
 }

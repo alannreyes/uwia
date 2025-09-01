@@ -128,11 +128,18 @@ export class PdfImageService {
 
   /**
    * Obtiene el número de páginas del PDF
+   * Ahora es público para ser usado por otros servicios
    */
-  private async getPageCount(pdfBase64: string): Promise<number> {
+  async getPageCount(pdfInput: string | Buffer): Promise<number> {
     try {
-      const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
-      const pdfBuffer = Buffer.from(cleanBase64, 'base64');
+      let pdfBuffer: Buffer;
+      
+      if (typeof pdfInput === 'string') {
+        const cleanBase64 = pdfInput.replace(/^data:application\/pdf;base64,/, '');
+        pdfBuffer = Buffer.from(cleanBase64, 'base64');
+      } else {
+        pdfBuffer = pdfInput;
+      }
       
       // pdf-parse puede darnos esta info
       const pdfParse = require('pdf-parse');
@@ -142,6 +149,42 @@ export class PdfImageService {
     } catch (error) {
       this.logger.error('Error getting page count:', error);
       return 1; // Asumir 1 página si falla
+    }
+  }
+
+  /**
+   * Extrae una página específica como imagen base64
+   * Usado para truncación inteligente en archivos extremos
+   */
+  async extractPageAsImage(pdfBuffer: Buffer, pageNumber: number): Promise<string> {
+    try {
+      this.logger.debug(`🖼️ Extracting page ${pageNumber} as image`);
+      
+      const options = {
+        viewportScale: 1.0,            // Escala baja para archivos extremos
+        pagesToProcess: [pageNumber],  // Solo la página solicitada
+        strictPagesToProcess: false,
+        verbosityLevel: 0
+      };
+      
+      // Timeout más corto para archivos extremos
+      const conversionPromise = pdfToPng(pdfBuffer, options);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Page ${pageNumber} conversion timeout`)), 30000); // 30s timeout
+      });
+      
+      const pngPages = await Promise.race([conversionPromise, timeoutPromise]);
+      
+      if (pngPages && pngPages.length > 0) {
+        const base64Image = pngPages[0].content.toString('base64');
+        this.logger.debug(`✅ Page ${pageNumber} extracted: ${base64Image.length} chars`);
+        return base64Image;
+      }
+      
+      throw new Error(`Could not extract page ${pageNumber}`);
+    } catch (error) {
+      this.logger.error(`❌ Error extracting page ${pageNumber}: ${error.message}`);
+      throw error;
     }
   }
 }

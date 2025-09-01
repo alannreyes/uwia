@@ -496,7 +496,7 @@ export class UnderwritingService {
       };
 
       // Procesar en batches con límite de concurrencia
-      const promptResults = await this.processConcurrently(prompts, processPromise, concurrencyLimit);
+      const promptResults = await this.processConcurrently(processedPrompts, processPromise, concurrencyLimit);
       results.push(...promptResults);
 
       return results;
@@ -644,12 +644,32 @@ export class UnderwritingService {
   private async processConcurrently<T, R>(
     items: T[],
     processor: (item: T, index: number) => Promise<R>,
-    concurrencyLimit: number
+    concurrencyLimit: number,
+    maxProcessingTime?: number,
+    processStartTime?: number
   ): Promise<R[]> {
     const results: R[] = [];
+    const startTime = processStartTime || Date.now();
+    const timeLimit = maxProcessingTime || 600000; // Default 10 min
     
     // Procesar items en chunks del tamaño de concurrencyLimit
     for (let i = 0; i < items.length; i += concurrencyLimit) {
+      // TIMEOUT CHECK: Verificar tiempo antes de cada batch
+      const elapsed = Date.now() - startTime;
+      if (elapsed > timeLimit) {
+        this.logger.error(`⏱️ Processing timeout: Stopped at item ${i} of ${items.length}`);
+        // Add timeout results for remaining items
+        for (let j = i; j < items.length; j++) {
+          results.push({
+            pmc_field: 'timeout',
+            answer: 'TIMEOUT',
+            confidence: 0,
+            error: 'Processing stopped to prevent timeout'
+          } as R);
+        }
+        break;
+      }
+      
       const chunk = items.slice(i, i + concurrencyLimit);
       
       // Procesar chunk en paralelo
@@ -1304,6 +1324,160 @@ export class UnderwritingService {
     
     // Para otros tipos de campo, usar lógica de confianza estándar
     return newResponse.confidence > currentBest.confidence;
+  }
+
+  /**
+   * Prioriza campos para archivos extremadamente grandes
+   * Separa en campos críticos y no críticos
+   */
+  private prioritizeFieldsForExtremeLargeFile(prompts: any[]): {
+    highPriority: any[];
+    lowPriority: any[];
+  } {
+    const highPriorityPatterns = [
+      /sign/i,           // Firmas
+      /date/i,           // Fechas
+      /policy.*number/i, // Número de póliza
+      /insured.*name/i,  // Nombre del asegurado
+      /amount/i,         // Cantidades
+      /coverage/i,       // Cobertura
+      /deductible/i      // Deducible
+    ];
+    
+    const lowPriorityPatterns = [
+      /comprehensive/i,  // Análisis comprehensivo
+      /analysis/i,       // Análisis general
+      /notes/i,          // Notas
+      /comments/i,       // Comentarios
+      /description/i     // Descripciones largas
+    ];
+    
+    const highPriority: any[] = [];
+    const lowPriority: any[] = [];
+    
+    for (const prompt of prompts) {
+      const field = prompt.pmcField?.toLowerCase() || '';
+      const question = prompt.question?.toLowerCase() || '';
+      
+      // Verificar si es de alta prioridad
+      const isHighPriority = highPriorityPatterns.some(pattern => 
+        pattern.test(field) || pattern.test(question)
+      );
+      
+      // Verificar si es de baja prioridad
+      const isLowPriority = lowPriorityPatterns.some(pattern => 
+        pattern.test(field) || pattern.test(question)
+      );
+      
+      if (isHighPriority && !isLowPriority) {
+        highPriority.push(prompt);
+      } else if (isLowPriority) {
+        lowPriority.push(prompt);
+      } else {
+        // Si no está en ninguna categoría, considerar como prioridad media-alta
+        highPriority.push(prompt);
+      }
+    }
+    
+    this.logger.log(`📊 Field prioritization: ${highPriority.length} high, ${lowPriority.length} low priority`);
+    
+    return { highPriority, lowPriority };
+  }
+
+  /**
+   * Prepara documento con truncación inteligente para archivos extremos
+   */
+  private async prepareDocumentWithTruncation(
+    pdfContent: string | null,
+    requirements: { needsText: boolean; needsVisual: boolean; visualPages: number[] },
+    estimatedSizeMB: number
+  ): Promise<{ text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean }> {
+    
+    this.logger.warn(`🔧 TRUNCATION MODE: Processing extreme file (~${estimatedSizeMB.toFixed(2)}MB)`);
+    
+    const prepared: { 
+      text?: string; 
+      images?: Map<number, string>; 
+      fileSizeMB?: number; 
+      needsLargePdfProcessing?: boolean 
+    } = {
+      fileSizeMB: estimatedSizeMB,
+      needsLargePdfProcessing: true
+    };
+    
+    if (!pdfContent) {
+      return prepared;
+    }
+    
+    try {
+      const cleanBase64 = pdfContent.replace(/^data:application\/pdf;base64,/, '');
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      
+      // ESTRATEGIA DE TRUNCACIÓN:
+      // 1. Para texto: Extraer solo primeras y últimas páginas
+      // 2. Para imágenes: Máximo 5 páginas (primera, última y 3 intermedias)
+      
+      if (requirements.needsText) {
+        this.logger.log(`📄 Extracting truncated text (first 30% and last 20% of document)`);
+        
+        // Usar método especial de truncación del PDF parser
+        const truncatedText = await this.pdfParserService.extractTextTruncated(buffer, {
+          maxPages: 10,           // Máximo 10 páginas
+          firstPercentage: 0.3,   // 30% del inicio
+          lastPercentage: 0.2,    // 20% del final
+        });
+        
+        if (truncatedText) {
+          prepared.text = truncatedText + '\n\n[DOCUMENT TRUNCATED DUE TO EXTREME SIZE]';
+          this.logger.log(`✅ Extracted ${truncatedText.length} chars (truncated)`);
+        }
+      }
+      
+      if (requirements.needsVisual) {
+        this.logger.log(`🖼️ Extracting limited images (max 5 pages)`);
+        
+        // Extraer solo páginas críticas
+        const criticalPages = [1]; // Primera página siempre
+        
+        // Agregar última página si el documento tiene más de 1 página
+        const pageCount = await this.pdfImageService.getPageCount(buffer);
+        if (pageCount > 1) {
+          criticalPages.push(pageCount); // Última página
+        }
+        
+        // Agregar hasta 3 páginas intermedias si hay muchas páginas
+        if (pageCount > 10) {
+          criticalPages.push(
+            Math.floor(pageCount * 0.25),  // 25% del documento
+            Math.floor(pageCount * 0.5),   // 50% del documento
+            Math.floor(pageCount * 0.75)   // 75% del documento
+          );
+        }
+        
+        // Extraer solo las páginas críticas
+        const images = new Map<number, string>();
+        for (const pageNum of criticalPages.slice(0, 5)) { // Máximo 5 páginas
+          try {
+            const imageBase64 = await this.pdfImageService.extractPageAsImage(buffer, pageNum);
+            if (imageBase64) {
+              images.set(pageNum, imageBase64);
+            }
+          } catch (error) {
+            this.logger.warn(`⚠️ Could not extract page ${pageNum}: ${error.message}`);
+          }
+        }
+        
+        prepared.images = images;
+        this.logger.log(`✅ Extracted ${images.size} critical pages for visual analysis`);
+      }
+      
+    } catch (error) {
+      this.logger.error(`❌ Error in truncated preparation: ${error.message}`);
+      // Return minimal prepared object para no bloquear todo el procesamiento
+      prepared.text = '[ERROR: Could not extract text from extreme file]';
+    }
+    
+    return prepared;
   }
 
 }
