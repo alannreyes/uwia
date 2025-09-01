@@ -185,6 +185,29 @@ export class UnderwritingService {
     variables: Record<string, string>
   ): Promise<any[]> {
     const results: any[] = [];
+    
+    // SAFETY CHECK: Detección temprana de archivos extremadamente grandes
+    const EXTREME_FILE_LIMIT_MB = 150; // Límite para archivos extremos
+    const SAFE_PROCESSING_LIMIT_MB = 100; // Límite seguro
+    const MAX_PROCESSING_TIME_MS = 480000; // 8 minutos máximo (deja 2 min de margen para timeout de 10 min)
+    const processStartTime = Date.now();
+    let isExtremeLargeFile = false;
+    let fileSizeEstimate = 0;
+    
+    // Estimar tamaño del archivo si está disponible
+    if (pdfContent) {
+      // Base64 a bytes: length * 0.75 aproximadamente
+      fileSizeEstimate = (pdfContent.length * 0.75) / (1024 * 1024); // MB
+      isExtremeLargeFile = fileSizeEstimate > EXTREME_FILE_LIMIT_MB;
+      
+      if (isExtremeLargeFile) {
+        this.logger.warn(`⚠️ EXTREME LARGE FILE DETECTED: ${documentName} (~${fileSizeEstimate.toFixed(2)}MB)`);
+        this.logger.warn(`🔧 Activating truncation mode to prevent timeout`);
+      } else if (fileSizeEstimate > SAFE_PROCESSING_LIMIT_MB) {
+        this.logger.warn(`⚠️ Large file detected: ${documentName} (~${fileSizeEstimate.toFixed(2)}MB)`);
+        this.logger.warn(`🔧 Activating timeout protection mode`);
+      }
+    }
 
     try {
       // 1. Obtener prompts configurados para este documento
@@ -211,13 +234,42 @@ export class UnderwritingService {
       }
 
       this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
+      
+      // TRUNCATION STRATEGY para archivos extremos
+      let processedPrompts = prompts;
+      let truncationWarning = '';
+      
+      if (isExtremeLargeFile) {
+        // Para archivos extremos, priorizar y limitar campos
+        const priorityFields = this.prioritizeFieldsForExtremeLargeFile(prompts);
+        processedPrompts = priorityFields.highPriority.slice(0, 10); // Máximo 10 campos críticos
+        
+        truncationWarning = `EXTREME FILE: Processing only ${processedPrompts.length} of ${prompts.length} high-priority fields`;
+        this.logger.warn(`⚠️ ${truncationWarning}`);
+        
+        // Agregar campos no procesados como SKIPPED
+        const skippedFields = prompts.filter(p => !processedPrompts.includes(p));
+        for (const skipped of skippedFields) {
+          results.push({
+            pmc_field: skipped.pmcField,
+            question: skipped.question,
+            answer: 'SKIPPED_EXTREME_SIZE',
+            confidence: 0,
+            processing_time_ms: 0,
+            error: 'Field skipped due to extreme file size - processing only critical fields'
+          });
+        }
+      }
 
       // 2. NUEVO: Analizar qué tipo de procesamiento necesita el documento
-      const documentNeeds = this.analyzeDocumentRequirements(prompts);
+      const documentNeeds = this.analyzeDocumentRequirements(processedPrompts);
       this.logger.log(`Document analysis: needsText=${documentNeeds.needsText}, needsVisual=${documentNeeds.needsVisual}`);
 
       // 3. Preparar el documento según las necesidades detectadas
-      const preparedDocument = await this.prepareDocument(pdfContent, documentNeeds);
+      // Para archivos extremos, usar preparación truncada
+      const preparedDocument = isExtremeLargeFile 
+        ? await this.prepareDocumentWithTruncation(pdfContent, documentNeeds, fileSizeEstimate)
+        : await this.prepareDocument(pdfContent, documentNeeds);
 
       // Mantener compatibilidad con código existente
       let extractedText = preparedDocument.text || '';
@@ -238,9 +290,23 @@ export class UnderwritingService {
       const delayBetweenRequests = isCriticalDocument ? 100 : 1000; // Reducido a 0.1s para LOP - mínimo delay
       
       // Reduced logging - only show total prompts
-      this.logger.log(`📋 Processing ${documentName}: ${prompts.length} fields`);
+      this.logger.log(`📋 Processing ${documentName}: ${processedPrompts.length} fields${truncationWarning ? ' (TRUNCATED)' : ''}`);
       
       const processPromise = async (prompt: any, index: number) => {
+        // TIMEOUT PROTECTION: Verificar tiempo total antes de procesar cada campo
+        const elapsedTime = Date.now() - processStartTime;
+        if (elapsedTime > MAX_PROCESSING_TIME_MS) {
+          this.logger.error(`⏱️ TIMEOUT PROTECTION: Stopping processing after ${elapsedTime}ms to prevent timeout`);
+          return {
+            pmc_field: prompt.pmcField,
+            question: prompt.question,
+            answer: 'TIMEOUT_PROTECTION',
+            confidence: 0,
+            processing_time_ms: 0,
+            error: `Processing stopped after ${Math.round(elapsedTime/1000)}s to prevent system timeout`
+          };
+        }
+        
         // OPTIMIZACIÓN PARA LOP: Reducir delays aún más
         const shouldDelay = !isCriticalDocument || (index > 0 && index % concurrencyLimit === 0);
         if (shouldDelay && delayBetweenRequests > 0) {
@@ -496,7 +562,14 @@ export class UnderwritingService {
       };
 
       // Procesar en batches con límite de concurrencia
-      const promptResults = await this.processConcurrently(processedPrompts, processPromise, concurrencyLimit);
+      // Pass max processing time and start time for timeout protection
+      const promptResults = await this.processConcurrently(
+        processedPrompts, 
+        processPromise, 
+        concurrencyLimit, 
+        MAX_PROCESSING_TIME_MS, 
+        processStartTime
+      );
       results.push(...promptResults);
 
       return results;
