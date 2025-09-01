@@ -237,10 +237,8 @@ export class UnderwritingService {
       const concurrencyLimit = isCriticalDocument ? 6 : 3; // Duplicado para LOP - procesar 6 campos simultáneos
       const delayBetweenRequests = isCriticalDocument ? 100 : 1000; // Reducido a 0.1s para LOP - mínimo delay
       
-      this.logger.log(`📋 Processing strategy for ${documentName}:`);
-      this.logger.log(`   - Concurrency: ${concurrencyLimit}`);
-      this.logger.log(`   - Delay between: ${delayBetweenRequests}ms`);
-      this.logger.log(`   - Total prompts: ${prompts.length}`);
+      // Reduced logging - only show total prompts
+      this.logger.log(`📋 Processing ${documentName}: ${prompts.length} fields`);
       
       const processPromise = async (prompt: any, index: number) => {
         // OPTIMIZACIÓN PARA LOP: Reducir delays aún más
@@ -261,7 +259,7 @@ export class UnderwritingService {
             processedQuestion = processedQuestion.replace(new RegExp(escapedPlaceholder, 'g'), value);
           });
 
-          this.logger.log(`Processing field: ${prompt.pmcField}`);
+          // Field processing start - removed to reduce verbosity
           this.logger.log(`Question: ${processedQuestion}`);
 
           // Para preguntas que no requieren documento (matching, etc)
@@ -281,7 +279,7 @@ export class UnderwritingService {
           }
 
           // NUEVO: Determinar estrategia adaptativa para máxima precisión
-          this.logger.log(`🔄 Determining strategy for: ${prompt.pmcField}`);
+          // Strategy determination - removed to reduce verbosity
           
           let strategy;
           try {
@@ -292,7 +290,7 @@ export class UnderwritingService {
               preparedDocument.images && preparedDocument.images.size > 0
             );
           } catch (strategyError) {
-            this.logger.error(`❌ Strategy determination failed for ${prompt.pmcField}: ${strategyError.message}`);
+            this.logger.error(`[${prompt.pmcField}] ❌ Strategy error: ${strategyError.message}`);
             this.logger.error(`Stack trace: ${strategyError.stack}`);
             
             // Fallback inteligente mejorado basado en patrones del campo
@@ -345,7 +343,7 @@ export class UnderwritingService {
               }
               
             } catch (largePdfError) {
-              this.logger.error(`❌ Large PDF processing failed for ${prompt.pmcField}: ${largePdfError.message}`);
+              this.logger.error(`[${prompt.pmcField}] ❌ Large PDF error: ${largePdfError.message}`);
               // Fallback a procesamiento estándar
               this.logger.log(`🔄 Falling back to standard vision processing`);
               needsVisual = true; // Asegurar que continúe con análisis visual estándar
@@ -355,7 +353,7 @@ export class UnderwritingService {
           // LÓGICA EXISTENTE: Para archivos normales o cuando Large PDF falla
           if (!aiResponse && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
             // Usar Vision API para preguntas visuales analizando TODAS las páginas
-            this.logger.log(`📸 Using Vision API for: ${prompt.pmcField} - Analyzing ${preparedDocument.images.size} page(s)`);
+            this.logger.log(`[${prompt.pmcField}] 📸 Vision API - ${preparedDocument.images.size} pages`);
             
             // Analizar TODAS las páginas disponibles
             const pageNumbers = Array.from(preparedDocument.images.keys()).sort((a, b) => a - b);
@@ -375,7 +373,7 @@ export class UnderwritingService {
               const pageImage = preparedDocument.images.get(pageNumber);
               
               if (pageImage) {
-                this.logger.log(`🎯 Analyzing page ${pageNumber} for: ${prompt.pmcField}`);
+                // Analyzing page - removed to reduce verbosity
                 
                 try {
                   const pageResponse = await this.openAiService.evaluateWithVision(
@@ -386,7 +384,7 @@ export class UnderwritingService {
                     pageNumber
                   );
                   
-                  this.logger.log(`📊 Page ${pageNumber} result: ${pageResponse.response} (confidence: ${pageResponse.confidence})`);
+                  // Page result - removed to reduce verbosity
                   
                   // EARLY EXIT: Para campos de firma/booleanos, si encontramos un "YES" con buena confianza
                   if (prompt.expectedType === 'boolean' && 
@@ -416,7 +414,7 @@ export class UnderwritingService {
                   }
                   
                 } catch (pageError) {
-                  this.logger.warn(`⚠️ Error analyzing page ${pageNumber}: ${pageError.message}`);
+                  this.logger.warn(`[${prompt.pmcField}] ⚠️ Page ${pageNumber} error: ${pageError.message}`);
                   continue;
                 }
               }
@@ -466,12 +464,12 @@ export class UnderwritingService {
             processing_time_ms: processingTime,
           };
 
-          this.logger.log(`✅ ${prompt.pmcField}: ${aiResponse.response} (${aiResponse.confidence}% confidence)`);
+          this.logger.log(`[${prompt.pmcField}] ✅ ${aiResponse.response} (conf: ${aiResponse.confidence})`);
           return result;
 
         } catch (error) {
           const processingTime = Date.now() - startTime;
-          this.logger.error(`❌ Error processing field ${prompt.pmcField}:`, error.message);
+          this.logger.error(`[${prompt.pmcField}] ❌ Error:`, error.message);
           
           // Determinar tipo de error para mejor logging
           let errorType = 'Processing error';
