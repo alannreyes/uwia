@@ -2389,6 +2389,17 @@ Provide your analysis in valid JSON format:
     const responseStr = typeof response === 'string' 
       ? response 
       : (response as any)?.response || JSON.stringify(response);
+    
+    const cleaned = responseStr.toLowerCase().trim();
+    
+    // FIXED: Boolean normalization to prevent "true" vs "YES" discrepancies
+    if (cleaned === 'yes' || cleaned === 'true' || cleaned === '1' || cleaned === 'sí') {
+      return 'yes';
+    }
+    if (cleaned === 'no' || cleaned === 'false' || cleaned === '0') {
+      return 'no';
+    }
+    
     return responseStr
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
