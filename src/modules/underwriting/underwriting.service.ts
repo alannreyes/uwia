@@ -187,9 +187,9 @@ export class UnderwritingService {
     const results: any[] = [];
     
     // SAFETY CHECK: Detección temprana de archivos extremadamente grandes
-    const EXTREME_FILE_LIMIT_MB = 150; // Límite para archivos extremos
-    const SAFE_PROCESSING_LIMIT_MB = 100; // Límite seguro
-    const MAX_PROCESSING_TIME_MS = 480000; // 8 minutos máximo (deja 2 min de margen para timeout de 10 min)
+    const EXTREME_FILE_LIMIT_MB = 50; // REDUCIDO: Límite para archivos extremos (era 150)
+    const SAFE_PROCESSING_LIMIT_MB = 30; // REDUCIDO: Límite seguro (era 100)
+    let MAX_PROCESSING_TIME_MS = 300000; // REDUCIDO: 5 minutos máximo (era 8) - cambié a let
     const processStartTime = Date.now();
     let isExtremeLargeFile = false;
     let fileSizeEstimate = 0;
@@ -198,11 +198,19 @@ export class UnderwritingService {
     if (pdfContent) {
       // Base64 a bytes: length * 0.75 aproximadamente
       fileSizeEstimate = (pdfContent.length * 0.75) / (1024 * 1024); // MB
+      
+      // CRITICAL: Si el archivo es más de 50MB, FORZAR truncación
       isExtremeLargeFile = fileSizeEstimate > EXTREME_FILE_LIMIT_MB;
       
+      // SPECIAL CASE: POLICY files > 30MB siempre son extremos
+      if (documentName.toUpperCase().includes('POLICY') && fileSizeEstimate > 30) {
+        isExtremeLargeFile = true;
+        this.logger.error(`🚨 POLICY FILE DETECTED: ${fileSizeEstimate.toFixed(2)}MB - FORCING EXTREME MODE`);
+      }
+      
       if (isExtremeLargeFile) {
-        this.logger.warn(`⚠️ EXTREME LARGE FILE DETECTED: ${documentName} (~${fileSizeEstimate.toFixed(2)}MB)`);
-        this.logger.warn(`🔧 Activating truncation mode to prevent timeout`);
+        this.logger.error(`🚨 EXTREME LARGE FILE DETECTED: ${documentName} (~${fileSizeEstimate.toFixed(2)}MB)`);
+        this.logger.error(`🔧 ACTIVATING AGGRESSIVE TRUNCATION to prevent crashes`);
       } else if (fileSizeEstimate > SAFE_PROCESSING_LIMIT_MB) {
         this.logger.warn(`⚠️ Large file detected: ${documentName} (~${fileSizeEstimate.toFixed(2)}MB)`);
         this.logger.warn(`🔧 Activating timeout protection mode`);
@@ -240,12 +248,21 @@ export class UnderwritingService {
       let truncationWarning = '';
       
       if (isExtremeLargeFile) {
-        // Para archivos extremos, priorizar y limitar campos
+        // Para archivos extremos, priorizar y limitar campos MUY AGRESIVAMENTE
         const priorityFields = this.prioritizeFieldsForExtremeLargeFile(prompts);
-        processedPrompts = priorityFields.highPriority.slice(0, 10); // Máximo 10 campos críticos
         
-        truncationWarning = `EXTREME FILE: Processing only ${processedPrompts.length} of ${prompts.length} high-priority fields`;
-        this.logger.warn(`⚠️ ${truncationWarning}`);
+        // POLICY files: máximo 5 campos, otros archivos: máximo 3
+        const maxFields = documentName.toUpperCase().includes('POLICY') ? 5 : 3;
+        processedPrompts = priorityFields.highPriority.slice(0, maxFields);
+        
+        truncationWarning = `EXTREME FILE: Processing only ${processedPrompts.length} of ${prompts.length} critical fields`;
+        this.logger.error(`🚨 ${truncationWarning}`);
+        
+        // Si no hay campos críticos, procesar solo el primero
+        if (processedPrompts.length === 0 && prompts.length > 0) {
+          processedPrompts = [prompts[0]];
+          this.logger.error(`🚨 No critical fields found, processing only first field: ${prompts[0].pmcField}`);
+        }
         
         // Agregar campos no procesados como SKIPPED
         const skippedFields = prompts.filter(p => !processedPrompts.includes(p));
@@ -256,8 +273,15 @@ export class UnderwritingService {
             answer: 'SKIPPED_EXTREME_SIZE',
             confidence: 0,
             processing_time_ms: 0,
-            error: 'Field skipped due to extreme file size - processing only critical fields'
+            error: 'Field skipped due to extreme file size - processing only critical fields to prevent crashes'
           });
+        }
+        
+        // FORZAR timeout aún más agresivo para archivos extremos
+        if (fileSizeEstimate > 80) {
+          // Para archivos >80MB, timeout súper agresivo
+          MAX_PROCESSING_TIME_MS = 120000; // Solo 2 minutos
+          this.logger.error(`🚨 ULTRA LARGE FILE (${fileSizeEstimate.toFixed(2)}MB): Timeout reduced to 2 minutes`);
         }
       }
 
@@ -1458,7 +1482,7 @@ export class UnderwritingService {
   }
 
   /**
-   * Prepara documento con truncación inteligente para archivos extremos
+   * Prepara documento con truncación ULTRA AGRESIVA para archivos extremos
    */
   private async prepareDocumentWithTruncation(
     pdfContent: string | null,
@@ -1466,7 +1490,7 @@ export class UnderwritingService {
     estimatedSizeMB: number
   ): Promise<{ text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean }> {
     
-    this.logger.warn(`🔧 TRUNCATION MODE: Processing extreme file (~${estimatedSizeMB.toFixed(2)}MB)`);
+    this.logger.error(`🚨 ULTRA AGGRESSIVE TRUNCATION: ${estimatedSizeMB.toFixed(2)}MB file - Minimal processing only`);
     
     const prepared: { 
       text?: string; 
@@ -1486,68 +1510,95 @@ export class UnderwritingService {
       const cleanBase64 = pdfContent.replace(/^data:application\/pdf;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
       
-      // ESTRATEGIA DE TRUNCACIÓN:
-      // 1. Para texto: Extraer solo primeras y últimas páginas
-      // 2. Para imágenes: Máximo 5 páginas (primera, última y 3 intermedias)
+      // ESTRATEGIA ULTRA AGRESIVA:
+      // 1. Para texto: Solo primeras 3 páginas
+      // 2. Para imágenes: Solo 2 páginas máximo
+      // 3. Límite de caracteres: 50K máximo
       
       if (requirements.needsText) {
-        this.logger.log(`📄 Extracting truncated text (first 30% and last 20% of document)`);
+        this.logger.error(`📄 ULTRA LIMITED text extraction: first 3 pages only`);
         
-        // Usar método especial de truncación del PDF parser
-        const truncatedText = await this.pdfParserService.extractTextTruncated(buffer, {
-          maxPages: 10,           // Máximo 10 páginas
-          firstPercentage: 0.3,   // 30% del inicio
-          lastPercentage: 0.2,    // 20% del final
-        });
-        
-        if (truncatedText) {
-          prepared.text = truncatedText + '\n\n[DOCUMENT TRUNCATED DUE TO EXTREME SIZE]';
-          this.logger.log(`✅ Extracted ${truncatedText.length} chars (truncated)`);
+        try {
+          // Usar método especial de truncación MUY limitado
+          const truncatedText = await this.pdfParserService.extractTextTruncated(buffer, {
+            maxPages: 3,            // Solo 3 páginas
+            firstPercentage: 1.0,   // Solo del inicio
+            lastPercentage: 0,      // Nada del final
+          });
+          
+          if (truncatedText) {
+            // Limitar a máximo 50,000 caracteres para evitar memory issues
+            const limitedText = truncatedText.length > 50000 
+              ? truncatedText.substring(0, 50000) + '...[TRUNCATED]'
+              : truncatedText;
+            
+            prepared.text = limitedText + '\n\n[DOCUMENT HEAVILY TRUNCATED - EXTREME SIZE PROTECTION]';
+            this.logger.error(`⚠️ Extracted only ${limitedText.length} chars (heavily truncated from ${truncatedText.length})`);
+          } else {
+            prepared.text = '[EXTREME FILE: Could not extract any text safely]';
+          }
+        } catch (error) {
+          this.logger.error(`❌ Even truncated extraction failed: ${error.message}`);
+          prepared.text = '[EXTREME FILE: Text extraction failed due to size]';
         }
       }
       
       if (requirements.needsVisual) {
-        this.logger.log(`🖼️ Extracting limited images (max 5 pages)`);
+        this.logger.error(`🖼️ ULTRA LIMITED image extraction: max 2 pages`);
         
-        // Extraer solo páginas críticas
-        const criticalPages = [1]; // Primera página siempre
-        
-        // Agregar última página si el documento tiene más de 1 página
-        const pageCount = await this.pdfImageService.getPageCount(buffer);
-        if (pageCount > 1) {
-          criticalPages.push(pageCount); // Última página
-        }
-        
-        // Agregar hasta 3 páginas intermedias si hay muchas páginas
-        if (pageCount > 10) {
-          criticalPages.push(
-            Math.floor(pageCount * 0.25),  // 25% del documento
-            Math.floor(pageCount * 0.5),   // 50% del documento
-            Math.floor(pageCount * 0.75)   // 75% del documento
-          );
-        }
-        
-        // Extraer solo las páginas críticas
-        const images = new Map<number, string>();
-        for (const pageNum of criticalPages.slice(0, 5)) { // Máximo 5 páginas
+        try {
+          // Solo extraer primera y última página
+          const images = new Map<number, string>();
+          
+          // Timeout ultra corto para imágenes
+          const extractionTimeout = 15000; // Solo 15 segundos
+          
           try {
-            const imageBase64 = await this.pdfImageService.extractPageAsImage(buffer, pageNum);
-            if (imageBase64) {
-              images.set(pageNum, imageBase64);
-            }
+            // Primera página con timeout
+            const page1Promise = this.pdfImageService.extractPageAsImage(buffer, 1);
+            const timeoutPromise = new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('Timeout')), extractionTimeout);
+            });
+            
+            const page1Image = await Promise.race([page1Promise, timeoutPromise]);
+            images.set(1, page1Image);
+            this.logger.log(`✅ Extracted page 1 for extreme file`);
           } catch (error) {
-            this.logger.warn(`⚠️ Could not extract page ${pageNum}: ${error.message}`);
+            this.logger.error(`❌ Could not extract page 1: ${error.message}`);
           }
+          
+          // Skip additional pages for ultra large files
+          if (estimatedSizeMB < 80) {
+            try {
+              const pageCount = await this.pdfImageService.getPageCount(buffer);
+              if (pageCount > 1) {
+                const lastPagePromise = this.pdfImageService.extractPageAsImage(buffer, pageCount);
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                  setTimeout(() => reject(new Error('Timeout')), extractionTimeout);
+                });
+                
+                const lastPageImage = await Promise.race([lastPagePromise, timeoutPromise]);
+                images.set(pageCount, lastPageImage);
+                this.logger.log(`✅ Extracted last page ${pageCount} for extreme file`);
+              }
+            } catch (error) {
+              this.logger.warn(`⚠️ Could not extract last page: ${error.message}`);
+            }
+          }
+          
+          prepared.images = images;
+          this.logger.error(`⚠️ Extracted only ${images.size} pages (heavily limited)`);
+        } catch (error) {
+          this.logger.error(`❌ Visual extraction failed for extreme file: ${error.message}`);
+          prepared.images = new Map();
         }
-        
-        prepared.images = images;
-        this.logger.log(`✅ Extracted ${images.size} critical pages for visual analysis`);
       }
       
     } catch (error) {
-      this.logger.error(`❌ Error in truncated preparation: ${error.message}`);
-      // Return minimal prepared object para no bloquear todo el procesamiento
-      prepared.text = '[ERROR: Could not extract text from extreme file]';
+      this.logger.error(`❌ CRITICAL: Extreme file preparation failed: ${error.message}`);
+      // Return absolute minimal object
+      prepared.text = '[CRITICAL: Extreme file - processing failed]';
+      prepared.images = new Map();
     }
     
     return prepared;
