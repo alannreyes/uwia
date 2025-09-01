@@ -68,11 +68,10 @@ export class PdfParserService {
     }
     
     // LÓGICA EXISTENTE: Para archivos normales, mantener método actual
-    this.logger.log('Iniciando extracción de texto del PDF con múltiples métodos');
+    this.logger.log(`📄 Extracting text from PDF (${fileSizeMB.toFixed(2)}MB)...`);
     
     // MÉTODO 0: pdf-lib (JavaScript puro, extrae campos de formulario)
     try {
-      this.logger.debug('📄 Método 0: Usando pdf-lib para extracción de formularios');
       const formData = await this.pdfFormExtractor.extractFormFields(buffer);
       
       if (formData.text && formData.text.length > 0) {
@@ -86,7 +85,6 @@ export class PdfParserService {
     // MÉTODO 1: pdf-parse (más simple, pero no extrae campos de formulario)
     let pdfParseText = '';
     try {
-      this.logger.debug('📄 Método 1: Usando pdf-parse para extracción básica');
       const data = await pdfParse(buffer);
       pdfParseText = data.text?.trim() || '';
       
@@ -99,7 +97,6 @@ export class PdfParserService {
 
     // MÉTODO 2: pdfjs-dist (más robusto Y extrae campos de formulario)
     try {
-      this.logger.debug('📄 Método 2: Usando pdfjs-dist con extracción de campos de formulario');
       const pdfjsText = await this.extractWithPdfJs(buffer);
       
       if (pdfjsText && pdfjsText.length > 0) {
@@ -122,7 +119,6 @@ export class PdfParserService {
     // MÉTODO 2.5: Análisis mejorado de pdf-parse para simular campos
     if (pdfParseText && pdfParseText.length > 0) {
       try {
-        this.logger.debug('📄 Método 2.5: Mejorando extracción con análisis de patrones');
         const enhancedText = await this.enhancePdfParseText(buffer, pdfParseText);
         if (enhancedText.length > pdfParseText.length) {
           this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres`);
@@ -136,7 +132,6 @@ export class PdfParserService {
     // MÉTODO 2.5: Análisis mejorado de pdf-parse para detectar campos llenados
     if (pdfParseText && pdfParseText.length > 0) {
       try {
-        this.logger.debug('📄 Método 2.5: Mejorando extracción con análisis de campos llenados');
         const enhancedText = await this.extractFilledFormFields(buffer, pdfParseText);
         if (enhancedText.length > pdfParseText.length) {
           this.logger.log(`✅ Texto mejorado: ${enhancedText.length} caracteres (${enhancedText.length - pdfParseText.length} caracteres adicionales de campos)`);

@@ -87,7 +87,6 @@ export class GeminiService {
     }
     
     try {
-      this.logger.debug(`🚀 Iniciando evaluación Gemini para: ${pmcField || 'unknown field'} (${documentText.length} chars)`);
       
       // Rate limiting - igual que Claude
       await this.rateLimiter.checkLimit('gemini-requests');
@@ -134,7 +133,7 @@ export class GeminiService {
       // Actualizar métricas
       this.updatePerformanceMetrics(true, processingTime, actualTokens);
       
-      this.logger.log(`✅ Evaluación Gemini completada en ${processingTime}ms`);
+      this.logger.log(`[${pmcField}] ✅ Gemini completed in ${processingTime}ms`);
       this.logger.log(`📊 Confianza: ${evaluation.confidence}, Tokens: ${actualTokens.toLocaleString()}`);
       
       return {
@@ -326,7 +325,6 @@ Provide your response in JSON format:
     }
     
     try {
-      this.logger.debug(`👁️ Gemini Vision for: ${pmcField} (page ${pageNumber})`);
       
       // Rate limiting
       await this.rateLimiter.checkLimit('gemini-vision');

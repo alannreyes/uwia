@@ -92,8 +92,6 @@ export class OpenAiService {
     pmcField?: string
   ): Promise<EvaluationResult> {
     try {
-      this.logger.log(`Evaluando prompt: "${prompt.substring(0, 50)}..."`);
-
       // Verificar si OpenAI está habilitado
       if (!openaiConfig.enabled) {
         throw new Error('OpenAI está deshabilitado');
@@ -101,7 +99,6 @@ export class OpenAiService {
 
       // Optimización: Usar chunking inteligente para documentos grandes
       const relevantText = this.extractRelevantChunks(documentText, prompt);
-      this.logger.log(`Texto optimizado: ${relevantText.length} caracteres (original: ${documentText.length})`);
 
       // Verificar tamaño del texto optimizado
       if (relevantText.length > openaiConfig.maxTextLength) {
@@ -786,7 +783,7 @@ Respond in JSON format:
     pageNumber: number = 1
   ): Promise<EvaluationResult> {
     try {
-      this.logger.log(`🎯 Vision API for: ${pmcField} (page ${pageNumber})`);
+      this.logger.log(`[${pmcField}] 🎯 Vision page ${pageNumber}`);
       
       if (!openaiConfig.enabled) {
         throw new Error('OpenAI está deshabilitado');
@@ -855,7 +852,9 @@ Respond in JSON format:
           
           // Calcular consenso con valores normalizados
           const agreement = this.calculateNewAgreement(normalizedGpt, normalizedGemini);
-          this.logger.log(`🏆 === CONSENSO VISUAL === ${(agreement * 100).toFixed(1)}% agreement ===`);
+          if (agreement < 0.7) {
+            this.logger.warn(`[${pmcField}] ⚠️ Low visual consensus: ${(agreement * 100).toFixed(1)}%`);
+          }
           
           // SIEMPRE usar el modelo con mayor confianza, independientemente del consenso
           if (geminiVisionResult.confidence > confidence) {
@@ -1861,9 +1860,8 @@ Respond in this JSON format:
       // 4. Análisis de consenso
       if (primaryResult && secondaryResult) {
         const agreement = this.calculateNewAgreement(primaryResult.response, secondaryResult.response);
-        this.logger.log(`🏆 === CONSENSO === ${(agreement * 100).toFixed(1)}% agreement - Final: "${primaryResult.response}" ===`);
-        
-        if (agreement < 0.8) {
+        if (agreement < 0.7) {
+          this.logger.warn(`[${pmcField}] ⚠️ Low consensus: ${(agreement * 100).toFixed(1)}%`);
           this.logger.warn(`⚖️ === LOW AGREEMENT === ${(agreement * 100).toFixed(1)}%, invoking judge... ===`);
         }
         
