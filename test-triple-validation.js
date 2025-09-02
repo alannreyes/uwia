@@ -81,7 +81,7 @@ async function testEvaluation(scenario) {
     file_data: 'base64_encoded_pdf_data_here',
     context: JSON.stringify({
       policy_number: '12345',
-      claim_date: '2024-01-15'
+      claim_date: '01-15-24'
     })
   };
 

@@ -48,7 +48,7 @@ export const claudeConfig = {
   // Características especiales - ajustadas para grandes documentos
   useFullDocument: process.env.CLAUDE_FORCE_CHUNKING !== 'true', // Permitir desactivar para docs problemáticos
   specialization: 'long-context-analysis', // Especializado en análisis de contexto largo
-  anthropicVersion: '2023-06-01', // Versión de la API de Anthropic
+  anthropicVersion: '06-01-23', // Versión de la API de Anthropic
   
   // Límites adicionales para estabilidad
   maxDocumentTokens: parseInt(process.env.CLAUDE_MAX_DOC_TOKENS) || 180000, // Límite conservador de tokens por doc
