@@ -858,7 +858,8 @@ Respond in JSON format:
           
           // SIEMPRE usar el modelo con mayor confianza, independientemente del consenso
           if (geminiVisionResult.confidence > confidence) {
-            finalResponse = geminiVisionResult.response;
+            // FIXED: Limpiar respuesta de Gemini para asegurar formato MM-DD-YY
+            finalResponse = this.cleanResponse(geminiVisionResult.response, expectedType);
             finalConfidence = geminiVisionResult.confidence;
             this.logger.log(`✅ Usando Gemini Vision (confianza: ${geminiVisionResult.confidence} vs GPT-4o: ${confidence})`);
           } else if (confidence > geminiVisionResult.confidence) {
@@ -867,7 +868,8 @@ Respond in JSON format:
           } else {
             // Misma confianza, preferir el que tenga respuesta más específica
             if (geminiVisionResult.response !== 'NOT_FOUND' && cleanResponse === 'NOT_FOUND') {
-              finalResponse = geminiVisionResult.response;
+              // FIXED: Limpiar respuesta de Gemini para asegurar formato MM-DD-YY
+              finalResponse = this.cleanResponse(geminiVisionResult.response, expectedType);
               finalConfidence = geminiVisionResult.confidence;
               this.logger.log(`✅ Usando Gemini Vision (tiene respuesta específica)`);
             } else {
@@ -1843,6 +1845,10 @@ Respond in this JSON format:
       
       if (geminiResult.status === 'fulfilled') {
         secondaryResult = geminiResult.value;
+        // FIXED: Limpiar respuesta de Gemini para asegurar formato MM-DD-YY
+        if (expectedType === ResponseType.DATE && secondaryResult.response) {
+          secondaryResult.response = this.cleanResponse(secondaryResult.response, ResponseType.DATE);
+        }
         this.logger.log(`🎯 === GEMINI RESPUESTA === "${secondaryResult.response}" (confidence: ${secondaryResult.confidence}) ===`);
       } else {
         // Check if Gemini is intentionally disabled vs. actual error

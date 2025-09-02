@@ -288,8 +288,15 @@ Provide your response in JSON format:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        let response = parsed.response || parsed.answer || text;
+        
+        // FIXED: Limpiar fechas al formato MM-DD-YY si es tipo DATE
+        if (expectedType === ResponseType.DATE) {
+          response = this.cleanDateResponse(response);
+        }
+        
         return {
-          response: parsed.response || parsed.answer || text,
+          response: response,
           confidence: parsed.confidence || 0.8,
           reasoning: parsed.reasoning || parsed.explanation || 'No reasoning provided'
         };
@@ -299,11 +306,63 @@ Provide your response in JSON format:
     }
     
     // Fallback: crear respuesta estructurada
+    let response = text.trim();
+    
+    // FIXED: Limpiar fechas en fallback también
+    if (expectedType === ResponseType.DATE) {
+      response = this.cleanDateResponse(response);
+    }
+    
     return {
-      response: text.trim(),
+      response: response,
       confidence: 0.75,
       reasoning: 'Direct response - JSON parsing failed'
     };
+  }
+  
+  /**
+   * Convierte cualquier formato de fecha a MM-DD-YY
+   */
+  private cleanDateResponse(response: string): string {
+    if (!response || response === 'NOT_FOUND') {
+      return response;
+    }
+    
+    // Buscar fechas en varios formatos
+    const datePatterns = [
+      { regex: /(\d{4})-(\d{2})-(\d{2})/, format: 'YYYY-MM-DD' },  // 2025-07-22
+      { regex: /(\d{2})-(\d{2})-(\d{4})/, format: 'MM-DD-YYYY' },  // 07-22-2025
+      { regex: /(\d{2})-(\d{2})-(\d{2})/, format: 'MM-DD-YY' },    // 07-22-25
+      { regex: /(\d{2})\/(\d{2})\/(\d{4})/, format: 'MM/DD/YYYY' }, // 07/22/2025
+      { regex: /(\d{2})\/(\d{2})\/(\d{2})/, format: 'MM/DD/YY' },   // 07/22/25
+    ];
+    
+    for (const { regex, format } of datePatterns) {
+      const match = response.match(regex);
+      if (match) {
+        let month, day, year;
+        
+        if (format === 'YYYY-MM-DD') {
+          year = match[1].slice(-2); // Tomar últimos 2 dígitos del año
+          month = match[2];
+          day = match[3];
+        } else if (format === 'MM-DD-YYYY') {
+          month = match[1];
+          day = match[2];
+          year = match[3].slice(-2); // Tomar últimos 2 dígitos del año
+        } else {
+          // MM-DD-YY, MM/DD/YY, MM/DD/YYYY ya están en orden correcto
+          month = match[1];
+          day = match[2];
+          year = match[3].length === 4 ? match[3].slice(-2) : match[3];
+        }
+        
+        return `${month.padStart(2, '0')}-${day.padStart(2, '0')}-${year.padStart(2, '0')}`;
+      }
+    }
+    
+    // Si no se encontró un patrón de fecha, devolver como está
+    return response;
   }
 
   /**
