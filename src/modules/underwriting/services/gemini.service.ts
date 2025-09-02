@@ -251,7 +251,7 @@ Provide your response in JSON format:
         prompt += '\n\nFor percentage responses, provide as decimal (e.g., 0.15 for 15%).';
         break;
       case ResponseType.DATE:
-        prompt += '\n\nFor date responses, use YYYY-MM-DD format.';
+        prompt += '\n\nFor date responses, use MM-DD-YY format (e.g., 07-22-25).';
         break;
     }
 
@@ -380,7 +380,7 @@ Provide your response in JSON format:
   private buildVisionPrompt(prompt: string, expectedType: ResponseType, pmcField?: string): string {
     const typeInstructions = {
       [ResponseType.BOOLEAN]: 'Answer with YES or NO only.',
-      [ResponseType.DATE]: 'Provide the date in YYYY-MM-DD format. If no date is found, respond with NOT_FOUND.',
+      [ResponseType.DATE]: 'Provide the date in MM-DD-YY format (e.g., 07-22-25). If no date is found, respond with NOT_FOUND.',
       [ResponseType.TEXT]: 'Provide a concise text response.',
       [ResponseType.NUMBER]: 'Provide only the numeric value.',
     };

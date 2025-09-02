@@ -233,7 +233,7 @@ export class OpenAiService {
           if (pmcField && (pmcField.includes('policy_') || pmcField.includes('_policy'))) {
             basePrompt += `MM-DD-YY format. Extract from any date format found.\n[CONFIDENCE: 0.XX]`;
           } else {
-            basePrompt += `MM-DD-YY or "not found"\n[CONFIDENCE: 0.XX]`;
+            basePrompt += `MM-DD-YY format (e.g., 07-22-25) or "not found"\n[CONFIDENCE: 0.XX]`;
           }
           break;
         case ResponseType.TEXT:
@@ -963,7 +963,7 @@ If you cannot determine from text alone, respond "NO" with confidence 0.3 to ind
     // GPT-5 optimized response instructions
     const typeInstructions = {
       boolean: '<output_format>Answer with ONLY "YES" or "NO".</output_format>',
-      date: '<output_format>Answer with ONLY the date in YYYY-MM-DD format (e.g., 2025-07-18).</output_format>',
+      date: '<output_format>Answer with ONLY the date in MM-DD-YY format (e.g., 07-22-25).</output_format>',
       text: '<output_format>Provide a brief, specific textual answer.</output_format>',
       number: '<output_format>Answer with ONLY the numeric value (no units or formatting).</output_format>',
       json: '<output_format>Provide a valid JSON object.</output_format>'
@@ -2265,7 +2265,7 @@ Provide your analysis in valid JSON format:
 - Use exact quotes when possible
 - If uncertain, clearly state limitations
 - Maintain high confidence only when evidence is clear
-- For dates, always convert to YYYY-MM-DD format unless specified otherwise
+- For dates, always convert to MM-DD-YY format (e.g., 07-22-25)
 </quality_standards>`;
   }
 
@@ -2298,15 +2298,15 @@ Provide your analysis in valid JSON format:
       return response;
     }
     
-    // Para fechas, normalizar diferentes formatos a YYYY-MM-DD
+    // Para fechas, normalizar diferentes formatos a MM-DD-YY
     if (expectedType === ResponseType.DATE) {
       // Intentar parsear diferentes formatos de fecha
       const datePatterns = [
-        /(\d{2})-(\d{2})-(\d{2})/,       // 25-07-17
-        /(\d{4})-(\d{2})-(\d{2})/,      // 2025-07-17
-        /(\d{2})\/(\d{2})\/(\d{2})/,    // 07/17/25
-        /(\d{2})\/(\d{2})\/(\d{4})/,    // 07/17/2025
-        /(\d{4})\/(\d{2})\/(\d{2})/,    // 2025/07/17
+        /(\d{2})-(\d{2})-(\d{2})/,       // 07-22-25
+        /(\d{4})-(\d{2})-(\d{2})/,      // 2025-07-22
+        /(\d{2})\/(\d{2})\/(\d{2})/,    // 07/22/25
+        /(\d{2})\/(\d{2})\/(\d{4})/,    // 07/22/2025
+        /(\d{4})\/(\d{2})\/(\d{2})/,    // 2025/07/22
       ];
       
       for (const pattern of datePatterns) {
@@ -2316,11 +2316,11 @@ Provide your analysis in valid JSON format:
           let month = match[2];
           let day = match[3];
           
-          // Para formatos como MM-DD-YY o DD-MM-YY
+          // Para formatos como MM-DD-YY mantenemos el orden
           if (pattern.source.includes('(\\d{2})-(\\d{2})-(\\d{2})')) {
-            // Asumir formato DD-MM-YY basado en contexto LOP
-            day = match[1];
-            month = match[2];
+            // Asumir formato MM-DD-YY
+            month = match[1];
+            day = match[2];
             year = match[3];
             
             // Convertir año corto a largo
@@ -2331,10 +2331,9 @@ Provide your analysis in valid JSON format:
             }
           }
           
-          // Para formatos YYYY-MM-DD ya está correcto
+          // Para formatos YYYY-MM-DD convertir a MM-DD-YY
           if (pattern.source.includes('(\\d{4})-(\\d{2})-(\\d{2})')) {
-            // Ya está en formato correcto
-            return response;
+            // YYYY-MM-DD -> MM-DD-YY\n            year = match[1].slice(-2);\n            month = match[2];\n            day = match[3];
           }
           
           // Para formatos MM/DD/YY
@@ -2348,8 +2347,11 @@ Provide your analysis in valid JSON format:
             // Mantener como está por ahora, puede necesitar ajuste según contexto
           }
           
-          // Normalizar a YYYY-MM-DD
-          return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          // Normalizar a MM-DD-YY
+          if (year.length === 4) {
+            year = year.slice(-2);
+          }
+          return `${month.padStart(2, '0')}-${day.padStart(2, '0')}-${year.padStart(2, '0')}`;
         }
       }
     }
