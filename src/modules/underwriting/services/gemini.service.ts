@@ -239,7 +239,7 @@ Provide your response in JSON format:
     // Personalizar por tipo de respuesta
     switch (expectedType) {
       case ResponseType.BOOLEAN:
-        prompt += '\n\nFor boolean responses, use "Yes" or "No" only.';
+        prompt += '\n\nFor boolean responses, use "YES" or "NO" only.';
         break;
       case ResponseType.NUMBER:
         prompt += '\n\nFor numeric responses, provide the exact number without formatting.';

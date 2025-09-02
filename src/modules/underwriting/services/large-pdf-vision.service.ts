@@ -455,7 +455,7 @@ export class LargePdfVisionService {
 
         // Para campos de firma, early exit en respuestas positivas
         if (field.pmc_field.toLowerCase().includes('sign') && 
-            (result.response === 'YES' || result.response === 'Yes') && 
+            result.response === 'YES' && 
             result.confidence >= 0.6) {
           this.logger.debug(`✅ Signature early exit for ${field.pmc_field}: found positive on page ${i + 1}`);
           return result;

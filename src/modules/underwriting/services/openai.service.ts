@@ -2402,10 +2402,10 @@ Provide your analysis in valid JSON format:
     
     // FIXED: Boolean normalization to prevent "true" vs "YES" discrepancies
     if (cleaned === 'yes' || cleaned === 'true' || cleaned === '1' || cleaned === 'sí') {
-      return 'yes';
+      return 'YES';
     }
     if (cleaned === 'no' || cleaned === 'false' || cleaned === '0') {
-      return 'no';
+      return 'NO';
     }
     
     return responseStr
