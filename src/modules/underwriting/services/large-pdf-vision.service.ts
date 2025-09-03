@@ -4,6 +4,7 @@ import { GeminiService } from './gemini.service';
 import { IntelligentPageSelectorService, FieldPageMapping } from './intelligent-page-selector.service';
 import { largePdfConfig } from '../../../config/large-pdf.config';
 import { ResponseType } from '../entities/uw-evaluation.entity';
+import { ProductionLogger } from '../../../common/utils/production-logger';
 
 export interface LargePdfProcessingResult {
   pmc_field: string;
@@ -26,6 +27,7 @@ export interface ProcessingStrategy {
 @Injectable()
 export class LargePdfVisionService {
   private readonly logger = new Logger(LargePdfVisionService.name);
+  private readonly prodLogger = new ProductionLogger(LargePdfVisionService.name);
 
   constructor(
     private readonly openaiService: OpenAiService,
@@ -43,7 +45,7 @@ export class LargePdfVisionService {
     fileSizeMB: number
   ): Promise<LargePdfProcessingResult[]> {
 
-    this.logger.log(`🎯 Starting large PDF vision processing: ${fileSizeMB.toFixed(2)}MB, ${images.length} pages, ${prompts.length} fields`);
+    this.prodLogger.strategyDebug('large_pdf', 'processing_start', `${fileSizeMB.toFixed(2)}MB, ${images.length} pages, ${prompts.length} fields`);
 
     const startTime = Date.now();
     const results: LargePdfProcessingResult[] = [];
@@ -58,14 +60,14 @@ export class LargePdfVisionService {
         prompts
       );
       
-      this.logger.log(`📋 Using strategy: targeted=${strategy.useTargetedPages}, maxPages=${strategy.maxPagesPerField}, geminiPrimary=${strategy.useGeminiPrimary}`);
+      this.prodLogger.strategyDebug('large_pdf', 'strategy', `targeted=${strategy.useTargetedPages}, maxPages=${strategy.maxPagesPerField}, geminiPrimary=${strategy.useGeminiPrimary}`);
 
       // PASO 3: Procesar campos en grupos optimizados
       const fieldGroups = this.groupFieldsByComplexity(prompts, fieldPageMappings);
       
       // Procesar grupos secuencialmente para control de recursos
       for (const [groupName, groupFields] of Object.entries(fieldGroups)) {
-        this.logger.log(`📊 Processing ${groupName} group: ${groupFields.length} fields`);
+        this.prodLogger.strategyDebug('large_pdf', groupName, `Processing ${groupFields.length} fields`);
         
         const groupResults = await this.processFieldGroup(
           groupFields,
@@ -79,7 +81,7 @@ export class LargePdfVisionService {
       }
 
       const totalTime = Date.now() - startTime;
-      this.logger.log(`✅ Large PDF vision processing complete: ${results.length} fields in ${totalTime}ms`);
+      this.prodLogger.performance('large_pdf', 'vision_processing', totalTime / 1000, `${results.length} fields`);
       
       return results;
 
@@ -368,7 +370,7 @@ export class LargePdfVisionService {
       // Para campos de firma, procesar múltiples páginas; para otros, solo la primera
       const imagesToProcess = isSignatureField ? targetImages : [targetImages[0]];
       
-      this.logger.log(`🔍 LOP VISION DEBUG: Field=${field.pmc_field}, SignatureField=${isSignatureField}, TotalImages=${targetImages.length}, ProcessingImages=${imagesToProcess.length}`);
+      this.prodLogger.lopDebug('large_pdf', field.pmc_field, `SignatureField=${isSignatureField}, Images=${imagesToProcess.length}/${targetImages.length}`);
       
       let bestGptResult: any = null;
       let bestGeminiResult: any = null;
@@ -379,7 +381,7 @@ export class LargePdfVisionService {
         const imageBase64 = imagesToProcess[i].toString('base64');
         const pageNumber = i + 1;
         
-        this.logger.log(`📄 LOP PAGE DEBUG: Processing page ${pageNumber}/${imagesToProcess.length} for ${field.pmc_field}, ImageSize: ${(imageBase64.length / 1024).toFixed(1)}KB`);
+        this.prodLogger.debug('large_pdf', field.pmc_field, `Processing page ${pageNumber}/${imagesToProcess.length}, ${(imageBase64.length / 1024).toFixed(1)}KB`);
         
         const gptResult = await this.openaiService.evaluateWithVision(
           imageBase64,
@@ -389,7 +391,7 @@ export class LargePdfVisionService {
           pageNumber
         );
 
-        this.logger.log(`🤖 GPT Page ${pageNumber}: Response="${gptResult.response}", Confidence=${gptResult.confidence}`);
+        this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'GPT-4o', gptResult.response);
 
         const geminiResult = await this.geminiService.analyzeWithVision(
           imageBase64,
@@ -399,7 +401,7 @@ export class LargePdfVisionService {
           pageNumber
         );
 
-        this.logger.log(`💎 Gemini Page ${pageNumber}: Response="${geminiResult.response}", Confidence=${geminiResult.confidence}`);
+        this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'Gemini', geminiResult.response);
 
         // Para campos de firma booleanos, early exit en YES con buena confianza
         if (isSignatureField && field.expected_type === ResponseType.BOOLEAN) {

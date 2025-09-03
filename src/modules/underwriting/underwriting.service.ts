@@ -18,10 +18,12 @@ import { openaiConfig } from '../../config/openai.config';
 import { IntelligentPageSelectorService } from './services/intelligent-page-selector.service';
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { largePdfConfig } from '../../config/large-pdf.config';
+import { ProductionLogger } from '../../common/utils/production-logger';
 
 @Injectable()
 export class UnderwritingService {
   private readonly logger = new Logger(UnderwritingService.name);
+  private readonly prodLogger = new ProductionLogger(UnderwritingService.name);
   private visualAnalysisCache = new Map<string, boolean>();
 
   constructor(
@@ -91,7 +93,8 @@ export class UnderwritingService {
         }
       }
 
-      this.logger.log(`Processing ONLY document: ${documentToProcess}`);
+      // Inicio del procesamiento con información básica
+      const summary = this.prodLogger.createSummary();
       
       // Verificar si el documento tiene preguntas en la BD
       const documentPrompts = await this.documentPromptRepository.find({
@@ -124,7 +127,11 @@ export class UnderwritingService {
         };
       }
       
-      this.logger.log(`Found ${documentPrompts.length} questions for ${documentToProcess}`);
+      // Log de inicio con información del documento
+      const providerName = dto.context ? 
+        (typeof dto.context === 'string' ? JSON.parse(dto.context)?.provider_name : dto.context?.provider_name) || 'Unknown' 
+        : 'Unknown';
+      this.prodLogger.documentStart(documentToProcess, 0, providerName, documentPrompts.length);
       
       // Procesar SOLO este documento
       try {
@@ -140,7 +147,7 @@ export class UnderwritingService {
         answeredFields += documentResults.filter(r => !r.error).length;
         
       } catch (error) {
-        this.logger.error(`Error processing document ${documentToProcess}:`, error);
+        this.prodLogger.error(documentToProcess, 'document_processing', 'UnderwritingService', error.message);
         errors.push(`${documentToProcess}: ${error.message}`);
         results[documentToProcess] = [];
       }
@@ -154,6 +161,12 @@ export class UnderwritingService {
       } else {
         status = 'error';
       }
+
+      // Log de finalización con resumen
+      const duration = summary.getDuration();
+      const errorCount = errors.length;
+      const warningCount = 0; // TODO: Implementar contador de warnings
+      this.prodLogger.documentEnd(documentToProcess, duration, answeredFields, totalFields, errorCount, warningCount);
 
       return {
         record_id: dto.record_id,
@@ -402,11 +415,11 @@ export class UnderwritingService {
           let aiResponse;
           
           // NUEVA LÓGICA: Detectar si requiere procesamiento de Large PDF
-          this.logger.log(`🔍 LOP DECISION DEBUG: ${prompt.pmcField} - needsLargePdfProcessing: ${preparedDocument.needsLargePdfProcessing}, needsVisual: ${needsVisual}, hasImages: ${preparedDocument.images ? preparedDocument.images.size : 0} pages`);
+          this.prodLogger.lopDebug(documentName, prompt.pmcField, `needsLargePdfProcessing: ${preparedDocument.needsLargePdfProcessing}, needsVisual: ${needsVisual}, hasImages: ${preparedDocument.images ? preparedDocument.images.size : 0} pages`);
           
           if (preparedDocument.needsLargePdfProcessing && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
             
-            this.logger.log(`🎯 LOP DEBUG: Using Large PDF Vision processing for: ${prompt.pmcField} - ${preparedDocument.fileSizeMB?.toFixed(2)}MB PDF, Images: ${preparedDocument.images.size} pages`);
+            this.prodLogger.strategyDebug(documentName, prompt.pmcField, `Using Large PDF Vision processing - ${preparedDocument.fileSizeMB?.toFixed(2)}MB PDF, Images: ${preparedDocument.images.size} pages`);
             
             // Usar el nuevo servicio de Large PDF Vision
             try {
@@ -445,7 +458,7 @@ export class UnderwritingService {
           // LÓGICA EXISTENTE: Para archivos normales o cuando Large PDF falla
           if (!aiResponse && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
             
-            this.logger.log(`📁 LOP DEBUG: Using STANDARD Vision processing for: ${prompt.pmcField} - Standard processing path`);
+            this.prodLogger.strategyDebug(documentName, prompt.pmcField, `Using STANDARD Vision processing - Standard processing path`);
             
             // Usar Vision API para preguntas visuales analizando TODAS las páginas
             this.logger.log(`[${prompt.pmcField}] 📸 Vision API - ${preparedDocument.images.size} pages`);
@@ -1054,7 +1067,7 @@ export class UnderwritingService {
     prepared.needsLargePdfProcessing = largePdfConfig.requiresLargePdfProcessing(fileSizeMB);
 
     // Log detallado para debugging
-    this.logger.log(`📊 LOP PROCESSING DEBUG: ${documentName} - ${fileSizeMB.toFixed(2)}MB, threshold: ${largePdfConfig.thresholds.standardSizeLimit}MB, needsLargePdfProcessing: ${prepared.needsLargePdfProcessing}`);
+    this.prodLogger.lopDebug(documentName, 'document_processing', `${fileSizeMB.toFixed(2)}MB, threshold: ${largePdfConfig.thresholds.standardSizeLimit}MB, needsLargePdfProcessing: ${prepared.needsLargePdfProcessing}`);
     
     if (prepared.needsLargePdfProcessing) {
       this.logger.log(`🎯 Large PDF detected: ${fileSizeMB.toFixed(2)}MB - will use enhanced processing`);

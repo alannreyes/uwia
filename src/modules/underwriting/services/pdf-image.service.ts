@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { pdfToPng } from 'pdf-to-png-converter';
+import { ProductionLogger } from '../../../common/utils/production-logger';
 
 @Injectable()
 export class PdfImageService {
   private readonly logger = new Logger(PdfImageService.name);
+  private readonly prodLogger = new ProductionLogger(PdfImageService.name);
 
   /**
    * Convierte páginas específicas de un PDF a imágenes
@@ -36,7 +38,7 @@ export class PdfImageService {
       const needsHighRes = options?.highResolution || isLOP;
       const viewportScale = needsHighRes ? 4.0 : 2.0;
       
-      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s, size: ${(pdfBuffer.length / 1048576).toFixed(2)}MB, resolution: ${viewportScale}x${isLOP ? ' [LOP - High Resolution]' : ''})`);
+      this.prodLogger.conversionLog(options?.documentName || 'unknown', `Converting ${pageNumbers.length} pages (${(pdfBuffer.length / 1048576).toFixed(2)}MB, ${viewportScale}x resolution${isLOP ? ' [LOP - High Resolution]' : ''})`);
       
       // Configuración de conversión para pdf-to-png-converter
       // MEJORADO: Mayor resolución y configuración PNG específica para LOP.pdf
@@ -77,14 +79,12 @@ export class PdfImageService {
         const base64 = page.content.toString('base64');
         imageMap.set(pageNum, base64);
         
-        // MEJORADO: Logging más detallado para monitorear calidad
-        const imageSizeMB = (page.content.length / 1048576).toFixed(2);
-        const base64SizeMB = (base64.length / 1048576).toFixed(2);
-        this.logger.log(`✅ Page ${pageNum} converted: ${base64.length} chars (Image: ${imageSizeMB}MB, Base64: ${base64SizeMB}MB)`);
+        // MEJORADO: Solo logging condicional para conversión exitosa
+        this.prodLogger.conversionLog(options?.documentName || 'unknown', `Page ${pageNum} converted successfully`);
       });
       
       const elapsed = Date.now() - startTime;
-      this.logger.log(`🎉 Conversion completed in ${elapsed}ms`);
+      this.prodLogger.performance(options?.documentName || 'unknown', 'pdf_conversion', elapsed / 1000, `${imageMap.size} pages`);
       
       return imageMap;
       

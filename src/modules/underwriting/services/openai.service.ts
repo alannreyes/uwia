@@ -9,6 +9,7 @@ import { ClaudeChunkingService } from './claude-chunking.service';
 // NUEVO: Servicios mejorados (inicialmente no se usan)
 import { GeminiService } from './gemini.service';
 import { EnhancedChunkingService } from './enhanced-chunking.service';
+import { ProductionLogger } from '../../../common/utils/production-logger';
 
 const { OpenAI } = require('openai');
 const { Anthropic } = require('@anthropic-ai/sdk');
@@ -25,6 +26,7 @@ export interface EvaluationResult {
 @Injectable()
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
+  private readonly prodLogger = new ProductionLogger(OpenAiService.name);
   private openai: any;
   private claudeClient?: any; // Cliente Claude opcional
   private rateLimiter: RateLimiterService;
@@ -563,8 +565,7 @@ Same if correct, else provide correct answer.`;
 
     // 3. LOGGING PREVIO AL JUEZ - Mostrar las dos respuestas que se van a juzgar
     this.logger.log(`🔄 DUAL VALIDATION RESULTS for ${pmcField}:`);
-    this.logger.log(`   📊 Primary Model (${openaiConfig.model}): "${primaryResult.response}" (confidence: ${primaryResult.confidence})`);
-    this.logger.log(`   📊 Validation Model (${openaiConfig.validationModel}): "${validationResult.response}" (confidence: ${validationResult.confidence})`);
+    this.prodLogger.fieldSuccess('unknown', 'dual_validation', `Primary: ${primaryResult.response}/${primaryResult.confidence}, Validation: ${validationResult.response}/${validationResult.confidence}`);
     
     // Determinar si hay discrepancia
     const hasDiscrepancy = primaryResult.response !== validationResult.response;
@@ -844,7 +845,7 @@ Respond in JSON format:
           );
           
           this.logger.log(`👁️ === GPT-4o VISION === "${cleanResponse}" (confidence: ${confidence}) ===`);
-          this.logger.log(`👁️ === GEMINI VISION === "${geminiVisionResult.response}" (confidence: ${geminiVisionResult.confidence}) ===`);
+          this.prodLogger.visionApiLog('unknown', pmcField, 0, 'Gemini Vision', geminiVisionResult.response);
           
           // Normalizar respuestas para comparación (especialmente fechas)
           const normalizedGpt = this.normalizeForComparison(cleanResponse, expectedType);
@@ -879,7 +880,7 @@ Respond in JSON format:
           
           // Log de advertencia solo si hay bajo consenso
           if (agreement < 0.8) {
-            this.logger.warn(`⚠️ Bajo consenso visual (${(agreement * 100).toFixed(1)}%) para ${pmcField} - Usando ${finalResponse === geminiVisionResult.response ? 'Gemini' : 'GPT-4o'}`);
+            this.prodLogger.warning('unknown', pmcField, `Low visual consensus (${(agreement * 100).toFixed(1)}%) - Using ${finalResponse === geminiVisionResult.response ? 'Gemini' : 'GPT-4o'}`);
           }
         }
       } catch (geminiError) {
@@ -913,7 +914,7 @@ Respond in JSON format:
                               error.message.includes('timeout');
       
       if (isRateLimitError && pmcField?.toLowerCase().includes('sign')) {
-        this.logger.warn(`🔄 Vision API failed for signature field ${pmcField} - attempting text analysis fallback`);
+        this.prodLogger.warning('unknown', pmcField, 'Vision API failed for signature field - attempting text analysis fallback');
         
         // Usar análisis de texto con prompt específico para firmas
         const fallbackPrompt = `FALLBACK SIGNATURE ANALYSIS - Vision API unavailable.
@@ -1838,7 +1839,7 @@ Respond in this JSON format:
       
       if (gpt5Result.status === 'fulfilled') {
         primaryResult = gpt5Result.value;
-        this.logger.log(`🎯 === GPT-5 RESPUESTA === "${primaryResult.response}" (confidence: ${primaryResult.confidence}) ===`);
+        this.prodLogger.visionApiLog('unknown', 'unknown', 0, 'GPT-5', primaryResult.response);
       } else {
         this.logger.error(`🚨 === GPT-5 FALLO === ${gpt5Result.reason?.message} ===`);
       }
@@ -1849,7 +1850,7 @@ Respond in this JSON format:
         if (expectedType === ResponseType.DATE && secondaryResult.response) {
           secondaryResult.response = this.cleanResponse(secondaryResult.response, ResponseType.DATE);
         }
-        this.logger.log(`🎯 === GEMINI RESPUESTA === "${secondaryResult.response}" (confidence: ${secondaryResult.confidence}) ===`);
+        this.prodLogger.visionApiLog('unknown', 'unknown', 0, 'Gemini', secondaryResult.response);
       } else {
         // Check if Gemini is intentionally disabled vs. actual error
         const errorMsg = geminiResult.reason?.message || '';
