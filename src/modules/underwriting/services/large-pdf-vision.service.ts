@@ -363,48 +363,87 @@ export class LargePdfVisionService {
   ): Promise<{answer: string, confidence: number}> {
 
     try {
-      // Usar el método existente de dual validation pero con páginas específicas
-      // Convertir el primer Buffer a base64 para análisis
-      const imageBase64 = targetImages[0].toString('base64');
+      const isSignatureField = field.pmc_field.toLowerCase().includes('sign');
       
-      const gptResult = await this.openaiService.evaluateWithVision(
-        imageBase64,
-        field.question,
-        field.expected_type,
-        field.pmc_field,
-        1
-      );
+      // Para campos de firma, procesar múltiples páginas; para otros, solo la primera
+      const imagesToProcess = isSignatureField ? targetImages : [targetImages[0]];
+      
+      this.logger.log(`🔍 LargePdfVision ${field.pmc_field}: Processing ${imagesToProcess.length} pages (signature field: ${isSignatureField})`);
+      
+      let bestGptResult: any = null;
+      let bestGeminiResult: any = null;
+      let bestConfidence = 0;
+      
+      // Procesar cada página
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        const imageBase64 = imagesToProcess[i].toString('base64');
+        const pageNumber = i + 1;
+        
+        const gptResult = await this.openaiService.evaluateWithVision(
+          imageBase64,
+          field.question,
+          field.expected_type,
+          field.pmc_field,
+          pageNumber
+        );
 
-      const geminiResult = await this.geminiService.analyzeWithVision(
-        imageBase64,
-        field.question,
-        field.expected_type,
-        field.pmc_field,
-        1
-      );
+        const geminiResult = await this.geminiService.analyzeWithVision(
+          imageBase64,
+          field.question,
+          field.expected_type,
+          field.pmc_field,
+          pageNumber
+        );
 
-      // Determinar consenso
-      const consensus = this.calculateConsensus(gptResult.response, geminiResult.response);
+        // Para campos de firma booleanos, early exit en YES con buena confianza
+        if (isSignatureField && field.expected_type === ResponseType.BOOLEAN) {
+          if (gptResult.response === 'YES' && gptResult.confidence >= 0.7) {
+            this.logger.log(`✅ EARLY EXIT Page ${pageNumber}: GPT found signature (confidence: ${gptResult.confidence})`);
+            return {
+              answer: gptResult.response,
+              confidence: gptResult.confidence
+            };
+          }
+          if (geminiResult.response === 'YES' && geminiResult.confidence >= 0.7) {
+            this.logger.log(`✅ EARLY EXIT Page ${pageNumber}: Gemini found signature (confidence: ${geminiResult.confidence})`);
+            return {
+              answer: geminiResult.response,
+              confidence: geminiResult.confidence
+            };
+          }
+        }
+
+        // Almacenar mejor resultado hasta ahora
+        const pageConfidence = Math.max(gptResult.confidence, geminiResult.confidence);
+        if (pageConfidence > bestConfidence) {
+          bestConfidence = pageConfidence;
+          bestGptResult = gptResult;
+          bestGeminiResult = geminiResult;
+        }
+      }
+
+      // Si no encontramos early exit, usar mejor resultado general
+      const consensus = this.calculateConsensus(bestGptResult.response, bestGeminiResult.response);
       
       if (consensus.agreement >= 0.8) {
         return {
           answer: consensus.finalAnswer,
-          confidence: Math.max(gptResult.confidence, geminiResult.confidence)
+          confidence: Math.max(bestGptResult.confidence, bestGeminiResult.confidence)
         };
       }
 
       // Bajo consenso: usar respuesta con mayor confianza
-      if (geminiResult.confidence > gptResult.confidence) {
-        this.logger.debug(`🤖 ${field.pmc_field}: Using Gemini (${geminiResult.confidence} vs ${gptResult.confidence})`);
+      if (bestGeminiResult.confidence > bestGptResult.confidence) {
+        this.logger.debug(`🤖 ${field.pmc_field}: Using Gemini (${bestGeminiResult.confidence} vs ${bestGptResult.confidence})`);
         return {
-          answer: geminiResult.response,
-          confidence: geminiResult.confidence
+          answer: bestGeminiResult.response,
+          confidence: bestGeminiResult.confidence
         };
       } else {
-        this.logger.debug(`🤖 ${field.pmc_field}: Using GPT-4o (${gptResult.confidence} vs ${geminiResult.confidence})`);
+        this.logger.debug(`🤖 ${field.pmc_field}: Using GPT-4o (${bestGptResult.confidence} vs ${bestGeminiResult.confidence})`);
         return {
-          answer: gptResult.response,
-          confidence: gptResult.confidence
+          answer: bestGptResult.response,
+          confidence: bestGptResult.confidence
         };
       }
 
