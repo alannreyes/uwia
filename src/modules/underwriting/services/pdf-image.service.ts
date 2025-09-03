@@ -34,20 +34,29 @@ export class PdfImageService {
       // Determinar si necesitamos alta resolución (específico para LOP.pdf)
       const isLOP = options?.documentName?.toUpperCase().includes('LOP');
       const needsHighRes = options?.highResolution || isLOP;
-      const viewportScale = needsHighRes ? 3.0 : 2.0;
+      const viewportScale = needsHighRes ? 4.0 : 2.0;
       
       this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s, size: ${(pdfBuffer.length / 1048576).toFixed(2)}MB, resolution: ${viewportScale}x${isLOP ? ' [LOP - High Resolution]' : ''})`);
       
       // Configuración de conversión para pdf-to-png-converter
-      // MEJORADO: Mayor resolución SOLO para LOP.pdf para detectar firmas con mayor precisión
+      // MEJORADO: Mayor resolución y configuración PNG específica para LOP.pdf
       const conversionOptions = {
-        viewportScale: viewportScale,    // 3.0 para LOP.pdf, 2.0 para otros
+        viewportScale: viewportScale,  // 4.0 para LOP.pdf para mejor detección de firmas
         outputFileMask: 'buffer',        // Asegurar salida como buffer
         pagesToProcess: pageNumbers,     // Páginas específicas a convertir
         strictPagesToProcess: false,     // Permisivo con páginas no existentes
         verbosityLevel: 0,              // Sin logs verbosos
         disableFontFace: false,         // Mantener fuentes para mejor renderizado
-        useSystemFonts: needsHighRes    // Usar fuentes del sistema solo en alta resolución
+        useSystemFonts: needsHighRes,   // Usar fuentes del sistema solo en alta resolución
+        // Configuración PNG específica para mayor calidad
+        pngOptions: needsHighRes ? {
+          compressionLevel: 0,          // Sin compresión PNG para LOP
+          palette: false,               // Usar color completo
+          quality: 100                  // Calidad máxima
+        } : {
+          compressionLevel: 6,          // Compresión normal para otros documentos
+          quality: 85
+        }
       };
       
       // Convertir páginas usando pdfToPng con timeout
