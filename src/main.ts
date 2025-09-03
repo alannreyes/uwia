@@ -1,14 +1,29 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { EnvValidation } from './config/env-validation';
 
 async function bootstrap() {
   // Validar variables de entorno al iniciar
   EnvValidation.validate();
+  
+  // Configurar nivel de logging basado en LOG_LEVEL
+  const getLogLevels = (): LogLevel[] => {
+    const level = process.env.LOG_LEVEL?.toLowerCase() || 'log';
+    switch (level) {
+      case 'error': return ['error'];
+      case 'warn': return ['error', 'warn'];
+      case 'log': return ['error', 'warn', 'log'];
+      case 'debug': return ['error', 'warn', 'log', 'debug', 'verbose'];
+      case 'verbose': return ['error', 'warn', 'log', 'debug', 'verbose'];
+      default: return ['error', 'warn', 'log'];
+    }
+  };
+
   const app = await NestFactory.create(AppModule, {
     // Aumentar timeout a 8 minutos (480 segundos)
     rawBody: true,
+    logger: getLogLevels(),
   });
   
   // Configurar timeout del servidor a 8 minutos
