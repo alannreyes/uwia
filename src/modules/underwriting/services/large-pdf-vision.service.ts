@@ -368,7 +368,7 @@ export class LargePdfVisionService {
       // Para campos de firma, procesar múltiples páginas; para otros, solo la primera
       const imagesToProcess = isSignatureField ? targetImages : [targetImages[0]];
       
-      this.logger.log(`🔍 LargePdfVision ${field.pmc_field}: Processing ${imagesToProcess.length} pages (signature field: ${isSignatureField})`);
+      this.logger.log(`🔍 LOP VISION DEBUG: Field=${field.pmc_field}, SignatureField=${isSignatureField}, TotalImages=${targetImages.length}, ProcessingImages=${imagesToProcess.length}`);
       
       let bestGptResult: any = null;
       let bestGeminiResult: any = null;
@@ -379,6 +379,8 @@ export class LargePdfVisionService {
         const imageBase64 = imagesToProcess[i].toString('base64');
         const pageNumber = i + 1;
         
+        this.logger.log(`📄 LOP PAGE DEBUG: Processing page ${pageNumber}/${imagesToProcess.length} for ${field.pmc_field}, ImageSize: ${(imageBase64.length / 1024).toFixed(1)}KB`);
+        
         const gptResult = await this.openaiService.evaluateWithVision(
           imageBase64,
           field.question,
@@ -387,6 +389,8 @@ export class LargePdfVisionService {
           pageNumber
         );
 
+        this.logger.log(`🤖 GPT Page ${pageNumber}: Response="${gptResult.response}", Confidence=${gptResult.confidence}`);
+
         const geminiResult = await this.geminiService.analyzeWithVision(
           imageBase64,
           field.question,
@@ -394,6 +398,8 @@ export class LargePdfVisionService {
           field.pmc_field,
           pageNumber
         );
+
+        this.logger.log(`💎 Gemini Page ${pageNumber}: Response="${geminiResult.response}", Confidence=${geminiResult.confidence}`);
 
         // Para campos de firma booleanos, early exit en YES con buena confianza
         if (isSignatureField && field.expected_type === ResponseType.BOOLEAN) {
@@ -423,9 +429,12 @@ export class LargePdfVisionService {
       }
 
       // Si no encontramos early exit, usar mejor resultado general
+      this.logger.log(`📊 LOP FINAL: ${field.pmc_field} - No early exit found, using best results: GPT="${bestGptResult?.response}" (${bestGptResult?.confidence}), Gemini="${bestGeminiResult?.response}" (${bestGeminiResult?.confidence})`);
+      
       const consensus = this.calculateConsensus(bestGptResult.response, bestGeminiResult.response);
       
       if (consensus.agreement >= 0.8) {
+        this.logger.log(`✅ LOP CONSENSUS: ${field.pmc_field} - Agreement ${consensus.agreement} ≥ 0.8, Final: "${consensus.finalAnswer}"`);
         return {
           answer: consensus.finalAnswer,
           confidence: Math.max(bestGptResult.confidence, bestGeminiResult.confidence)
@@ -434,13 +443,13 @@ export class LargePdfVisionService {
 
       // Bajo consenso: usar respuesta con mayor confianza
       if (bestGeminiResult.confidence > bestGptResult.confidence) {
-        this.logger.debug(`🤖 ${field.pmc_field}: Using Gemini (${bestGeminiResult.confidence} vs ${bestGptResult.confidence})`);
+        this.logger.log(`🔄 LOP FALLBACK: ${field.pmc_field} - Using Gemini "${bestGeminiResult.response}" (${bestGeminiResult.confidence} vs ${bestGptResult.confidence})`);
         return {
           answer: bestGeminiResult.response,
           confidence: bestGeminiResult.confidence
         };
       } else {
-        this.logger.debug(`🤖 ${field.pmc_field}: Using GPT-4o (${bestGptResult.confidence} vs ${bestGeminiResult.confidence})`);
+        this.logger.log(`🔄 LOP FALLBACK: ${field.pmc_field} - Using GPT-4o "${bestGptResult.response}" (${bestGptResult.confidence} vs ${bestGeminiResult.confidence})`);
         return {
           answer: bestGptResult.response,
           confidence: bestGptResult.confidence

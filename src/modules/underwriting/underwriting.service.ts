@@ -402,9 +402,11 @@ export class UnderwritingService {
           let aiResponse;
           
           // NUEVA LÓGICA: Detectar si requiere procesamiento de Large PDF
+          this.logger.log(`🔍 LOP DECISION DEBUG: ${prompt.pmcField} - needsLargePdfProcessing: ${preparedDocument.needsLargePdfProcessing}, needsVisual: ${needsVisual}, hasImages: ${preparedDocument.images ? preparedDocument.images.size : 0} pages`);
+          
           if (preparedDocument.needsLargePdfProcessing && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
             
-            this.logger.log(`🎯 Using Large PDF Vision processing for: ${prompt.pmcField} - ${preparedDocument.fileSizeMB?.toFixed(2)}MB PDF`);
+            this.logger.log(`🎯 LOP DEBUG: Using Large PDF Vision processing for: ${prompt.pmcField} - ${preparedDocument.fileSizeMB?.toFixed(2)}MB PDF, Images: ${preparedDocument.images.size} pages`);
             
             // Usar el nuevo servicio de Large PDF Vision
             try {
@@ -442,6 +444,9 @@ export class UnderwritingService {
           
           // LÓGICA EXISTENTE: Para archivos normales o cuando Large PDF falla
           if (!aiResponse && needsVisual && preparedDocument.images && preparedDocument.images.size > 0) {
+            
+            this.logger.log(`📁 LOP DEBUG: Using STANDARD Vision processing for: ${prompt.pmcField} - Standard processing path`);
+            
             // Usar Vision API para preguntas visuales analizando TODAS las páginas
             this.logger.log(`[${prompt.pmcField}] 📸 Vision API - ${preparedDocument.images.size} pages`);
             
@@ -1049,7 +1054,7 @@ export class UnderwritingService {
     prepared.needsLargePdfProcessing = largePdfConfig.requiresLargePdfProcessing(fileSizeMB);
 
     // Log detallado para debugging
-    this.logger.log(`📊 PDF size check: ${fileSizeMB.toFixed(2)}MB, threshold: ${largePdfConfig.thresholds.standardSizeLimit}MB`);
+    this.logger.log(`📊 LOP PROCESSING DEBUG: ${documentName} - ${fileSizeMB.toFixed(2)}MB, threshold: ${largePdfConfig.thresholds.standardSizeLimit}MB, needsLargePdfProcessing: ${prepared.needsLargePdfProcessing}`);
     
     if (prepared.needsLargePdfProcessing) {
       this.logger.log(`🎯 Large PDF detected: ${fileSizeMB.toFixed(2)}MB - will use enhanced processing`);
