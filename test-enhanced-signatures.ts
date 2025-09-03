@@ -1,6 +1,7 @@
 import { OpenAiService } from './src/modules/underwriting/services/openai.service';
 import { JudgeValidatorService } from './src/modules/underwriting/services/judge-validator.service';
 import { PdfImageService } from './src/modules/underwriting/services/pdf-image.service';
+import { ResponseType } from './src/modules/underwriting/entities/uw-evaluation.entity';
 import * as fs from 'fs';
 
 async function testEnhancedSignatures() {
@@ -85,11 +86,12 @@ Answer YES if you see ANY handwritten mark in provider/contractor signature area
         try {
           console.log(`\n   Testing Page ${pageNum}:`);
           
-          const result = await openaiService.askWithVision(
-            testCase.prompt,
+          const result = await openaiService.evaluateWithVision(
             imageBase64,
-            'gpt-4o',
-            `${testCase.field}_page_${pageNum}_enhanced`
+            testCase.prompt,
+            ResponseType.BOOLEAN,
+            testCase.field,
+            pageNum
           );
 
           console.log(`   🎯 GPT-4o Result: ${result.response} (confidence: ${result.confidence})`);
