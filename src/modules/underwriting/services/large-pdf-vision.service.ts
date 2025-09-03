@@ -450,7 +450,10 @@ export class LargePdfVisionService {
         // Early exit si encontramos respuesta confiable
         if (result.confidence >= 0.8 && result.response !== 'NOT_FOUND') {
           this.logger.debug(`✅ Early exit for ${field.pmc_field}: found answer on page ${i + 1} (confidence: ${result.confidence})`);
-          return result;
+          return {
+            answer: result.response,
+            confidence: result.confidence
+          };
         }
 
         // Para campos de firma, early exit en respuestas positivas
@@ -458,7 +461,10 @@ export class LargePdfVisionService {
             result.response === 'YES' && 
             result.confidence >= 0.6) {
           this.logger.debug(`✅ Signature early exit for ${field.pmc_field}: found positive on page ${i + 1}`);
-          return result;
+          return {
+            answer: result.response,
+            confidence: result.confidence
+          };
         }
 
       } catch (error) {
