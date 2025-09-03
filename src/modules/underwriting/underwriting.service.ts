@@ -453,11 +453,20 @@ export class UnderwritingService {
             let bestConfidence = 0;
             let foundPositiveAnswer = false;
             
-            // OPTIMIZACIÓN AGRESIVA PARA LOP: Solo analizar 1 página para reducir tiempo
+            // OPTIMIZACIÓN INTELIGENTE PARA LOP: Limitar páginas EXCEPTO para campos de firma
             const isLopDocument = documentName.toLowerCase().includes('lop');
+            const isSignatureField = prompt.pmcField.toLowerCase().includes('sign');
             const prioritizedPages = this.prioritizePages(pageNumbers, prompt.pmcField);
-            // Para LOP, limitar a solo la primera página prioritaria para reducir tiempo de Vision API
-            const pagesToAnalyze = isLopDocument ? prioritizedPages.slice(0, 1) : prioritizedPages;
+            
+            // Para LOP: permitir múltiples páginas para campos de firma, limitar solo 1 para otros campos
+            const pagesToAnalyze = isLopDocument && !isSignatureField ? 
+              prioritizedPages.slice(0, 1) : 
+              prioritizedPages;
+              
+            // Log critical fix for signature detection
+            if (isLopDocument && isSignatureField) {
+              this.logger.log(`🔧 LOP SIGNATURE FIX: Analyzing ${pagesToAnalyze.length} pages for ${prompt.pmcField} (was limited to 1 page before fix)`);
+            }
             
             for (const pageNumber of pagesToAnalyze) {
               const pageImage = preparedDocument.images.get(pageNumber);
