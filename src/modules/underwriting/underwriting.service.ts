@@ -293,7 +293,7 @@ export class UnderwritingService {
       // Para archivos extremos, usar preparación truncada
       const preparedDocument = isExtremeLargeFile 
         ? await this.prepareDocumentWithTruncation(pdfContent, documentNeeds, fileSizeEstimate)
-        : await this.prepareDocument(pdfContent, documentNeeds);
+        : await this.prepareDocument(pdfContent, documentNeeds, documentName);
 
       // Mantener compatibilidad con código existente
       let extractedText = preparedDocument.text || '';
@@ -1022,7 +1022,8 @@ export class UnderwritingService {
    */
   private async prepareDocument(
     pdfContent: string | null,
-    requirements: { needsText: boolean; needsVisual: boolean; visualPages: number[] }
+    requirements: { needsText: boolean; needsVisual: boolean; visualPages: number[] },
+    documentName?: string
   ): Promise<{ text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean }> {
     const prepared: { text?: string; images?: Map<number, string>; fileSizeMB?: number; needsLargePdfProcessing?: boolean } = {};
     
@@ -1092,10 +1093,12 @@ export class UnderwritingService {
         // Convertir páginas especiales (-1 = última página)
         if (pagesToConvert.includes(-1)) {
           // Para obtener la última página, primero necesitamos el conteo
-          prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent);
+          // Pasar el nombre del documento para usar alta resolución en LOP.pdf
+          prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent, documentName);
         } else {
           // Convertir páginas específicas
-          prepared.images = await this.pdfImageService.convertPages(pdfContent, pagesToConvert);
+          // Pasar el nombre del documento para usar alta resolución en LOP.pdf
+          prepared.images = await this.pdfImageService.convertPages(pdfContent, pagesToConvert, { documentName });
         }
         
         this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images`);

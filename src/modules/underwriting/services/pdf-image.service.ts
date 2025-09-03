@@ -7,10 +7,14 @@ export class PdfImageService {
 
   /**
    * Convierte páginas específicas de un PDF a imágenes
+   * @param pdfBase64 - PDF en formato base64
+   * @param pageNumbers - Números de página a convertir
+   * @param options - Opciones adicionales de conversión
    */
   async convertPages(
     pdfBase64: string, 
-    pageNumbers: number[] = [1]
+    pageNumbers: number[] = [1],
+    options?: { documentName?: string; highResolution?: boolean }
   ): Promise<Map<number, string>> {
     const startTime = Date.now();
     try {
@@ -27,18 +31,27 @@ export class PdfImageService {
         throw new Error(`PDF too large for visual analysis: ${sizeMB}MB exceeds ${maxMB}MB limit`);
       }
       
-      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s, size: ${(pdfBuffer.length / 1048576).toFixed(2)}MB)`);
+      // Determinar si necesitamos alta resolución (específico para LOP.pdf)
+      const isLOP = options?.documentName?.toUpperCase().includes('LOP');
+      const needsHighRes = options?.highResolution || isLOP;
+      const viewportScale = needsHighRes ? 3.0 : 2.0;
+      
+      this.logger.log(`🖼️ Converting ${pageNumbers.length} pages to images (timeout: 120s, size: ${(pdfBuffer.length / 1048576).toFixed(2)}MB, resolution: ${viewportScale}x${isLOP ? ' [LOP - High Resolution]' : ''})`);
       
       // Configuración de conversión para pdf-to-png-converter
-      const options = {
-        viewportScale: 2.0,           // Escala para buena resolución
-        pagesToProcess: pageNumbers,  // Páginas específicas a convertir
-        strictPagesToProcess: false,  // Permisivo con páginas no existentes
-        verbosityLevel: 0            // Sin logs verbosos
+      // MEJORADO: Mayor resolución SOLO para LOP.pdf para detectar firmas con mayor precisión
+      const conversionOptions = {
+        viewportScale: viewportScale,    // 3.0 para LOP.pdf, 2.0 para otros
+        outputFileMask: 'buffer',        // Asegurar salida como buffer
+        pagesToProcess: pageNumbers,     // Páginas específicas a convertir
+        strictPagesToProcess: false,     // Permisivo con páginas no existentes
+        verbosityLevel: 0,              // Sin logs verbosos
+        disableFontFace: false,         // Mantener fuentes para mejor renderizado
+        useSystemFonts: needsHighRes    // Usar fuentes del sistema solo en alta resolución
       };
       
       // Convertir páginas usando pdfToPng con timeout
-      const conversionPromise = pdfToPng(pdfBuffer, options);
+      const conversionPromise = pdfToPng(pdfBuffer, conversionOptions);
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('PDF to PNG conversion timeout (120s)')), 120000);
       });
@@ -54,7 +67,11 @@ export class PdfImageService {
         const pageNum = page.pageNumber;
         const base64 = page.content.toString('base64');
         imageMap.set(pageNum, base64);
-        this.logger.log(`✅ Page ${pageNum} converted: ${base64.length} chars`);
+        
+        // MEJORADO: Logging más detallado para monitorear calidad
+        const imageSizeMB = (page.content.length / 1048576).toFixed(2);
+        const base64SizeMB = (base64.length / 1048576).toFixed(2);
+        this.logger.log(`✅ Page ${pageNum} converted: ${base64.length} chars (Image: ${imageSizeMB}MB, Base64: ${base64SizeMB}MB)`);
       });
       
       const elapsed = Date.now() - startTime;
@@ -78,8 +95,9 @@ export class PdfImageService {
 
   /**
    * Convierte primera y última página (firmas suelen estar ahí)
+   * @param documentName - Nombre del documento para determinar resolución
    */
-  async convertSignaturePages(pdfBase64: string): Promise<Map<number, string>> {
+  async convertSignaturePages(pdfBase64: string, documentName?: string): Promise<Map<number, string>> {
     try {
       // Primero necesitamos saber cuántas páginas tiene el PDF
       const pageCount = await this.getPageCount(pdfBase64);
@@ -89,11 +107,11 @@ export class PdfImageService {
         pagesToConvert.push(pageCount); // Última página si hay más de una
       }
       
-      return await this.convertPages(pdfBase64, pagesToConvert);
+      return await this.convertPages(pdfBase64, pagesToConvert, { documentName });
     } catch (error) {
       // Si falla obtener páginas, al menos convertir la primera
       this.logger.warn('Could not determine page count, converting first page only');
-      return await this.convertPages(pdfBase64, [1]);
+      return await this.convertPages(pdfBase64, [1], { documentName });
     }
   }
 
