@@ -7,8 +7,8 @@
  * Configuración de thresholds y límites
  */
 export const largePdfThresholds = {
-  // Tamaños de archivo - REDUCED from 50MB to 30MB for better large file detection
-  standardSizeLimit: parseInt(process.env.LARGE_PDF_THRESHOLD_MB) || 30, // MB
+  // Tamaños de archivo - REDUCED to 3MB to ensure LOP documents use improved processing
+  standardSizeLimit: parseInt(process.env.LARGE_PDF_THRESHOLD_MB) || 3, // MB
   ultraLargeSizeLimit: parseInt(process.env.ULTRA_LARGE_PDF_THRESHOLD_MB) || 80, // MB
   
   // Límites de texto extraído para detectar fallo de OCR
