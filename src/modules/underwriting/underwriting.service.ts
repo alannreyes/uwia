@@ -318,7 +318,7 @@ export class UnderwritingService {
 
       // 4. MEJORADO: Procesamiento inteligente con control de concurrencia
       // Identificar campos críticos que necesitan procesamiento secuencial
-      const criticalFields = ['lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount'];
+      const criticalFields = ['lop_signed_by_ho1', 'lop_signed_by_client1', 'signed_insured_next_amount', 'lop_date1'];
       const isCriticalDocument = documentName.toLowerCase().includes('lop') || 
                                  documentName.toLowerCase().includes('estimate');
       
@@ -473,7 +473,9 @@ export class UnderwritingService {
             
             // OPTIMIZACIÓN INTELIGENTE PARA LOP: Limitar páginas EXCEPTO para campos de firma
             const isLopDocument = documentName.toLowerCase().includes('lop');
-            const isSignatureField = prompt.pmcField.toLowerCase().includes('sign');
+            // lop_date1 is a signature-related field since it looks for dates associated with signatures
+            const isSignatureField = prompt.pmcField.toLowerCase().includes('sign') || 
+                                   prompt.pmcField.toLowerCase() === 'lop_date1';
             const prioritizedPages = this.prioritizePages(pageNumbers, prompt.pmcField);
             
             // Para LOP: permitir múltiples páginas para campos de firma, limitar solo 1 para otros campos
