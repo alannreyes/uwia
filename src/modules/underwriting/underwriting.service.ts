@@ -473,10 +473,10 @@ export class UnderwritingService {
                                    prompt.pmcField.toLowerCase() === 'lop_date1';
             const prioritizedPages = this.prioritizePages(pageNumbers, prompt.pmcField);
             
-            // Para LOP: permitir múltiples páginas para campos de firma, limitar solo 1 para otros campos
-            const pagesToAnalyze = isLopDocument && !isSignatureField ? 
-              prioritizedPages.slice(0, 1) : 
-              prioritizedPages;
+            // Para LOP: campos de firma (incluye lop_date1) usan múltiples páginas, otros campos solo página 1
+            const pagesToAnalyze = isLopDocument && isSignatureField ? 
+              prioritizedPages : 
+              (isLopDocument ? prioritizedPages.slice(0, 1) : prioritizedPages);
               
             // Critical fix for signature detection - analyze multiple pages for signature fields
             
