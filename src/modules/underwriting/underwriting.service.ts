@@ -50,7 +50,7 @@ export class UnderwritingService {
     let answeredFields = 0;
 
     try {
-      this.logger.log(`Processing claim for record_id: ${dto.record_id}`);
+      // Processing claim
       
       // Variables dinámicas para reemplazar en los prompts
       // Extraer del context si está disponible
@@ -254,7 +254,7 @@ export class UnderwritingService {
         }];
       }
 
-      this.logger.log(`Found ${prompts.length} prompts for ${documentName}`);
+      // Found prompts for document
       
       // TRUNCATION STRATEGY para archivos extremos
       let processedPrompts = prompts;
@@ -300,7 +300,7 @@ export class UnderwritingService {
 
       // 2. NUEVO: Analizar qué tipo de procesamiento necesita el documento
       const documentNeeds = this.analyzeDocumentRequirements(processedPrompts);
-      this.logger.log(`Document analysis: needsText=${documentNeeds.needsText}, needsVisual=${documentNeeds.needsVisual}`);
+      // Document analysis complete
 
       // 3. Preparar el documento según las necesidades detectadas
       // Para archivos extremos, usar preparación truncada
@@ -311,7 +311,7 @@ export class UnderwritingService {
       // Mantener compatibilidad con código existente
       let extractedText = preparedDocument.text || '';
       if (extractedText) {
-        this.logger.log(`Extracted ${extractedText.length} characters from ${documentName}`);
+        // Text extraction complete
       } else if (documentNeeds.needsVisual) {
         this.logger.warn(`No text extracted from ${documentName}, will rely on visual analysis`);
       }
@@ -326,8 +326,7 @@ export class UnderwritingService {
       const concurrencyLimit = isCriticalDocument ? 6 : 3; // Duplicado para LOP - procesar 6 campos simultáneos
       const delayBetweenRequests = isCriticalDocument ? 100 : 1000; // Reducido a 0.1s para LOP - mínimo delay
       
-      // Reduced logging - only show total prompts
-      this.logger.log(`📋 Processing ${documentName}: ${processedPrompts.length} fields${truncationWarning ? ' (TRUNCATED)' : ''}`);
+      // Processing document with configured prompts
       
       const processPromise = async (prompt: any, index: number) => {
         // TIMEOUT PROTECTION: Verificar tiempo total antes de procesar cada campo
@@ -348,7 +347,6 @@ export class UnderwritingService {
         const shouldDelay = !isCriticalDocument || (index > 0 && index % concurrencyLimit === 0);
         if (shouldDelay && delayBetweenRequests > 0) {
           await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
-          this.logger.log(`⏳ Delay ${delayBetweenRequests}ms before processing ${prompt.pmcField}`);
         }
         const startTime = Date.now();
         
@@ -363,12 +361,11 @@ export class UnderwritingService {
           });
 
           // Field processing start - removed to reduce verbosity
-          this.logger.log(`Question: ${processedQuestion}`);
 
           // Para preguntas que no requieren documento (matching, etc)
           if (!extractedText && (prompt.pmcField.includes('_match') || prompt.pmcField.includes('matching_'))) {
             // Estas preguntas ya tienen las variables reemplazadas, no necesitan PDF
-            this.logger.log(`Processing matching question without PDF: ${prompt.pmcField}`);
+            // Processing matching question without PDF
             // Dar una respuesta por defecto ya que no podemos comparar sin el documento
             return {
               pmc_field: prompt.pmcField,
@@ -442,7 +439,7 @@ export class UnderwritingService {
                   processing_time_ms: result.processing_time_ms
                 };
                 
-                this.logger.log(`🎯 Large PDF result: ${result.answer} (confidence: ${result.confidence}, strategy: ${result.strategy_used})`);
+                // Large PDF result obtained
               } else {
                 throw new Error('Large PDF processing returned no results');
               }
@@ -450,7 +447,7 @@ export class UnderwritingService {
             } catch (largePdfError) {
               this.logger.error(`[${prompt.pmcField}] ❌ Large PDF error: ${largePdfError.message}`);
               // Fallback a procesamiento estándar
-              this.logger.log(`🔄 Falling back to standard vision processing`);
+              // Falling back to standard vision processing
               needsVisual = true; // Asegurar que continúe con análisis visual estándar
             }
           }
@@ -461,11 +458,9 @@ export class UnderwritingService {
             this.prodLogger.strategyDebug(documentName, prompt.pmcField, `Using STANDARD Vision processing - Standard processing path`);
             
             // Usar Vision API para preguntas visuales analizando TODAS las páginas
-            this.logger.log(`[${prompt.pmcField}] 📸 Vision API - ${preparedDocument.images.size} pages`);
             
             // Analizar TODAS las páginas disponibles
             const pageNumbers = Array.from(preparedDocument.images.keys()).sort((a, b) => a - b);
-            this.logger.log(`🔍 Pages to analyze: ${pageNumbers.join(', ')}`);
             
             let bestResponse: any = null;
             let bestConfidence = 0;
@@ -483,10 +478,7 @@ export class UnderwritingService {
               prioritizedPages.slice(0, 1) : 
               prioritizedPages;
               
-            // Log critical fix for signature detection
-            if (isLopDocument && isSignatureField) {
-              this.logger.log(`🔧 LOP SIGNATURE FIX: Analyzing ${pagesToAnalyze.length} pages for ${prompt.pmcField} (was limited to 1 page before fix)`);
-            }
+            // Critical fix for signature detection - analyze multiple pages for signature fields
             
             for (const pageNumber of pagesToAnalyze) {
               const pageImage = preparedDocument.images.get(pageNumber);
@@ -509,7 +501,7 @@ export class UnderwritingService {
                   if (prompt.expectedType === 'boolean' && 
                       pageResponse.response === 'YES' && 
                       pageResponse.confidence >= 0.7) {
-                    this.logger.log(`✅ EARLY EXIT: Found positive answer on page ${pageNumber} (confidence: ${pageResponse.confidence})`);
+                    // Early exit: Found positive answer
                     aiResponse = pageResponse;
                     foundPositiveAnswer = true;
                     break;
@@ -520,7 +512,7 @@ export class UnderwritingService {
                       pageResponse.response !== 'not found' && 
                       pageResponse.response !== '' &&
                       pageResponse.confidence >= 0.85) {
-                    this.logger.log(`✅ EARLY EXIT: Found confident answer on page ${pageNumber}: ${pageResponse.response} (${pageResponse.confidence})`);
+                    // Early exit: Found confident answer
                     aiResponse = pageResponse;
                     foundPositiveAnswer = true;
                     break;
@@ -541,7 +533,7 @@ export class UnderwritingService {
             
             // Si no encontramos una respuesta positiva, usar la de mayor confianza
             if (!foundPositiveAnswer && bestResponse) {
-              this.logger.log(`📊 No positive answers found. Using best confidence result: ${bestResponse.response} (${bestResponse.confidence})`);
+              // Using best confidence result
               aiResponse = bestResponse;
             }
             
@@ -551,7 +543,7 @@ export class UnderwritingService {
           } else {
             // Usar análisis de texto con estrategia adaptativa
             if (useDualValidation && openaiConfig.dualValidation) {
-              this.logger.log(`🔄 Using dual validation for ${prompt.pmcField} (strategy determined)`);
+              // Using dual validation (strategy determined)
               aiResponse = await this.openAiService.evaluateWithDualValidation(
                 extractedText,
                 processedQuestion,
@@ -583,7 +575,7 @@ export class UnderwritingService {
             processing_time_ms: processingTime,
           };
 
-          this.logger.log(`[${prompt.pmcField}] ✅ ${aiResponse.response} (conf: ${aiResponse.confidence})`);
+          // Field processing complete
           return result;
 
         } catch (error) {
@@ -831,9 +823,7 @@ export class UnderwritingService {
     let answeredFields = 0;
 
     try {
-      this.logger.log(`🚀 Processing batch claim for record_id: ${dto.record_id}`);
-      this.logger.log(`📋 DEBUG - Record ID details: [${dto.record_id}] - Length: ${dto.record_id?.length} - Type: ${typeof dto.record_id}`);
-      this.logger.log(`📄 Documents to process: ${documents.length}`);
+      // Processing batch claim
       
       // Variables dinámicas para reemplazar en los prompts
       let contextData: any = {};
@@ -876,7 +866,7 @@ export class UnderwritingService {
         promptsByDocument.get(prompt.documentName).push(prompt);
       });
 
-      this.logger.log(`📋 Found ${prompts.length} total prompts across ${promptsByDocument.size} documents`);
+      // Found prompts across documents
 
       // Procesar cada documento con sus preguntas
       const documentPromises = Array.from(promptsByDocument.entries()).map(
