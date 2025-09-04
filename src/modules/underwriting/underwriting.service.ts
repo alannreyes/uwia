@@ -1277,8 +1277,9 @@ export class UnderwritingService {
   private prioritizePages(pageNumbers: number[], pmcField: string): number[] {
     const fieldLower = pmcField.toLowerCase();
     
-    // Para campos de firma, priorizar primeras y últimas páginas
-    if (fieldLower.includes('sign') || fieldLower.includes('signature')) {
+    // Para campos de firma y fecha de firma, priorizar primeras y últimas páginas
+    // lop_date1 busca fechas asociadas con firmas, así que debe tratarse igual
+    if (fieldLower.includes('sign') || fieldLower.includes('signature') || fieldLower === 'lop_date1') {
       const first = pageNumbers.slice(0, 2);
       const last = pageNumbers.slice(-2);
       const middle = pageNumbers.slice(2, -2);
