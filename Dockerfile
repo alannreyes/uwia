@@ -50,12 +50,13 @@ RUN adduser -S nestjs -u 1001
 RUN chown -R nestjs:nodejs /app
 USER nestjs
 
-# Exponer el puerto
-EXPOSE 5015
+# Exponer múltiples puertos posibles
+# El puerto real se define por la variable PORT en runtime
+EXPOSE 5015 5025 5035
 
 # Variables de entorno por defecto
 ENV NODE_ENV=production
-ENV PORT=5015
+# PORT se define externamente en EasyPanel/docker-compose
 
 # Comando para iniciar la aplicación
 CMD ["node", "dist/src/main"] 
