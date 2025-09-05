@@ -1,7 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, Index, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { ClaimEvaluation } from './claim-evaluation.entity';
 
-@Entity('document_prompts')
+@Entity(process.env.DOCUMENT_PROMPTS_TABLE_NAME || 'document_prompts')
 @Index(['documentName', 'promptOrder'], { unique: true })
 export class DocumentPrompt {
   @PrimaryGeneratedColumn()
