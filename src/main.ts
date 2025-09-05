@@ -55,10 +55,16 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT) || 5011; // Puerto por defecto 5011 para uwia
   await app.listen(port, '0.0.0.0'); // Escuchar en todas las interfaces para permitir conexiones desde otros contenedores
   
-  console.log(`🚀 UWIA - Underwriting IA iniciado en: http://localhost:${port}/api`);
-  console.log(`📋 Health check: http://localhost:${port}/api/health`);
-  console.log(`🔍 Evaluate claim: POST http://localhost:${port}/api/underwriting/evaluate-claim`);
-  console.log('🔧 Build version: 08-13-25-v2 (with pdfjs-dist diagnostics)');
+  console.log('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+  console.log(`🎯 DEPLOY VERIFICADO - ${new Date().toISOString()}`);
+  console.log(`✅ Escuchando en TODAS las interfaces: 0.0.0.0:${port}`);
+  console.log(`🔥 Puerto configurado: ${port} (desde ENV: ${process.env.PORT})`);
+  console.log(`🌐 Accesible desde: http://automate_uwia_qa:${port}/api`);
+  console.log('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+  console.log(`🚀 UWIA - Underwriting IA iniciado en: http://0.0.0.0:${port}/api`);
+  console.log(`📋 Health check: http://0.0.0.0:${port}/api/health`);
+  console.log(`🔍 Evaluate claim: POST http://0.0.0.0:${port}/api/underwriting/evaluate-claim`);
+  console.log('🔧 Build version: 09-05-25-NETWORK-FIX (Docker ports dynamic)');
 }
 
 bootstrap();
