@@ -53,7 +53,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const port = parseInt(process.env.PORT) || 5011; // Puerto por defecto 5011 para uwia
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0'); // Escuchar en todas las interfaces para permitir conexiones desde otros contenedores
   
   console.log(`🚀 UWIA - Underwriting IA iniciado en: http://localhost:${port}/api`);
   console.log(`📋 Health check: http://localhost:${port}/api/health`);
