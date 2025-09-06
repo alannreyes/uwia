@@ -403,6 +403,16 @@ export class UnderwritingService {
         }));
       }
 
+      // Determinar estrategia de procesamiento según documento
+      const shouldUseChunking = this.shouldUseChunkingStrategy(documentName, documentPrompt.expectedFieldsCount);
+      
+      if (shouldUseChunking) {
+        this.logger.log(`🧩 Using CHUNKING strategy for ${documentName} (${documentPrompt.expectedFieldsCount} fields)`);
+        return await this.processWithChunking(recordId, documentName, documentPrompt, pdfContent, variables, isExtremeLargeFile);
+      }
+
+      this.logger.log(`📦 Using CONSOLIDATED strategy for ${documentName} (${documentPrompt.expectedFieldsCount} fields)`);
+
       // Preparar documento para análisis
       const documentNeeds = { needsVisual: true, needsText: true };
       
@@ -618,6 +628,298 @@ export class UnderwritingService {
     }
     
     return result.slice(0, fieldNames.length); // Truncar si hay más de los esperados
+  }
+
+  /**
+   * Determina si usar chunking o consolidado basado en el documento y complejidad
+   */
+  private shouldUseChunkingStrategy(documentName: string, fieldCount: number): boolean {
+    const docType = documentName.toUpperCase().replace('.pdf', '');
+    
+    // Documentos simples siempre consolidado
+    const simpleDocuments = ['WEATHER', 'MOLD', 'ESTIMATE', 'CERTIFICATE'];
+    if (simpleDocuments.includes(docType) && fieldCount <= 3) {
+      return false; // Usar consolidado
+    }
+    
+    // Documentos complejos usar chunking
+    const complexDocuments = ['LOP', 'POLICY'];
+    if (complexDocuments.includes(docType) && fieldCount > 5) {
+      return true; // Usar chunking
+    }
+    
+    // Para ROOF, depende de la cantidad de campos
+    if (docType === 'ROOF' && fieldCount > 3) {
+      return true;
+    }
+    
+    // Regla general: más de 4 campos con análisis visual = chunking
+    return fieldCount > 4;
+  }
+
+  /**
+   * Procesa documentos complejos dividiéndolos en chunks lógicos
+   */
+  private async processWithChunking(
+    recordId: string,
+    documentName: string,
+    documentPrompt: ConsolidatedPrompt,
+    pdfContent: string,
+    variables: Record<string, string>,
+    isExtremeLargeFile: boolean
+  ): Promise<any[]> {
+    const results: any[] = [];
+    const processStartTime = Date.now();
+    
+    try {
+      // Crear chunks lógicos de campos
+      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames);
+      this.logger.log(`🧩 Created ${chunks.length} logical chunks for ${documentName}`);
+      
+      // Preparar documento una vez
+      const documentNeeds = { needsVisual: true, needsText: true };
+      const truncationLimit = documentName.toUpperCase().includes('LOP') || 
+                              documentName.toUpperCase().includes('ROOF') ? 100 : 50;
+      
+      const preparedDocument = isExtremeLargeFile 
+        ? await this.prepareDocumentWithTruncation(pdfContent, documentNeeds, truncationLimit)
+        : await this.prepareDocument(pdfContent, documentNeeds, documentName);
+      
+      // Procesar cada chunk
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        this.logger.log(`🔍 Processing chunk ${i + 1}/${chunks.length}: ${chunk.description} (${chunk.fields.length} fields)`);
+        
+        const chunkResults = await this.processChunk(
+          recordId,
+          documentName,
+          chunk,
+          preparedDocument,
+          variables,
+          processStartTime
+        );
+        
+        results.push(...chunkResults);
+      }
+      
+      return results;
+      
+    } catch (error) {
+      this.logger.error(`Error in chunking strategy for ${documentName}: ${error.message}`);
+      // Fallback a NOT_FOUND para todos los campos
+      return documentPrompt.fieldNames.map(fieldName => ({
+        pmc_field: fieldName,
+        question: 'Processing error during chunking',
+        answer: 'NOT_FOUND',
+        confidence: 0,
+        processing_time_ms: Date.now() - processStartTime,
+        error: error.message
+      }));
+    }
+  }
+
+  /**
+   * Crea chunks lógicos basados en el tipo de documento
+   */
+  private createLogicalChunks(documentName: string, fieldNames: string[]): Array<{description: string, fields: string[], prompt: string}> {
+    const docType = documentName.toUpperCase().replace('.pdf', '');
+    
+    if (docType === 'LOP') {
+      return [
+        {
+          description: 'Signatures and dates',
+          fields: fieldNames.filter(f => f.includes('lop_date') || f.includes('signed') || f.includes('mechanics_lien')),
+          prompt: 'Analyze signatures, dates near signatures, and any lien-related language in this document. Look for handwritten signatures, dates near signature lines, and any mentions of liens or mechanics liens.'
+        },
+        {
+          description: 'Address information',
+          fields: fieldNames.filter(f => f.includes('onb_street') || f.includes('onb_zip') || f.includes('onb_city') || f.includes('state')),
+          prompt: 'Extract address information from this document including street address, city, state, and ZIP code associated with the homeowner or client.'
+        },
+        {
+          description: 'Policy and claim data',
+          fields: fieldNames.filter(f => f.includes('policy_number') || f.includes('claim_number') || f.includes('date_of_loss')),
+          prompt: 'Find insurance policy numbers, claim numbers, and date of loss information in this document.'
+        },
+        {
+          description: 'Comparison validations',
+          fields: fieldNames.filter(f => f.includes('_match')),
+          prompt: 'Compare the extracted information with the reference data provided and validate matches for addresses, dates, policy numbers, and claim numbers.'
+        }
+      ].filter(chunk => chunk.fields.length > 0);
+    }
+    
+    if (docType === 'POLICY') {
+      return [
+        {
+          description: 'Policy dates and coverage period',
+          fields: fieldNames.filter(f => f.includes('valid_from') || f.includes('valid_to') || f.includes('coverage_check')),
+          prompt: 'Find the policy effective date, expiration date, and verify coverage period in this insurance policy document.'
+        },
+        {
+          description: 'Insured information and company matching',
+          fields: fieldNames.filter(f => f.includes('matching_insured') || f.includes('matching_company')),
+          prompt: 'Extract the insured name and insurance company name from this policy and compare with reference information.'
+        },
+        {
+          description: 'Coverage and exclusions analysis',
+          fields: fieldNames.filter(f => f.includes('covers_type_job') || f.includes('exclusion') || f.includes('covers_dol') || f.includes('wind')),
+          prompt: 'Analyze policy coverage for the specified job type, identify wind-related exclusions, and determine coverage for the date of loss.'
+        }
+      ].filter(chunk => chunk.fields.length > 0);
+    }
+    
+    // Default chunking para otros documentos
+    const chunkSize = 4;
+    const chunks = [];
+    for (let i = 0; i < fieldNames.length; i += chunkSize) {
+      chunks.push({
+        description: `Fields ${i + 1}-${Math.min(i + chunkSize, fieldNames.length)}`,
+        fields: fieldNames.slice(i, i + chunkSize),
+        prompt: `Extract the following information from this ${documentName} document.`
+      });
+    }
+    
+    return chunks;
+  }
+
+  /**
+   * Procesa un chunk específico de campos
+   */
+  private async processChunk(
+    recordId: string,
+    documentName: string,
+    chunk: {description: string, fields: string[], prompt: string},
+    preparedDocument: any,
+    variables: Record<string, string>,
+    processStartTime: number
+  ): Promise<any[]> {
+    try {
+      // Reemplazar variables en el prompt del chunk
+      let processedPrompt = chunk.prompt;
+      Object.entries(variables).forEach(([key, value]) => {
+        const placeholder = `%${key}%`;
+        const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        processedPrompt = processedPrompt.replace(new RegExp(escapedPlaceholder, 'g'), value);
+      });
+
+      // Agregar instrucciones específicas para los campos del chunk
+      const fieldInstructions = chunk.fields.map(field => `- ${field}: Extract relevant information`).join('\n');
+      const fullPrompt = `${processedPrompt}\n\nExtract the following fields:\n${fieldInstructions}\n\nReturn exactly ${chunk.fields.length} values separated by semicolons in the order listed above. Use NOT_FOUND for any field where information cannot be found.`;
+
+      // Calcular tamaño del archivo para estrategia
+      const fileSizeEstimate = 1; // Simplificado para chunks
+
+      // Determinar estrategia de procesamiento
+      const strategy = await this.adaptiveStrategy.determineStrategy(
+        'chunk_prompt',
+        fullPrompt,
+        ResponseType.TEXT,
+        preparedDocument.images && preparedDocument.images.size > 0
+      );
+
+      // FORZAR análisis visual para documentos críticos
+      const forceVisualDocuments = ['LOP', 'ROOF', 'CERTIFICATE', 'POLICY'];
+      const shouldForceVisual = forceVisualDocuments.some(doc => 
+        documentName.toUpperCase().includes(doc)
+      );
+
+      let useVisualAnalysis = strategy.useVisualAnalysis || shouldForceVisual;
+
+      this.logger.log(`🎯 Chunk strategy for ${chunk.description}: Visual=${useVisualAnalysis}`);
+
+      let aiResponse: any;
+      if (useVisualAnalysis && preparedDocument.images && preparedDocument.images.size > 0) {
+        // Usar análisis visual para el chunk
+        this.logger.log(`🔍 Using VISUAL ANALYSIS for chunk: ${chunk.description}`);
+        
+        const analysisResult = await this.largePdfVision.processLargePdfWithVision(
+          [{
+            pmc_field: `chunk_${chunk.description}`,
+            question: fullPrompt,
+            expected_type: ResponseType.TEXT
+          }],
+          Array.from(preparedDocument.images.values()).map(img => Buffer.from(img as string, 'base64')),
+          preparedDocument.text || '',
+          fileSizeEstimate
+        );
+        
+        if (analysisResult && analysisResult.length > 0 && analysisResult[0]?.answer) {
+          aiResponse = { response: analysisResult[0].answer };
+          this.logger.log(`✅ Visual chunk analysis: "${analysisResult[0].answer.substring(0, 100)}..."`);
+        } else {
+          this.logger.warn(`⚠️ No response from visual analysis for chunk: ${chunk.description}`);
+          aiResponse = { response: chunk.fields.map(() => 'NOT_FOUND').join(';') };
+        }
+      } else {
+        // Usar análisis de texto para el chunk
+        this.logger.log(`📝 Using TEXT ANALYSIS for chunk: ${chunk.description}`);
+        
+        const textPrompt = `${fullPrompt}\n\nDocument content:\n${preparedDocument.text || 'No text extracted'}`;
+        const openAiResult = await this.openAiService.evaluateWithValidation(
+          preparedDocument.text || '',
+          fullPrompt,
+          ResponseType.TEXT,
+          undefined,
+          `chunk_${chunk.description}`
+        );
+        aiResponse = { response: openAiResult.response };
+      }
+
+      // Parsear respuesta del chunk
+      const responseText = aiResponse.response || '';
+      const fieldValues = this.parseConsolidatedResponse(responseText, chunk.fields);
+      
+      this.logger.log(`📋 Chunk results for ${chunk.description}: ${fieldValues.filter(v => v !== 'NOT_FOUND').length}/${chunk.fields.length} found`);
+
+      // Crear resultados para cada campo del chunk
+      const processingTime = Date.now() - processStartTime;
+      const chunkResults = [];
+      
+      for (let i = 0; i < chunk.fields.length; i++) {
+        const fieldName = chunk.fields[i];
+        const fieldValue = fieldValues[i] || 'NOT_FOUND';
+        
+        chunkResults.push({
+          pmc_field: fieldName,
+          question: fullPrompt,
+          answer: fieldValue,
+          confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
+          processing_time_ms: processingTime,
+          error: null
+        });
+
+        // Guardar evaluación en BD
+        try {
+          await this.claimEvaluationRepository.save({
+            recordId,
+            prompt: { pmc_field: fieldName } as any,
+            answer: fieldValue,
+            confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
+            responseType: ResponseType.TEXT,
+            processingTimeMs: processingTime,
+          });
+        } catch (saveError) {
+          this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
+        }
+      }
+
+      return chunkResults;
+
+    } catch (error) {
+      this.logger.error(`Error processing chunk ${chunk.description}: ${error.message}`);
+      
+      // Devolver errores para todos los campos del chunk
+      const processingTime = Date.now() - processStartTime;
+      return chunk.fields.map(fieldName => ({
+        pmc_field: fieldName,
+        question: chunk.prompt,
+        answer: 'NOT_FOUND',
+        confidence: 0,
+        processing_time_ms: processingTime,
+        error: error.message
+      }));
+    }
   }
 
   // Stub methods for controller compatibility
