@@ -290,6 +290,12 @@ Provide your response in JSON format:
         const parsed = JSON.parse(jsonMatch[0]);
         let response = parsed.response || parsed.answer || text;
         
+        // FIXED: Ensure response is always a string, not an object
+        if (typeof response === 'object') {
+          response = JSON.stringify(response);
+          this.logger.warn(`⚠️ Gemini returned object response, converting to JSON string: ${response}`);
+        }
+        
         // FIXED: Limpiar fechas al formato MM-DD-YY si es tipo DATE
         if (expectedType === ResponseType.DATE) {
           response = this.cleanDateResponse(response);
