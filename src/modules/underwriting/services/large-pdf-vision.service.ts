@@ -270,7 +270,7 @@ export class LargePdfVisionService {
 
       return {
         pmc_field: field.pmc_field,
-        answer: result.response,
+        answer: result.answer,
         confidence: result.confidence,
         processing_time_ms: processingTime,
         pages_analyzed: targetPages,
