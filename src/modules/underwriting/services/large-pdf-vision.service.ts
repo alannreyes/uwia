@@ -392,6 +392,14 @@ export class LargePdfVisionService {
         );
 
         this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'GPT-4o', gptResult.response);
+        
+        // DIAGNOSTIC: Log GPT result structure
+        this.logger.log(`🔍 DIAGNOSTIC [${field.pmc_field}] GPT Result: ${JSON.stringify({
+          response: gptResult.response,
+          confidence: gptResult.confidence,
+          hasResponse: !!gptResult.response,
+          responseType: typeof gptResult.response
+        })}`);
 
         const geminiResult = await this.geminiService.analyzeWithVision(
           imageBase64,
@@ -402,6 +410,18 @@ export class LargePdfVisionService {
         );
 
         this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'Gemini', typeof geminiResult.response === 'string' ? geminiResult.response : JSON.stringify(geminiResult.response || geminiResult));
+        
+        // DIAGNOSTIC: Log Gemini result structure  
+        this.logger.log(`🔍 DIAGNOSTIC [${field.pmc_field}] Gemini Result: ${JSON.stringify({
+          response: geminiResult.response,
+          confidence: geminiResult.confidence,
+          hasResponse: !!geminiResult.response,
+          responseType: typeof geminiResult.response,
+          fullObject: geminiResult
+        })}`);
+        
+        // DIAGNOSTIC: Log dual vision decision making
+        this.logger.log(`🔍 DIAGNOSTIC [${field.pmc_field}] Decision making: GPT="${gptResult.response}" (${gptResult.confidence}) vs Gemini="${geminiResult.response}" (${geminiResult.confidence})`);
 
         // Para campos de firma booleanos, early exit en YES con buena confianza
         if (isSignatureField && field.expected_type === ResponseType.BOOLEAN) {
