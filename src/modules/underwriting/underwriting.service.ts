@@ -411,11 +411,16 @@ export class UnderwritingService {
         this.logger.log(`🔍 Using VISUAL ANALYSIS for ${documentName} with ${preparedDocument.images.size} pages`);
         
         const buffer = Buffer.from(pdfContent, 'base64');
-        // Using processLargePdfWithVision for visual analysis
+        
+        // FIXED: Use consolidated prompt approach - single call that returns semicolon-separated answers
+        // The consolidated prompt is designed to answer all fields at once
+        this.logger.log(`🔍 Processing consolidated visual analysis with ${documentPrompt.fieldNames.length} expected fields`);
+        
+        // Using processLargePdfWithVision for visual analysis with consolidated prompt
         const analysisResult = await this.largePdfVision.processLargePdfWithVision(
           [{
-            pmc_field: documentPrompt.pmcField,
-            question: processedPrompt,
+            pmc_field: documentPrompt.pmcField, // Use the actual pmc_field from the consolidated prompt
+            question: processedPrompt, // This should contain the consolidated prompt
             expected_type: ResponseType.TEXT
           }],
           Array.from(preparedDocument.images.values()).map(img => Buffer.from(img, 'base64')),
@@ -423,13 +428,27 @@ export class UnderwritingService {
           fileSizeEstimate
         );
         
+        // DEBUG: Log what we actually received
+        this.logger.log(`🔍 Visual analysis result structure:`);
+        this.logger.log(`   - Type: ${typeof analysisResult}`);
+        this.logger.log(`   - Is Array: ${Array.isArray(analysisResult)}`);
+        this.logger.log(`   - Length: ${analysisResult?.length}`);
         if (analysisResult && analysisResult.length > 0) {
-          // Combine all answers with semicolons
-          const answers = documentPrompt.fieldNames.map((field, index) => {
-            return analysisResult[index]?.answer || 'NOT_FOUND';
-          });
-          aiResponse = { response: answers.join(';') };
+          this.logger.log(`   - First element type: ${typeof analysisResult[0]}`);
+          this.logger.log(`   - First element keys: ${Object.keys(analysisResult[0] || {}).join(', ')}`);
+          this.logger.log(`   - First element.answer: "${analysisResult[0]?.answer}"`);
+          this.logger.log(`   - First element.confidence: ${analysisResult[0]?.confidence}`);
+        }
+        
+        if (analysisResult && analysisResult.length > 0 && analysisResult[0]?.answer) {
+          // The visual analysis should return a semicolon-separated response
+          const consolidatedAnswer = analysisResult[0].answer;
+          this.logger.log(`🎯 Visual analysis raw response: "${consolidatedAnswer}"`);
+          
+          aiResponse = { response: consolidatedAnswer };
         } else {
+          this.logger.warn(`⚠️ No response from visual analysis, using fallback`);
+          this.logger.warn(`   Reason: analysisResult=${!!analysisResult}, length=${analysisResult?.length}, answer=${analysisResult?.[0]?.answer}`);
           aiResponse = { response: documentPrompt.fieldNames.map(() => 'NOT_FOUND').join(';') };
         }
         
