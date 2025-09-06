@@ -252,8 +252,9 @@ export class UnderwritingService {
       
       try {
         await queryRunner.connect();
+        // Use proper parameter syntax for MySQL (? instead of $1)
         const result = await queryRunner.query(
-          `SELECT * FROM document_consolidado WHERE document_name = $1 AND active = true LIMIT 1`,
+          `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`,
           [documentName]
         );
         
