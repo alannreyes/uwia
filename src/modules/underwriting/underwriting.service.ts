@@ -673,7 +673,8 @@ export class UnderwritingService {
     
     try {
       // Crear chunks lógicos de campos
-      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames);
+      // FIXED: Pass the original consolidated prompt to use real prompts from database
+      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames, documentPrompt.consolidatedPrompt);
       this.logger.log(`🧩 Created ${chunks.length} logical chunks for ${documentName}`);
       
       // Preparar documento una vez
@@ -721,7 +722,7 @@ export class UnderwritingService {
   /**
    * Crea chunks lógicos basados en el tipo de documento
    */
-  private createLogicalChunks(documentName: string, fieldNames: string[]): Array<{description: string, fields: string[], prompt: string}> {
+  private createLogicalChunks(documentName: string, fieldNames: string[], consolidatedPrompt?: string): Array<{description: string, fields: string[], prompt: string}> {
     const docType = documentName.toUpperCase().replace('.pdf', '');
     
     if (docType === 'LOP') {
@@ -729,7 +730,11 @@ export class UnderwritingService {
         {
           description: 'Signatures and dates',
           fields: fieldNames.filter(f => f.includes('lop_date') || f.includes('signed') || f.includes('mechanics_lien')),
-          prompt: 'Find signature dates in this Letter of Protection document. Look specifically for: 1) Handwritten dates next to signature lines, 2) Dates in MM-DD-YY format near signatures, 3) Any date when this document was signed by the homeowner or patient. Return dates in MM-DD-YY format. For lien information, look for any text about mechanics liens, liens, or lien waivers.'
+          // FIXED: Use the ACTUAL consolidated prompt from database for better accuracy
+          // The consolidated prompt contains the specific instructions for each field
+          prompt: consolidatedPrompt && consolidatedPrompt.length > 100 ? 
+                  consolidatedPrompt.substring(0, 800) : // Use first part of consolidated prompt
+                  'Find signature dates in this Letter of Protection document. Look specifically for: 1) Handwritten dates next to signature lines, 2) Dates in MM-DD-YY format near signatures, 3) Any date when this document was signed by the homeowner or patient. Return dates in MM-DD-YY format. For lien information, look for any text about mechanics liens, liens, or lien waivers.'
         },
         {
           description: 'Address information',
@@ -803,9 +808,8 @@ export class UnderwritingService {
         processedPrompt = processedPrompt.replace(new RegExp(escapedPlaceholder, 'g'), value);
       });
 
-      // Agregar instrucciones específicas para los campos del chunk
-      const fieldInstructions = chunk.fields.map(field => `- ${field}: Extract relevant information`).join('\n');
-      const fullPrompt = `${processedPrompt}\n\nExtract the following fields:\n${fieldInstructions}\n\nReturn exactly ${chunk.fields.length} values separated by semicolons in the order listed above. Use NOT_FOUND for any field where information cannot be found.`;
+      // FIXED: Build a meaningful prompt that combines chunk instructions with field requirements
+      const fullPrompt = `${processedPrompt}\n\nSpecifically extract:\n${chunk.fields.map(field => `- ${field}`).join('\n')}\n\nReturn exactly ${chunk.fields.length} values separated by semicolons in the order listed above. Use NOT_FOUND for any field where information cannot be found.`;
 
       // Calcular tamaño del archivo para estrategia
       const fileSizeEstimate = 1; // Simplificado para chunks
