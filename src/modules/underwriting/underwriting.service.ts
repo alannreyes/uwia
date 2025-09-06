@@ -253,9 +253,22 @@ export class UnderwritingService {
       try {
         await queryRunner.connect();
         
+        // DEBUG: First, let's see ALL available documents in the table
+        const allDocsQuery = `SELECT id, document_name, active, expected_fields_count FROM document_consolidado ORDER BY document_name`;
+        const allDocs = await queryRunner.query(allDocsQuery);
+        
+        this.logger.log(`📋 ALL DOCUMENTS in document_consolidado table (${allDocs?.length || 0} total):`);
+        if (allDocs && allDocs.length > 0) {
+          allDocs.forEach((doc, index) => {
+            this.logger.log(`   ${index + 1}. ID:${doc.id} | ${doc.document_name} | Active:${doc.active} | Fields:${doc.expected_fields_count}`);
+          });
+        } else {
+          this.logger.error(`❌ NO DOCUMENTS FOUND IN document_consolidado TABLE!`);
+        }
+        
         // DEBUG: Log the query being executed
         const query = `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
-        this.logger.log(`🔍 Executing consolidated prompt query for: ${documentName}`);
+        this.logger.log(`🔍 Now searching for specific document: "${documentName}"`);
         this.logger.log(`   SQL: ${query}`);
         this.logger.log(`   Parameters: [${documentName}]`);
         
@@ -275,6 +288,26 @@ export class UnderwritingService {
         }
         
         if (!result || result.length === 0) {
+          // DEBUG: Try different variations to see if it's a string matching issue
+          this.logger.warn(`⚠️ Document "${documentName}" not found. Testing variations:`);
+          
+          // Test case variations
+          const variations = [
+            documentName.toLowerCase(),
+            documentName.toUpperCase(),
+            documentName.trim(),
+            documentName + '.pdf',
+            documentName.replace('.pdf', ''),
+          ];
+          
+          for (const variation of variations) {
+            if (variation !== documentName) {
+              const testQuery = `SELECT document_name FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+              const testResult = await queryRunner.query(testQuery, [variation]);
+              this.logger.log(`   Testing "${variation}": ${testResult?.length > 0 ? 'FOUND' : 'NOT FOUND'}`);
+            }
+          }
+          
           this.logger.warn(`⚠️ No consolidated prompt configured for document: ${documentName} - returning SKIPPED result`);
           return [{
             pmc_field: 'document_not_configured',
