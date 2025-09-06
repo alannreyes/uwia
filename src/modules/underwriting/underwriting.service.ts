@@ -547,6 +547,45 @@ export class UnderwritingService {
     return result.slice(0, fieldNames.length); // Truncar si hay más de los esperados
   }
 
+  // Stub methods for controller compatibility
+  async getDocumentPrompts(documentName?: string) {
+    this.logger.warn('getDocumentPrompts called but not implemented for consolidated version');
+    return [];
+  }
+
+  async getClaimHistory(claimReference: string) {
+    this.logger.warn('getClaimHistory called but not implemented for consolidated version');
+    return [];
+  }
+
+  async evaluateClaimBatch(dto: EvaluateClaimRequestDto, documents: any[]): Promise<EvaluateClaimResponseDto> {
+    this.logger.warn('evaluateClaimBatch called but not implemented for consolidated version');
+    // For now, just process the first document
+    if (documents && documents.length > 0) {
+      const firstDoc = documents[0];
+      const modifiedDto = {
+        ...dto,
+        document_name: firstDoc.document_name,
+        file_data: firstDoc.file_data
+      };
+      return this.evaluateClaim(modifiedDto);
+    }
+    
+    return {
+      record_id: dto.record_id,
+      status: 'error' as const,
+      results: {},
+      summary: {
+        total_documents: 0,
+        processed_documents: 0,
+        total_fields: 0,
+        answered_fields: 0,
+      },
+      errors: ['No documents provided'],
+      processed_at: new Date(),
+    };
+  }
+
   /**
    * Función centralizada para obtener el mapeo de variables consistente
    */
