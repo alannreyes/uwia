@@ -729,17 +729,17 @@ export class UnderwritingService {
         {
           description: 'Signatures and dates',
           fields: fieldNames.filter(f => f.includes('lop_date') || f.includes('signed') || f.includes('mechanics_lien')),
-          prompt: 'Analyze signatures, dates near signatures, and any lien-related language in this document. Look for handwritten signatures, dates near signature lines, and any mentions of liens or mechanics liens.'
+          prompt: 'Find signature dates in this Letter of Protection document. Look specifically for: 1) Handwritten dates next to signature lines, 2) Dates in MM-DD-YY format near signatures, 3) Any date when this document was signed by the homeowner or patient. Return dates in MM-DD-YY format. For lien information, look for any text about mechanics liens, liens, or lien waivers.'
         },
         {
           description: 'Address information',
           fields: fieldNames.filter(f => f.includes('onb_street') || f.includes('onb_zip') || f.includes('onb_city') || f.includes('state')),
-          prompt: 'Extract address information from this document including street address, city, state, and ZIP code associated with the homeowner or client.'
+          prompt: 'Extract complete address details from this Letter of Protection. Find: 1) Full street address including house number and street name, 2) City name, 3) State abbreviation (like TX, CA, etc.), 4) ZIP code (5 digits). Look in patient/homeowner information sections, billing addresses, or contact information areas.'
         },
         {
           description: 'Policy and claim data',
           fields: fieldNames.filter(f => f.includes('policy_number') || f.includes('claim_number') || f.includes('date_of_loss')),
-          prompt: 'Find insurance policy numbers, claim numbers, and date of loss information in this document.'
+          prompt: 'Locate insurance-related information in this Letter of Protection: 1) Policy numbers (alphanumeric codes like ABC123456), 2) Claim numbers (reference numbers for insurance claims), 3) Date of loss (when the incident/damage occurred) in MM-DD-YY format. Look for sections mentioning insurance, coverage, or claim details.'
         },
         {
           description: 'Comparison validations',
@@ -754,17 +754,17 @@ export class UnderwritingService {
         {
           description: 'Policy dates and coverage period',
           fields: fieldNames.filter(f => f.includes('valid_from') || f.includes('valid_to') || f.includes('coverage_check')),
-          prompt: 'Find the policy effective date, expiration date, and verify coverage period in this insurance policy document.'
+          prompt: 'Find policy dates in this insurance document: 1) Policy effective date (valid_from) in MM-DD-YY format, 2) Policy expiration date (valid_to) in MM-DD-YY format, 3) Verify if coverage is active for the specified date of loss. Look for "Policy Period", "Coverage Period", or "Effective Date" sections.'
         },
         {
           description: 'Insured information and company matching',
           fields: fieldNames.filter(f => f.includes('matching_insured') || f.includes('matching_company')),
-          prompt: 'Extract the insured name and insurance company name from this policy and compare with reference information.'
+          prompt: 'Extract names from this insurance policy: 1) Find the insured person/entity name (policy holder), 2) Find the insurance company name (carrier/issuer), 3) Compare these names with provided reference information and indicate YES/NO matches. Look in policy declarations, headers, or named insured sections.'
         },
         {
           description: 'Coverage and exclusions analysis',
           fields: fieldNames.filter(f => f.includes('covers_type_job') || f.includes('exclusion') || f.includes('covers_dol') || f.includes('wind')),
-          prompt: 'Analyze policy coverage for the specified job type, identify wind-related exclusions, and determine coverage for the date of loss.'
+          prompt: 'Analyze policy coverage and exclusions: 1) Check if the policy covers the specific type of job/work being performed, 2) Look for wind-related exclusions or limitations, 3) Verify if coverage applies to the date of loss, 4) Return YES/NO for coverage questions. Look in coverage sections, exclusions, and policy conditions.'
         }
       ].filter(chunk => chunk.fields.length > 0);
     }
