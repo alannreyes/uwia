@@ -401,7 +401,7 @@ export class LargePdfVisionService {
           pageNumber
         );
 
-        this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'Gemini', geminiResult.response);
+        this.prodLogger.visionApiLog('large_pdf', field.pmc_field, pageNumber, 'Gemini', typeof geminiResult.response === 'string' ? geminiResult.response : JSON.stringify(geminiResult.response || geminiResult));
 
         // Para campos de firma booleanos, early exit en YES con buena confianza
         if (isSignatureField && field.expected_type === ResponseType.BOOLEAN) {
