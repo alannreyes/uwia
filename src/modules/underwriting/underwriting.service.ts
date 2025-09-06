@@ -252,11 +252,27 @@ export class UnderwritingService {
       
       try {
         await queryRunner.connect();
+        
+        // DEBUG: Log the query being executed
+        const query = `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+        this.logger.log(`🔍 Executing consolidated prompt query for: ${documentName}`);
+        this.logger.log(`   SQL: ${query}`);
+        this.logger.log(`   Parameters: [${documentName}]`);
+        
         // Use proper parameter syntax for MySQL (? instead of $1)
-        const result = await queryRunner.query(
-          `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`,
-          [documentName]
-        );
+        const result = await queryRunner.query(query, [documentName]);
+        
+        // DEBUG: Log query result
+        this.logger.log(`📊 Query result for ${documentName}:`);
+        this.logger.log(`   - Found records: ${result?.length || 0}`);
+        if (result && result.length > 0) {
+          this.logger.log(`   - Record ID: ${result[0]?.id}`);
+          this.logger.log(`   - Document name: ${result[0]?.document_name}`);
+          this.logger.log(`   - Has consolidated_prompt: ${!!result[0]?.consolidated_prompt}`);
+          this.logger.log(`   - Field names: ${result[0]?.field_names}`);
+          this.logger.log(`   - Expected fields count: ${result[0]?.expected_fields_count}`);
+          this.logger.log(`   - Active: ${result[0]?.active}`);
+        }
         
         if (!result || result.length === 0) {
           this.logger.warn(`⚠️ No consolidated prompt configured for document: ${documentName} - returning SKIPPED result`);
@@ -289,7 +305,11 @@ export class UnderwritingService {
         };
 
         // Process with consolidated prompt
-        this.logger.log(`📋 Processing ${documentName} with consolidated prompt (${documentPrompt.expectedFieldsCount} expected fields)`);
+        this.logger.log(`📋 Processing ${documentName} with consolidated prompt:`);
+        this.logger.log(`   - Expected fields: ${documentPrompt.expectedFieldsCount}`);
+        this.logger.log(`   - Field names: [${documentPrompt.fieldNames.join(', ')}]`);
+        this.logger.log(`   - Consolidated prompt length: ${documentPrompt.consolidatedPrompt?.length || 0} chars`);
+        this.logger.log(`   - First 200 chars of prompt: ${documentPrompt.consolidatedPrompt?.substring(0, 200) || 'NO PROMPT'}`);
         
         // TRUNCATION STRATEGY para archivos extremos
         if (isExtremeLargeFile) {
