@@ -156,8 +156,11 @@ Content-Type: application/json
 }
 ```
 
-## 📊 Respuesta del Sistema
+## 📊 Respuesta del Sistema (Formato Consolidado)
 
+**IMPORTANTE**: El sistema ahora devuelve **respuestas consolidadas** - un documento genera una sola respuesta con valores separados por semicolons.
+
+### Ejemplo LOP.pdf (18 campos consolidados):
 ```json
 {
   "record_id": "175568",
@@ -165,11 +168,11 @@ Content-Type: application/json
   "results": {
     "LOP.pdf": [
       {
-        "pmc_field": "mechanics_lien",
-        "question": "...",
-        "answer": "NO",
-        "confidence": 0.8,
-        "processing_time_ms": 57810,
+        "pmc_field": "lop_responses",
+        "question": "Analyze this document and extract the following information in order: determine if there is any language related to liens...",
+        "answer": "NO;NOT_FOUND;YES;YES;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NO;NO;NO;NO;NO;NO;NO",
+        "confidence": 1.0,
+        "processing_time_ms": 104590,
         "error": null
       }
     ]
@@ -178,10 +181,82 @@ Content-Type: application/json
     "total_documents": 1,
     "processed_documents": 1,
     "total_fields": 18,
-    "answered_fields": 18
+    "answered_fields": 15
   }
 }
 ```
+
+### Ejemplo POLICY.pdf (9 campos consolidados):
+```json
+{
+  "record_id": "175568",
+  "status": "success",
+  "results": {
+    "POLICY.pdf": [
+      {
+        "pmc_field": "policy_responses",
+        "question": "Extract the following 9 data points from this insurance policy document...",
+        "answer": "08-12-24;08-12-25;YES;YES;YES;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND",
+        "confidence": 0.8,
+        "processing_time_ms": 34385,
+        "error": null
+      }
+    ]
+  }
+}
+```
+
+### Ejemplo WEATHER.pdf (2 campos consolidados):
+```json
+{
+  "record_id": "175568",
+  "status": "success", 
+  "results": {
+    "WEATHER.pdf": [
+      {
+        "pmc_field": "weather_responses",
+        "question": "Analyze this weather document and extract the following information in order...",
+        "answer": "NOT_FOUND;43",
+        "confidence": 0.8,
+        "processing_time_ms": 21739,
+        "error": null
+      }
+    ]
+  }
+}
+```
+
+### 🔑 **Decodificación de Respuestas Consolidadas**
+
+Cada respuesta consolidada contiene valores separados por semicolons (`;`) que corresponden a los `field_names` configurados en `document_consolidado`:
+
+#### LOP.pdf - 18 campos:
+```
+"NO;NOT_FOUND;YES;YES;..." corresponde a:
+1. mechanics_lien = "NO"
+2. lop_date1 = "NOT_FOUND"  
+3. lop_signed_by_client1 = "YES"
+4. lop_signed_by_ho1 = "YES"
+... (14 campos más)
+```
+
+#### POLICY.pdf - 9 campos:
+```
+"08-12-24;08-12-25;YES;YES;..." corresponde a:
+1. policy_valid_from1 = "08-12-24"
+2. policy_valid_to1 = "08-12-25"
+3. matching_insured_name = "YES"
+4. matching_insured_company = "YES"
+... (5 campos más)
+```
+
+### 📈 **Beneficios del Formato Consolidado**
+
+- ✅ **Performance**: Un documento = una respuesta API
+- ✅ **Escalabilidad**: Menos overhead de red y base de datos
+- ✅ **Simplicidad**: Lógica de procesamiento unificada
+- ✅ **Consistencia**: Formato estandardizado para todos los documentos
+- ✅ **Mantenibilidad**: Easier to debug and monitor
 
 ## 🔧 Rate Limiting
 

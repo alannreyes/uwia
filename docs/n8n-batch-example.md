@@ -2,7 +2,7 @@
 
 ## Endpoint
 ```
-POST http://automate_uwia:5015/api/underwriting/evaluate-claim-batch
+POST http://automate_uwia:5035/api/underwriting/evaluate-claim-batch
 ```
 
 ## Headers
