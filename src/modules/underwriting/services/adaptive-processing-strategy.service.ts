@@ -157,7 +157,7 @@ Respond in JSON format:
             async () => {
               // Intentar con max_tokens primero (podría funcionar)
               return await openai.chat.completions.create({
-                model: 'gpt-5',
+                model: 'gpt-4o',
                 messages: [
                   {
                     role: 'system',
@@ -168,7 +168,7 @@ Respond in JSON format:
                     content: analysisPrompt
                   }
                 ],
-                max_completion_tokens: 300, // CORRECTO para GPT-5
+                max_tokens: 300, // CORRECTO para GPT-4o
                 response_format: { type: "json_object" }
               });
             },
@@ -180,10 +180,10 @@ Respond in JSON format:
           const rawResponse = completion.choices[0].message.content?.trim() || '';
           
           if (!rawResponse) {
-            throw new Error(`GPT-5 returned empty response on attempt ${attempt}`);
+            throw new Error(`GPT-4o returned empty response on attempt ${attempt}`);
           }
           
-          this.logger.debug(`🔍 GPT-5 strategy response attempt ${attempt} (${rawResponse.length} chars): ${rawResponse.substring(0, 200)}...`);
+          this.logger.debug(`🔍 GPT-4o strategy response attempt ${attempt} (${rawResponse.length} chars): ${rawResponse.substring(0, 200)}...`);
           
           let strategy;
           try {
@@ -207,8 +207,8 @@ Respond in JSON format:
           const result: ProcessingStrategy = {
             useVisualAnalysis: strategy.use_visual && documentHasImages,
             useDualValidation: strategy.use_dual_validation,
-            primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-5',
-            validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-5') : undefined,
+            primaryModel: strategy.primary_model || process.env.OPENAI_MODEL || 'gpt-4o',
+            validationModel: strategy.use_dual_validation ? (strategy.validation_model || 'gpt-4o') : undefined,
             confidenceThreshold: strategy.confidence_threshold || 0.85,
             reasoning: strategy.reasoning || 'AI-determined strategy'
           };
@@ -244,7 +244,7 @@ Respond in JSON format:
         return {
           useVisualAnalysis: true,
           useDualValidation: false, // Reducir carga
-          primaryModel: 'gpt-5',
+          primaryModel: 'gpt-4o',
           confidenceThreshold: 0.70,
           reasoning: 'Rate limit fallback - visual analysis for signatures'
         };
@@ -338,13 +338,13 @@ Respond in JSON format:
     }
 
     // Si la confianza es baja y es visual, sugerir cambio de modelo
-    if (actualConfidence < 0.6 && originalStrategy.useVisualAnalysis && originalStrategy.primaryModel !== 'gpt-5') {
-      this.logger.log(`🔄 Very low confidence (${actualConfidence}) for visual field ${pmcField} - upgrading to gpt-5`);
+    if (actualConfidence < 0.6 && originalStrategy.useVisualAnalysis && originalStrategy.primaryModel !== 'gpt-4o') {
+      this.logger.log(`🔄 Very low confidence (${actualConfidence}) for visual field ${pmcField} - upgrading to gpt-4o`);
       
       return {
         ...originalStrategy,
-        primaryModel: 'gpt-5',
-        reasoning: `${originalStrategy.reasoning} + Upgraded to gpt-5 for better visual analysis`
+        primaryModel: 'gpt-4o',
+        reasoning: `${originalStrategy.reasoning} + Upgraded to gpt-4o for better visual analysis`
       };
     }
 

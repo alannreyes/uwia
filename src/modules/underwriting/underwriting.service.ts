@@ -578,12 +578,14 @@ export class UnderwritingService {
         // Guardar evaluación en BD
         try {
           await this.claimEvaluationRepository.save({
-            recordId,
-            prompt: documentPrompt as any, // Cast for compatibility
-            answer: fieldValue,
+            claimReference: recordId, // FIXED: Add required claimReference field
+            documentName: documentName, // FIXED: Add document name
+            promptId: documentPrompt.id, // FIXED: Use promptId instead of prompt object
+            question: documentPrompt.question,
+            response: fieldValue,
             confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-            responseType: ResponseType.TEXT, // Use TEXT instead of AI
             processingTimeMs: processingTime,
+            errorMessage: null
           });
         } catch (saveError) {
           this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
@@ -905,12 +907,14 @@ export class UnderwritingService {
         // Guardar evaluación en BD
         try {
           await this.claimEvaluationRepository.save({
-            recordId,
-            prompt: { pmc_field: fieldName } as any,
-            answer: fieldValue,
+            claimReference: recordId, // FIXED: Add required claimReference field
+            documentName: documentName, // FIXED: Add document name
+            promptId: null, // FIXED: No prompt ID for chunking strategy
+            question: `Chunking field: ${fieldName}`,
+            response: fieldValue,
             confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-            responseType: ResponseType.TEXT,
             processingTimeMs: processingTime,
+            errorMessage: null
           });
         } catch (saveError) {
           this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
