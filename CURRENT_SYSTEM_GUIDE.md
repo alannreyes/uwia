@@ -70,7 +70,7 @@ OPENAI_RETRY_DELAY=5000
 
 ## 📄 Tipos de Documentos Soportados
 
-El sistema procesa 7 tipos de documentos con prompts consolidados:
+El sistema procesa 7 tipos de documentos con prompts de preguntas:
 
 | Documento | Campos | Función |
 |-----------|--------|---------|

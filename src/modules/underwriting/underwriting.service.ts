@@ -24,7 +24,6 @@ import { ProductionLogger } from '../../common/utils/production-logger';
 interface ConsolidatedPrompt {
   id: number;
   documentName: string;
-  consolidatedPrompt: string;
   question: string;
   expectedType: string;
   promptOrder: number;
@@ -281,7 +280,7 @@ export class UnderwritingService {
         if (result && result.length > 0) {
           this.logger.log(`   - Record ID: ${result[0]?.id}`);
           this.logger.log(`   - Document name: ${result[0]?.document_name}`);
-          this.logger.log(`   - Has consolidated_prompt: ${!!result[0]?.consolidated_prompt}`);
+          this.logger.log(`   - Has question: ${!!result[0]?.question}`);
           this.logger.log(`   - Field names: ${result[0]?.field_names}`);
           this.logger.log(`   - Expected fields count: ${result[0]?.expected_fields_count}`);
           this.logger.log(`   - Active: ${result[0]?.active}`);
@@ -325,7 +324,6 @@ export class UnderwritingService {
         const documentPrompt: ConsolidatedPrompt = {
           id: rawPrompt.id,
           documentName: rawPrompt.document_name,
-          consolidatedPrompt: rawPrompt.consolidated_prompt,
           question: rawPrompt.question,
           expectedType: rawPrompt.expected_type,
           promptOrder: rawPrompt.prompt_order,
@@ -341,8 +339,8 @@ export class UnderwritingService {
         this.logger.log(`📋 Processing ${documentName} with consolidated prompt:`);
         this.logger.log(`   - Expected fields: ${documentPrompt.expectedFieldsCount}`);
         this.logger.log(`   - Field names: [${documentPrompt.fieldNames.join(', ')}]`);
-        this.logger.log(`   - Consolidated prompt length: ${documentPrompt.consolidatedPrompt?.length || 0} chars`);
-        this.logger.log(`   - First 200 chars of prompt: ${documentPrompt.consolidatedPrompt?.substring(0, 200) || 'NO PROMPT'}`);
+        this.logger.log(`   - Question prompt length: ${documentPrompt.question?.length || 0} chars`);
+        this.logger.log(`   - First 200 chars of prompt: ${documentPrompt.question?.substring(0, 200) || 'NO PROMPT'}`);
         
         // TRUNCATION STRATEGY para archivos extremos
         if (isExtremeLargeFile) {
@@ -395,7 +393,7 @@ export class UnderwritingService {
         this.logger.warn(`No PDF content provided for ${documentName}`);
         return documentPrompt.fieldNames.map(fieldName => ({
           pmc_field: fieldName,
-          question: documentPrompt.consolidatedPrompt,
+          question: documentPrompt.question,
           answer: 'NOT_FOUND',
           confidence: 0,
           processing_time_ms: 0,
@@ -427,7 +425,7 @@ export class UnderwritingService {
       this.logger.log(`📑 Document preparation for ${documentName}: truncation=${isExtremeLargeFile}, limit=${truncationLimit}`);
 
       // Reemplazar variables dinámicas en el prompt consolidado
-      let processedPrompt = documentPrompt.consolidatedPrompt;
+      let processedPrompt = documentPrompt.question;
       Object.entries(variables).forEach(([key, value]) => {
         const placeholder = `%${key}%`;
         const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -448,7 +446,6 @@ export class UnderwritingService {
 
       // Determinar estrategia de procesamiento
       const strategy = await this.adaptiveStrategy.determineStrategy(
-        'consolidated_prompt',
         processedPrompt,
         ResponseType.TEXT,
         preparedDocument.images && preparedDocument.images.size > 0
@@ -600,7 +597,7 @@ export class UnderwritingService {
       // Retornar resultados de error para todos los campos esperados
       return documentPrompt.fieldNames.map(fieldName => ({
         pmc_field: fieldName,
-        question: documentPrompt.consolidatedPrompt,
+        question: documentPrompt.question,
         answer: 'ERROR',
         confidence: 0,
         processing_time_ms: Date.now() - processStartTime,
@@ -666,7 +663,7 @@ export class UnderwritingService {
     try {
       // Crear chunks lógicos de campos
       // FIXED: Pass the original consolidated prompt to use real prompts from database
-      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames, documentPrompt.consolidatedPrompt);
+      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames, documentPrompt.question);
       this.logger.log(`🧩 Created ${chunks.length} logical chunks for ${documentName}`);
       
       // Preparar documento una vez
@@ -714,7 +711,7 @@ export class UnderwritingService {
   /**
    * Crea chunks lógicos basados en el tipo de documento
    */
-  private createLogicalChunks(documentName: string, fieldNames: string[], consolidatedPrompt?: string): Array<{description: string, fields: string[], prompt: string}> {
+  private createLogicalChunks(documentName: string, fieldNames: string[], questionPrompt?: string): Array<{description: string, fields: string[], prompt: string}> {
     const docType = documentName.toUpperCase().replace('.pdf', '');
     
     if (docType === 'LOP') {
@@ -724,8 +721,8 @@ export class UnderwritingService {
           fields: fieldNames.filter(f => f.includes('lop_date') || f.includes('signed') || f.includes('mechanics_lien')),
           // FIXED: Use the ACTUAL consolidated prompt from database for better accuracy
           // The consolidated prompt contains the specific instructions for each field
-          prompt: consolidatedPrompt && consolidatedPrompt.length > 100 ? 
-                  consolidatedPrompt.substring(0, 800) : // Use first part of consolidated prompt
+          prompt: questionPrompt && questionPrompt.length > 100 ? 
+                  questionPrompt.substring(0, 800) : // Use first part of question prompt
                   'Find signature dates in this Letter of Protection document. Look specifically for: 1) Handwritten dates next to signature lines, 2) Dates in MM-DD-YY format near signatures, 3) Any date when this document was signed by the homeowner or patient. Return dates in MM-DD-YY format. For lien information, look for any text about mechanics liens, liens, or lien waivers.'
         },
         {
