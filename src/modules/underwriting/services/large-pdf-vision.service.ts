@@ -725,4 +725,334 @@ export class LargePdfVisionService {
     
     return results;
   }
+
+  /**
+   * NUEVO: Procesa prompt consolidado que espera UNA respuesta con múltiples valores separados por semicolons
+   * Diseñado específicamente para prompts de la tabla document_consolidado
+   */
+  async processConsolidatedPromptWithVision(
+    consolidatedPrompt: {
+      pmc_field: string,
+      question: string,
+      expected_fields: string[],
+      expected_type: ResponseType
+    },
+    images: Buffer[],
+    extractedText: string,
+    fileSizeMB: number
+  ): Promise<{answer: string, confidence: number, processing_time_ms: number}> {
+
+    this.prodLogger.strategyDebug('consolidated_prompt', 'processing_start', 
+      `${fileSizeMB.toFixed(2)}MB, ${images.length} pages, expecting ${consolidatedPrompt.expected_fields.length} fields in one response`);
+
+    const startTime = Date.now();
+    
+    try {
+      // Determinar estrategia de procesamiento para prompt consolidado
+      const strategy = this.determineProcessingStrategy(fileSizeMB, images.length, extractedText.length);
+      
+      this.logger.log(`🏗️ CONSOLIDATED PROCESSING for ${consolidatedPrompt.pmc_field}:`);
+      this.logger.log(`   - Expected fields: ${consolidatedPrompt.expected_fields.length}`);
+      this.logger.log(`   - Strategy: ${strategy.useGeminiPrimary ? 'Gemini Primary' : 'GPT-4o Primary'}`);
+      this.logger.log(`   - Use targeted pages: ${strategy.useTargetedPages}`);
+      
+      // Para prompts consolidados, necesitamos análisis más comprehensivo
+      // No podemos usar "early exit" porque necesitamos todos los campos
+      const consolidatedStrategy: ProcessingStrategy = {
+        ...strategy,
+        enableEarlyExit: false,  // CRÍTICO: No early exit para prompts consolidados
+        allowPartialAnalysis: false,  // CRÍTICO: Necesitamos análisis completo
+        useTargetedPages: false,  // CRÍTICO: Analizar todas las páginas relevantes
+        maxPagesPerField: Math.min(images.length, 10)  // Permitir más páginas para análisis completo
+      };
+      
+      this.logger.log(`🎯 Consolidated strategy adjusted: targetedPages=${consolidatedStrategy.useTargetedPages}, maxPages=${consolidatedStrategy.maxPagesPerField}`);
+
+      let result: {answer: string, confidence: number};
+
+      // Procesar según estrategia optimizada
+      if (consolidatedStrategy.useGeminiPrimary) {
+        result = await this.processConsolidatedWithGemini(
+          consolidatedPrompt, 
+          images, 
+          extractedText, 
+          consolidatedStrategy
+        );
+      } else {
+        result = await this.processConsolidatedWithDualVision(
+          consolidatedPrompt, 
+          images, 
+          extractedText, 
+          consolidatedStrategy
+        );
+      }
+
+      const processingTime = Date.now() - startTime;
+      
+      // Validar que la respuesta tenga el formato esperado (semicolons)
+      const responseValues = result.answer.split(';');
+      this.logger.log(`🔍 CONSOLIDATED RESPONSE VALIDATION:`);
+      this.logger.log(`   - Raw response: "${result.answer}"`);
+      this.logger.log(`   - Split values: ${responseValues.length}`);
+      this.logger.log(`   - Expected fields: ${consolidatedPrompt.expected_fields.length}`);
+      
+      // Si no coincide el número de valores, completar o truncar
+      let finalAnswer = result.answer;
+      if (responseValues.length !== consolidatedPrompt.expected_fields.length) {
+        this.logger.warn(`⚠️ Response mismatch: got ${responseValues.length} values, expected ${consolidatedPrompt.expected_fields.length}`);
+        
+        // Completar con NOT_FOUND si faltan valores
+        while (responseValues.length < consolidatedPrompt.expected_fields.length) {
+          responseValues.push('NOT_FOUND');
+        }
+        
+        // Truncar si hay demasiados valores
+        const adjustedValues = responseValues.slice(0, consolidatedPrompt.expected_fields.length);
+        finalAnswer = adjustedValues.join(';');
+        
+        this.logger.log(`🔧 Adjusted response: "${finalAnswer}"`);
+      }
+
+      this.prodLogger.performance('consolidated_prompt', 'vision_processing', 
+        processingTime / 1000, `1 consolidated response with ${consolidatedPrompt.expected_fields.length} fields`);
+
+      return {
+        answer: finalAnswer,
+        confidence: result.confidence,
+        processing_time_ms: processingTime
+      };
+
+    } catch (error) {
+      const processingTime = Date.now() - startTime;
+      this.logger.error(`❌ Consolidated prompt processing failed for ${consolidatedPrompt.pmc_field}: ${error.message}`);
+      
+      // Fallback: devolver NOT_FOUND para todos los campos esperados
+      const fallbackAnswer = Array(consolidatedPrompt.expected_fields.length).fill('NOT_FOUND').join(';');
+      
+      return {
+        answer: fallbackAnswer,
+        confidence: 0.1,
+        processing_time_ms: processingTime
+      };
+    }
+  }
+
+  /**
+   * Procesamiento consolidado usando Gemini Vision como primary
+   */
+  private async processConsolidatedWithGemini(
+    consolidatedPrompt: {
+      pmc_field: string,
+      question: string,
+      expected_fields: string[],
+      expected_type: ResponseType
+    },
+    images: Buffer[],
+    extractedText: string,
+    strategy: ProcessingStrategy
+  ): Promise<{answer: string, confidence: number}> {
+
+    try {
+      this.logger.log(`🤖 Processing consolidated prompt with Gemini Primary`);
+      
+      // Para prompts consolidados, usar múltiples páginas en secuencia
+      // Gemini puede procesar mejor documentos largos y complejos
+      
+      let bestResult: {answer: string, confidence: number} = {
+        answer: Array(consolidatedPrompt.expected_fields.length).fill('NOT_FOUND').join(';'),
+        confidence: 0
+      };
+      
+      // Procesar con múltiples imágenes para mejor cobertura
+      const maxImagesToProcess = Math.min(images.length, strategy.maxPagesPerField);
+      
+      for (let i = 0; i < maxImagesToProcess; i++) {
+        const imageBase64 = images[i].toString('base64');
+        
+        try {
+          const result = await this.geminiService.analyzeWithVision(
+            imageBase64,
+            consolidatedPrompt.question,
+            consolidatedPrompt.expected_type,
+            consolidatedPrompt.pmc_field,
+            i + 1
+          );
+
+          this.logger.log(`📊 Gemini page ${i + 1} result: "${result.response}" (confidence: ${result.confidence})`);
+          
+          // Si este resultado tiene mejor confianza, usarlo
+          if (result.confidence > bestResult.confidence) {
+            bestResult = {
+              answer: result.response,
+              confidence: result.confidence
+            };
+            
+            this.logger.log(`✅ New best result from page ${i + 1}: confidence ${result.confidence}`);
+          }
+          
+        } catch (pageError) {
+          this.logger.warn(`⚠️ Gemini failed on page ${i + 1}: ${pageError.message}`);
+          continue;
+        }
+      }
+      
+      return bestResult;
+
+    } catch (error) {
+      this.logger.error(`❌ Consolidated Gemini processing failed: ${error.message}`);
+      
+      // Fallback a texto si está disponible
+      if (extractedText && extractedText.length > 1000) {
+        try {
+          const textResult = await this.geminiService.evaluateDocument(
+            extractedText,
+            consolidatedPrompt.question,
+            consolidatedPrompt.expected_type,
+            '',
+            consolidatedPrompt.pmc_field
+          );
+          
+          return {
+            answer: textResult.response,
+            confidence: textResult.confidence * 0.8  // Penalizar por usar fallback
+          };
+        } catch (textError) {
+          throw new Error(`Both Gemini vision and text failed: ${error.message}`);
+        }
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Procesamiento consolidado usando dual vision (GPT-4o + Gemini)
+   */
+  private async processConsolidatedWithDualVision(
+    consolidatedPrompt: {
+      pmc_field: string,
+      question: string,
+      expected_fields: string[],
+      expected_type: ResponseType
+    },
+    images: Buffer[],
+    extractedText: string,
+    strategy: ProcessingStrategy
+  ): Promise<{answer: string, confidence: number}> {
+
+    try {
+      this.logger.log(`🤖 Processing consolidated prompt with Dual Vision (GPT-4o + Gemini)`);
+      
+      const maxImagesToProcess = Math.min(images.length, strategy.maxPagesPerField);
+      
+      let bestGptResult: any = null;
+      let bestGeminiResult: any = null;
+      let bestGptConfidence = 0;
+      let bestGeminiConfidence = 0;
+      
+      // Procesar páginas clave para obtener mejores resultados
+      for (let i = 0; i < maxImagesToProcess; i++) {
+        const imageBase64 = images[i].toString('base64');
+        const pageNumber = i + 1;
+        
+        try {
+          // GPT-4o Vision
+          const gptResult = await this.openaiService.evaluateWithVision(
+            imageBase64,
+            consolidatedPrompt.question,
+            consolidatedPrompt.expected_type,
+            consolidatedPrompt.pmc_field,
+            pageNumber
+          );
+
+          this.logger.log(`🔍 GPT-4o page ${pageNumber} result: "${gptResult.response}" (confidence: ${gptResult.confidence})`);
+          
+          if (gptResult.confidence > bestGptConfidence) {
+            bestGptResult = gptResult;
+            bestGptConfidence = gptResult.confidence;
+          }
+
+        } catch (gptError) {
+          this.logger.warn(`⚠️ GPT-4o failed on page ${pageNumber}: ${gptError.message}`);
+        }
+
+        try {
+          // Gemini Vision
+          const geminiResult = await this.geminiService.analyzeWithVision(
+            imageBase64,
+            consolidatedPrompt.question,
+            consolidatedPrompt.expected_type,
+            consolidatedPrompt.pmc_field,
+            pageNumber
+          );
+
+          this.logger.log(`🔍 Gemini page ${pageNumber} result: "${geminiResult.response}" (confidence: ${geminiResult.confidence})`);
+          
+          if (geminiResult.confidence > bestGeminiConfidence) {
+            bestGeminiResult = geminiResult;
+            bestGeminiConfidence = geminiResult.confidence;
+          }
+
+        } catch (geminiError) {
+          this.logger.warn(`⚠️ Gemini failed on page ${pageNumber}: ${geminiError.message}`);
+        }
+      }
+      
+      // Seleccionar mejor resultado basado en consenso y confianza
+      if (!bestGptResult && !bestGeminiResult) {
+        throw new Error('Both GPT-4o and Gemini failed for all pages');
+      }
+      
+      if (!bestGptResult) {
+        this.logger.log(`🔄 Using Gemini result (GPT-4o failed): "${bestGeminiResult.response}" (${bestGeminiResult.confidence})`);
+        return {
+          answer: bestGeminiResult.response,
+          confidence: bestGeminiResult.confidence
+        };
+      }
+      
+      if (!bestGeminiResult) {
+        this.logger.log(`🔄 Using GPT-4o result (Gemini failed): "${bestGptResult.response}" (${bestGptResult.confidence})`);
+        return {
+          answer: bestGptResult.response,
+          confidence: bestGptResult.confidence
+        };
+      }
+      
+      // Ambos modelos tienen resultados - calcular consenso
+      const consensus = this.calculateConsensus(bestGptResult.response, bestGeminiResult.response);
+      
+      this.logger.log(`📊 DUAL VISION CONSENSUS: Agreement=${consensus.agreement}, Final="${consensus.finalAnswer}"`);
+      this.logger.log(`   GPT-4o: "${bestGptResult.response}" (${bestGptResult.confidence})`);
+      this.logger.log(`   Gemini: "${bestGeminiResult.response}" (${bestGeminiResult.confidence})`);
+      
+      if (consensus.agreement >= 0.8) {
+        const finalConfidence = Math.max(bestGptResult.confidence, bestGeminiResult.confidence);
+        this.logger.log(`✅ High consensus (${consensus.agreement}) - Final confidence: ${finalConfidence}`);
+        return {
+          answer: consensus.finalAnswer,
+          confidence: finalConfidence
+        };
+      }
+      
+      // Bajo consenso: usar el resultado con mayor confianza
+      if (bestGeminiResult.confidence > bestGptResult.confidence) {
+        this.logger.log(`🔄 Low consensus - Using Gemini (higher confidence): ${bestGeminiResult.confidence} vs ${bestGptResult.confidence}`);
+        return {
+          answer: bestGeminiResult.response,
+          confidence: bestGeminiResult.confidence
+        };
+      } else {
+        this.logger.log(`🔄 Low consensus - Using GPT-4o (higher confidence): ${bestGptResult.confidence} vs ${bestGeminiResult.confidence}`);
+        return {
+          answer: bestGptResult.response,
+          confidence: bestGptResult.confidence
+        };
+      }
+
+    } catch (error) {
+      this.logger.error(`❌ Dual vision consolidated processing failed: ${error.message}`);
+      throw error;
+    }
+  }
 }

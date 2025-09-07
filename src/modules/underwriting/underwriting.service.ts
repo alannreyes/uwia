@@ -469,52 +469,50 @@ export class UnderwritingService {
 
       let aiResponse: any;
       if (useVisualAnalysis && preparedDocument.images && preparedDocument.images.size > 0) {
-        // Usar análisis visual
-        this.logger.log(`🔍 Using VISUAL ANALYSIS for ${documentName} with ${preparedDocument.images.size} pages`);
+        // Usar análisis visual CON NUEVO MÉTODO CONSOLIDADO
+        this.logger.log(`🔍 Using CONSOLIDATED VISUAL ANALYSIS for ${documentName} with ${preparedDocument.images.size} pages`);
         
-        const buffer = Buffer.from(pdfContent, 'base64');
+        // NUEVO: Usar método especializado para prompts consolidados
+        this.logger.log(`🏗️ Processing with NEW consolidated method - expecting ${documentPrompt.fieldNames.length} fields in one response`);
         
-        // FIXED: Use consolidated prompt approach - single call that returns semicolon-separated answers
-        // The consolidated prompt is designed to answer all fields at once
-        this.logger.log(`🔍 Processing consolidated visual analysis with ${documentPrompt.fieldNames.length} expected fields`);
-        
-        // Using processLargePdfWithVision for visual analysis with consolidated prompt
-        const analysisResult = await this.largePdfVision.processLargePdfWithVision(
-          [{
-            pmc_field: documentPrompt.pmcField, // Use the actual pmc_field from the consolidated prompt
-            question: processedPrompt, // This should contain the consolidated prompt
+        const consolidatedResult = await this.largePdfVision.processConsolidatedPromptWithVision(
+          {
+            pmc_field: documentPrompt.pmcField,         // "lop_responses"
+            question: processedPrompt,                  // Prompt consolidado de la DB
+            expected_fields: documentPrompt.fieldNames, // Array con los nombres de los campos individuales
             expected_type: ResponseType.TEXT
-          }],
+          },
           Array.from(preparedDocument.images.values()).map(img => Buffer.from(img, 'base64')),
           preparedDocument.text || '',
           fileSizeEstimate
         );
         
-        // DEBUG: Log what we actually received
-        this.logger.log(`🔍 Visual analysis result structure:`);
-        this.logger.log(`   - Type: ${typeof analysisResult}`);
-        this.logger.log(`   - Is Array: ${Array.isArray(analysisResult)}`);
-        this.logger.log(`   - Length: ${analysisResult?.length}`);
-        if (analysisResult && analysisResult.length > 0) {
-          this.logger.log(`   - First element type: ${typeof analysisResult[0]}`);
-          this.logger.log(`   - First element keys: ${Object.keys(analysisResult[0] || {}).join(', ')}`);
-          this.logger.log(`   - First element.answer: "${analysisResult[0]?.answer}"`);
-          this.logger.log(`   - First element.confidence: ${analysisResult[0]?.confidence}`);
-        }
+        // DEBUG: Log del resultado consolidado
+        this.logger.log(`🔍 CONSOLIDATED visual analysis result:`);
+        this.logger.log(`   - Answer: "${consolidatedResult.answer}"`);
+        this.logger.log(`   - Confidence: ${consolidatedResult.confidence}`);
+        this.logger.log(`   - Processing time: ${consolidatedResult.processing_time_ms}ms`);
+        this.logger.log(`   - Answer length: ${consolidatedResult.answer.length} chars`);
+        this.logger.log(`   - Split by semicolons: ${consolidatedResult.answer.split(';').length} values`);
         
-        if (analysisResult && analysisResult.length > 0 && analysisResult[0]?.answer) {
-          // The visual analysis should return a semicolon-separated response
-          const consolidatedAnswer = analysisResult[0].answer;
-          this.logger.log(`🎯 Visual analysis raw response: "${consolidatedAnswer}"`);
-          
-          aiResponse = { response: consolidatedAnswer };
+        if (consolidatedResult.answer) {
+          // El nuevo método ya devuelve la respuesta consolidada en el formato correcto
+          aiResponse = { 
+            response: consolidatedResult.answer,
+            confidence: consolidatedResult.confidence,
+            processing_time_ms: consolidatedResult.processing_time_ms
+          };
+          this.logger.log(`🎯 Using consolidated visual response: "${consolidatedResult.answer}"`);
         } else {
-          this.logger.warn(`⚠️ No response from visual analysis, using fallback`);
-          this.logger.warn(`   Reason: analysisResult=${!!analysisResult}, length=${analysisResult?.length}, answer=${analysisResult?.[0]?.answer}`);
-          aiResponse = { response: documentPrompt.fieldNames.map(() => 'NOT_FOUND').join(';') };
+          this.logger.warn(`⚠️ No response from consolidated visual analysis, using fallback`);
+          aiResponse = { 
+            response: documentPrompt.fieldNames.map(() => 'NOT_FOUND').join(';'),
+            confidence: 0,
+            processing_time_ms: 0
+          };
         }
         
-        this.logger.log(`✅ Visual analysis completed for ${documentName}`);
+        this.logger.log(`✅ CONSOLIDATED visual analysis completed for ${documentName}`);
       } else if (useVisualAnalysis && (!preparedDocument.images || preparedDocument.images.size === 0)) {
         // Se requiere visual pero no hay imágenes
         this.logger.warn(`⚠️ Visual analysis required for ${documentName} but no images available, falling back to text`);
@@ -545,38 +543,77 @@ export class UnderwritingService {
         this.logger.log(`✅ Text analysis completed for ${documentName}`);
       }
 
-      // Parsear respuesta consolidada
+      // Procesar respuesta consolidada - MEJORADO
       const responseText = aiResponse.response || aiResponse;
       
       // LOGGING: Respuesta recibida
       this.logger.log(`📊 Response received for ${documentName}:`);
       this.logger.log(`   - Response length: ${responseText ? responseText.length : 0} chars`);
       this.logger.log(`   - First 200 chars: ${responseText ? responseText.substring(0, 200) : 'NO RESPONSE'}`);
+      this.logger.log(`   - Response type: ${typeof responseText}`);
       
-      const fieldValues = this.parseConsolidatedResponse(responseText, documentPrompt.fieldNames);
+      // Para respuestas consolidadas, la respuesta ya debería venir en formato correcto
+      let finalAnswer: string;
+      let finalConfidence: number;
+      let actualProcessingTime: number;
       
-      // LOGGING: Valores parseados
-      this.logger.log(`📋 Parsed values for ${documentName}:`);
-      this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
-      this.logger.log(`   - Parsed values: ${fieldValues.length}`);
-      this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
+      if (aiResponse.confidence !== undefined && aiResponse.processing_time_ms !== undefined) {
+        // La respuesta viene del nuevo método consolidado - ya está procesada
+        finalAnswer = responseText;
+        finalConfidence = aiResponse.confidence;
+        actualProcessingTime = aiResponse.processing_time_ms;
+        
+        this.logger.log(`🏗️ Using PRE-PROCESSED consolidated response:`);
+        this.logger.log(`   - Final answer: "${finalAnswer}"`);
+        this.logger.log(`   - Pre-calculated confidence: ${finalConfidence}`);
+        this.logger.log(`   - Pre-calculated processing time: ${actualProcessingTime}ms`);
+      } else {
+        // Fallback: procesar respuesta manualmente (para compatibilidad con métodos antiguos)
+        this.logger.log(`🔄 Using FALLBACK processing for response`);
+        
+        const fieldValues = this.parseConsolidatedResponse(responseText, documentPrompt.fieldNames);
+        
+        // LOGGING: Valores parseados
+        this.logger.log(`📋 Parsed values for ${documentName}:`);
+        this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
+        this.logger.log(`   - Parsed values: ${fieldValues.length}`);
+        this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
 
-      // Crear UNA SOLA respuesta consolidada con valores concatenados por semicolons
-      const processingTime = Date.now() - processStartTime;
-      const consolidatedAnswer = fieldValues.join(';');
-      
-      // Calcular confianza basada en cuántos campos se encontraron
-      const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
-      const confidence = foundFields > 0 ? 0.8 : 0;
-      
+        finalAnswer = fieldValues.join(';');
+        
+        // Calcular confianza basada en cuántos campos se encontraron
+        const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
+        finalConfidence = foundFields > 0 ? 0.8 : 0;
+        actualProcessingTime = Date.now() - processStartTime;
+      }
+
+      // Crear UNA SOLA respuesta consolidada
       results.push({
-        pmc_field: documentPrompt.pmcField, // Usar el pmc_field consolidado (ej: "lop_responses")
-        question: processedPrompt, // Usar la pregunta consolidada completa de la DB
-        answer: consolidatedAnswer, // Respuesta concatenada: "NO;NOT_FOUND;YES;YES;..."
-        confidence: confidence,
-        processing_time_ms: processingTime,
+        pmc_field: documentPrompt.pmcField,    // "lop_responses"
+        question: processedPrompt,             // Prompt consolidado de la DB
+        answer: finalAnswer,                   // "NO;NOT_FOUND;YES;YES;..."
+        confidence: finalConfidence,
+        processing_time_ms: actualProcessingTime,
         error: null
       });
+      
+      this.logger.log(`✅ FINAL RESULT for ${documentName}:`);
+      this.logger.log(`   - pmc_field: "${documentPrompt.pmcField}"`);
+      this.logger.log(`   - answer length: ${finalAnswer.length} chars`);
+      this.logger.log(`   - answer split: ${finalAnswer.split(';').length} values`);
+      this.logger.log(`   - confidence: ${finalConfidence}`);
+      this.logger.log(`   - First 100 chars of answer: "${finalAnswer.substring(0, 100)}..."`);
+      
+      // Verificación final - CRITICAL VALIDATION
+      const answerParts = finalAnswer.split(';');
+      if (answerParts.length !== documentPrompt.fieldNames.length) {
+        this.logger.warn(`⚠️ FINAL VALIDATION WARNING:`);
+        this.logger.warn(`   Expected ${documentPrompt.fieldNames.length} values, got ${answerParts.length}`);
+        this.logger.warn(`   Expected fields: [${documentPrompt.fieldNames.join(', ')}]`);
+        this.logger.warn(`   Got values: [${answerParts.join(', ')}]`);
+      } else {
+        this.logger.log(`✅ FINAL VALIDATION PASSED: ${answerParts.length} values match ${documentPrompt.fieldNames.length} expected fields`);
+      }
 
       // Guardar evaluación consolidada en BD - DESHABILITADO temporalmente por incompatibilidad de FK
       /*
