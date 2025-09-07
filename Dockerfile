@@ -59,4 +59,4 @@ ENV NODE_ENV=production
 # PORT se define externamente en EasyPanel/docker-compose
 
 # Comando para iniciar la aplicación
-CMD ["node", "dist/src/main.js"] 
+CMD ["node", "dist/main.js"] 
