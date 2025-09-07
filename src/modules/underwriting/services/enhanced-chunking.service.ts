@@ -27,7 +27,7 @@ interface ChunkResult {
   strategy: 'none' | 'smart' | 'aggressive' | 'semantic' | 'emergency';
   totalChunks: number;
   estimatedProcessingTime: number;
-  recommendedModel: 'gemini' | 'gpt-5' | 'mixed';
+  recommendedModel: 'gemini' | 'gpt-4o' | 'mixed';
 }
 
 @Injectable()
@@ -144,7 +144,7 @@ export class EnhancedChunkingService {
    * Determina la estrategia de chunking basada en el tamaño
    */
   private determineStrategy(sizeInMB: number): string {
-    // GPT-5 tiene límite de ~128K tokens (≈0.5MB), usar límites más agresivos
+    // GPT-4o tiene límite de ~128K tokens (≈0.5MB), usar límites más agresivos
     if (sizeInMB < 0.4) return 'none';      // <400KB = sin chunking
     if (sizeInMB < 2) return 'smart';       // 400KB-2MB = smart chunking
     if (sizeInMB < 10) return 'aggressive'; // 2MB-10MB = aggressive
@@ -177,7 +177,7 @@ export class EnhancedChunkingService {
       strategy: 'none',
       totalChunks: 1,
       estimatedProcessingTime: Math.min(5000, tokens * 0.1), // ~0.1ms por token
-      recommendedModel: tokens > 200000 ? 'gemini' : 'gpt-5'
+      recommendedModel: tokens > 200000 ? 'gemini' : 'gpt-4o'
     };
   }
 

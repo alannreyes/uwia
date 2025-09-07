@@ -135,9 +135,9 @@ export class OpenAiService {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
+          // temperature: 1, // GPT-4o: Only default value (1) supported - removed parameter
           max_completion_tokens: pmcField === 'policy_comprehensive_analysis' ? 2000 : openaiConfig.maxTokens,
-          reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
+          reasoning_effort: "medium", // GPT-4o specific: enhanced analysis depth
         });
       },
       `evaluate_${pmcField || 'field'}`,
@@ -511,7 +511,7 @@ ANSWER:`;
             },
             { role: 'user', content: batchPrompt }
           ],
-          // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
+          // temperature: 1, // GPT-4o: Only default value (1) supported - removed parameter
           max_completion_tokens: 1000,
           response_format: { type: "json_object" }
         });
@@ -576,7 +576,7 @@ Respond in JSON format:
             },
             { role: 'user', content: classificationPrompt }
           ],
-          // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter // Baja temperatura para respuestas consistentes
+          // temperature: 1, // GPT-4o: Only default value (1) supported - removed parameter // Baja temperatura para respuestas consistentes
           max_completion_tokens: 150,
           response_format: { type: "json_object" }
         });
@@ -792,7 +792,7 @@ If you cannot determine from text alone, respond "NO" with confidence 0.3 to ind
   }
 
   private buildVisionPrompt(prompt: string, expectedType: ResponseType, pmcField?: string): string {
-    // GPT-5 optimized response instructions
+    // GPT-4o optimized response instructions
     const typeInstructions = {
       boolean: '<output_format>Answer with ONLY "YES" or "NO".</output_format>',
       date: '<output_format>Answer with ONLY the date in MM-DD-YY format (e.g., 07-22-25).</output_format>',
@@ -805,9 +805,9 @@ If you cannot determine from text alone, respond "NO" with confidence 0.3 to ind
     const isSignatureField = lowerField.includes('sign');
 
     if (isSignatureField) {
-      // GPT-5 optimized signature detection prompt
+      // GPT-4o optimized signature detection prompt
       return `<task>
-You are analyzing a document image to detect signatures or signing evidence using GPT-5's advanced visual capabilities.
+You are analyzing a document image to detect signatures or signing evidence using GPT-4o's advanced visual capabilities.
 </task>
 
 <analysis_target>
@@ -842,11 +842,11 @@ Look systematically for:
 
 ${typeInstructions[expectedType] || ''}`;
     } else {
-      // GPT-5 optimized general visual analysis prompt
+      // GPT-4o optimized general visual analysis prompt
       const visualContext = this.getVisualAnalysisContext(lowerField);
 
       return `<task>
-Analyze this document image using GPT-5's advanced visual processing to extract specific information.
+Analyze this document image using GPT-4o's advanced visual processing to extract specific information.
 </task>
 
 <analysis_target>
@@ -876,7 +876,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   }
 
   /**
-   * Provides context-specific visual analysis guidance for GPT-5
+   * Provides context-specific visual analysis guidance for GPT-4o
    */
   private getVisualAnalysisContext(fieldLower: string): string {
     if (fieldLower.includes('date')) {
@@ -1275,7 +1275,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
             final_confidence: Math.min(0.99, avgConfidence + 0.1), // Bonus por consenso
             openai_metadata: {
               architecture: 'new',
-              primary_model: 'gpt-5',
+              primary_model: 'gpt-4o',
               secondary_model: 'gemini-2.5-pro',
               agreement_level: agreement,
               chunking_applied: !!chunkMetadata,
@@ -1285,7 +1285,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
             }
           };
         } else {
-          // Bajo consenso - invocar juez GPT-5
+          // Bajo consenso - invocar juez GPT-4o
           
           const judgeResult = await this.invokeGPT5Judge(
             processedContent,
@@ -1304,9 +1304,9 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
             final_confidence: judgeResult.confidence,
             openai_metadata: {
               architecture: 'new',
-              primary_model: 'gpt-5',
+              primary_model: 'gpt-4o',
               secondary_model: 'gemini-2.5-pro',
-              arbitrator_model: 'gpt-5',
+              arbitrator_model: 'gpt-4o',
               agreement_level: agreement,
               chunking_applied: !!chunkMetadata,
               chunk_metadata: chunkMetadata,
@@ -1569,9 +1569,9 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   }
 
   /**
-   * Invoca GPT-5 como juez árbitro con manejo robusto de errores
+   * Invoca GPT-4o como juez árbitro con manejo robusto de errores
    */
-  private async invokeGPT5Judge(
+  private async invokeGPT4oJudge(
     documentText: string,
     prompt: string,
     result1: any,
@@ -1585,7 +1585,7 @@ Document Context: ${documentText.substring(0, 3000)}...
 Question: ${prompt}
 Field: ${pmcField}
 
-Evaluation 1 (GPT-5): 
+Evaluation 1 (GPT-4o): 
 Response: ${result1.response}
 Confidence: ${result1.confidence}
 Reasoning: ${result1.reasoning || 'No reasoning provided'}
@@ -1600,14 +1600,14 @@ Provide your arbitration decision in JSON format:
   "finalAnswer": "your definitive answer",
   "confidence": 0.0 to 1.0,
   "reasoning": "detailed explanation of your decision",
-  "selectedModel": "gpt-5" | "gemini" | "synthesized"
+  "selectedModel": "gpt-4o" | "gemini" | "synthesized"
 }`;
 
     // Intentar con múltiples configuraciones de parámetros
     let response;
     try {
       response = await this.openai.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
@@ -1615,16 +1615,16 @@ Provide your arbitration decision in JSON format:
           },
           { role: 'user', content: judgePrompt }
         ],
-        max_completion_tokens: 1000, // CORRECTO para GPT-5
+        max_completion_tokens: 1000, // CORRECTO para GPT-4o
         response_format: { type: 'json_object' }
       });
     } catch (firstError) {
-      this.logger.warn(`⚠️ GPT-5 judge first attempt failed: ${firstError.message}`);
+      this.logger.warn(`⚠️ GPT-4o judge first attempt failed: ${firstError.message}`);
       
       // Fallback con parámetros alternativos
       try {
         response = await this.openai.chat.completions.create({
-          model: 'gpt-5',
+          model: 'gpt-4o',
           messages: [
             { 
               role: 'system', 
@@ -1637,14 +1637,14 @@ Provide your arbitration decision in JSON format:
           response_format: { type: 'json_object' }
         });
       } catch (secondError) {
-        this.logger.error(`❌ GPT-5 judge failed completely: ${secondError.message}`);
+        this.logger.error(`❌ GPT-4o judge failed completely: ${secondError.message}`);
         // Fallback simple: elegir el de mayor confianza
         const higherConfidence = result1.confidence >= result2.confidence ? result1 : result2;
         return {
           finalAnswer: higherConfidence.response,
           confidence: higherConfidence.confidence * 0.9, // Reducir confianza por falta de arbitraje
-          reasoning: `Fallback: Selected ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'} due to higher confidence`,
-          selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+          reasoning: `Fallback: Selected ${higherConfidence === result1 ? 'GPT-4o' : 'Gemini'} due to higher confidence`,
+          selectedModel: higherConfidence === result1 ? 'gpt-4o' : 'gemini'
         };
       }
     }
@@ -1653,13 +1653,13 @@ Provide your arbitration decision in JSON format:
     const rawJudgeContent = response.choices[0].message.content?.trim() || '';
     
     if (!rawJudgeContent) {
-      this.logger.error(`❌ GPT-5 judge returned empty response`);
+      this.logger.error(`❌ GPT-4o judge returned empty response`);
       const higherConfidence = result1.confidence >= result2.confidence ? result1 : result2;
       return {
         finalAnswer: higherConfidence.response,
         confidence: higherConfidence.confidence * 0.9,
-        reasoning: `Fallback: GPT-5 judge returned empty, using ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'}`,
-        selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+        reasoning: `Fallback: GPT-4o judge returned empty, using ${higherConfidence === result1 ? 'GPT-4o' : 'Gemini'}`,
+        selectedModel: higherConfidence === result1 ? 'gpt-4o' : 'gemini'
       };
     }
     
@@ -1684,8 +1684,8 @@ Provide your arbitration decision in JSON format:
       return {
         finalAnswer: higherConfidence.response,
         confidence: higherConfidence.confidence * 0.85,
-        reasoning: `Fallback: Judge parsing failed, using ${higherConfidence === result1 ? 'GPT-5' : 'Gemini'}`,
-        selectedModel: higherConfidence === result1 ? 'gpt-5' : 'gemini'
+        reasoning: `Fallback: Judge parsing failed, using ${higherConfidence === result1 ? 'GPT-4o' : 'Gemini'}`,
+        selectedModel: higherConfidence === result1 ? 'gpt-4o' : 'gemini'
       };
     }
   }

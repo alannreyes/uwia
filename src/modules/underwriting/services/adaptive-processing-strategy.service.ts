@@ -75,7 +75,7 @@ export class AdaptiveProcessingStrategyService {
       return cached;
     }
     
-    // Si no está en cache, usar fallback directo sin GPT-5
+    // Si no está en cache, usar fallback directo sin GPT-4o
     const strategy = this.getFallbackStrategy(pmcField, question, expectedType);
     
     // Guardar en cache para uso futuro
@@ -84,9 +84,9 @@ export class AdaptiveProcessingStrategyService {
     
     return strategy;
     
-    /* COMENTADO: Análisis con GPT-5 deshabilitado para mejorar velocidad
+    /* COMENTADO: Análisis con GPT-4o deshabilitado para mejorar velocidad
     try {
-      /* DESHABILITADO: Análisis con GPT-5
+      /* DESHABILITADO: Análisis con GPT-4o
       // Análisis semántico del prompt para determinar estrategia
       const analysisPrompt = `Analyze this document processing question and determine the optimal AI strategy.
 
@@ -125,13 +125,13 @@ Respond in JSON format:
 {
   "use_visual": true/false,
   "use_dual_validation": true/false,
-  "primary_model": "gpt-5" or "gpt-4o-mini",
-  "validation_model": "gpt-5" or null,
+  "primary_model": "gpt-4o" or "gpt-4o-mini",
+  "validation_model": "gpt-4o" or null,
   "confidence_threshold": 0.70-0.95,
   "reasoning": "brief explanation of strategy choice"
 }`;
 
-      // Usar GPT-5 para análisis de estrategia con fallback automático
+      // Usar GPT-4o para análisis de estrategia con fallback automático
       this.logger.log(`🔧 OpenAI config check - Enabled: ${openaiConfig.enabled}, HasKey: ${!!openaiConfig.apiKey}`);
       
       if (!openaiConfig.enabled || !openaiConfig.apiKey) {
@@ -139,7 +139,7 @@ Respond in JSON format:
         return this.getFallbackStrategy(pmcField, question, expectedType);
       }
 
-      // Intentar análisis con GPT-5 con reintentos limitados - fallback rápido si falla
+      // Intentar análisis con GPT-4o con reintentos limitados - fallback rápido si falla
       const maxAttempts = 1; // Reducir a 1 intento para acelerar fallback
       let lastError = null;
       
@@ -176,7 +176,7 @@ Respond in JSON format:
             'normal'
           );
 
-          // Manejo robusto de respuesta JSON de GPT-5
+          // Manejo robusto de respuesta JSON de GPT-4o
           const rawResponse = completion.choices[0].message.content?.trim() || '';
           
           if (!rawResponse) {

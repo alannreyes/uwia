@@ -391,14 +391,15 @@ export class UnderwritingService {
     try {
       if (!pdfContent) {
         this.logger.warn(`No PDF content provided for ${documentName}`);
-        return documentPrompt.fieldNames.map(fieldName => ({
-          pmc_field: fieldName,
+        const notFoundAnswers = Array(documentPrompt.fieldNames.length).fill('NOT_FOUND').join(';');
+        return [{
+          pmc_field: documentPrompt.pmcField,
           question: documentPrompt.question,
-          answer: 'NOT_FOUND',
+          answer: notFoundAnswers,
           confidence: 0,
           processing_time_ms: 0,
           error: 'No PDF content provided'
-        }));
+        }];
       }
 
       // Determinar estrategia de procesamiento según documento
@@ -560,54 +561,59 @@ export class UnderwritingService {
       this.logger.log(`   - Parsed values: ${fieldValues.length}`);
       this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
 
-      // Crear resultados para cada campo
+      // Crear UNA SOLA respuesta consolidada con valores concatenados por semicolons
       const processingTime = Date.now() - processStartTime;
-      for (let i = 0; i < documentPrompt.fieldNames.length; i++) {
-        const fieldName = documentPrompt.fieldNames[i];
-        const fieldValue = fieldValues[i] || 'NOT_FOUND';
-        
-        results.push({
-          pmc_field: fieldName,
-          question: processedPrompt,
-          answer: fieldValue,
-          confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-          processing_time_ms: processingTime,
-          error: null
-        });
+      const consolidatedAnswer = fieldValues.join(';');
+      
+      // Calcular confianza basada en cuántos campos se encontraron
+      const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
+      const confidence = foundFields > 0 ? 0.8 : 0;
+      
+      results.push({
+        pmc_field: documentPrompt.pmcField, // Usar el pmc_field consolidado (ej: "lop_responses")
+        question: processedPrompt, // Usar la pregunta consolidada completa de la DB
+        answer: consolidatedAnswer, // Respuesta concatenada: "NO;NOT_FOUND;YES;YES;..."
+        confidence: confidence,
+        processing_time_ms: processingTime,
+        error: null
+      });
 
-        // Guardar evaluación en BD
-        try {
-          await this.claimEvaluationRepository.save({
-            claimReference: recordId, // FIXED: Add required claimReference field
-            documentName: documentName, // FIXED: Add document name
-            promptId: documentPrompt.id, // FIXED: Use promptId instead of prompt object
-            question: documentPrompt.question,
-            response: fieldValue,
-            confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-            processingTimeMs: processingTime,
-            errorMessage: null
-          });
-        } catch (saveError) {
-          this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
-        }
+      // Guardar evaluación consolidada en BD - DESHABILITADO temporalmente por incompatibilidad de FK
+      /*
+      try {
+        await this.claimEvaluationRepository.save({
+          claimReference: recordId,
+          documentName: documentName,
+          promptId: documentPrompt.id,
+          question: processedPrompt,
+          response: consolidatedAnswer,
+          confidence: confidence,
+          processingTimeMs: processingTime,
+          errorMessage: null
+        });
+      } catch (saveError) {
+        this.logger.error(`Failed to save consolidated evaluation: ${saveError.message}`);
       }
+      */
 
       return results;
 
     } catch (error) {
       this.logger.error(`Error processing consolidated prompt for ${documentName}: ${error.message}`);
       
-      // Retornar resultados de error para todos los campos esperados
-      return documentPrompt.fieldNames.map(fieldName => ({
-        pmc_field: fieldName,
+      // Retornar resultado de error consolidado
+      const errorAnswers = Array(documentPrompt.fieldNames.length).fill('ERROR').join(';');
+      return [{
+        pmc_field: documentPrompt.pmcField,
         question: documentPrompt.question,
-        answer: 'ERROR',
+        answer: errorAnswers,
         confidence: 0,
         processing_time_ms: Date.now() - processStartTime,
         error: error.message
-      }));
+      }];
     }
   }
+
 
   private parseConsolidatedResponse(responseText: string, fieldNames: string[]): string[] {
     this.logger.debug(`🔍 [parseConsolidatedResponse] Raw AI response: "${responseText}"`);
@@ -718,15 +724,16 @@ export class UnderwritingService {
       
     } catch (error) {
       this.logger.error(`Error in chunking strategy for ${documentName}: ${error.message}`);
-      // Fallback a NOT_FOUND para todos los campos
-      return documentPrompt.fieldNames.map(fieldName => ({
-        pmc_field: fieldName,
-        question: 'Processing error during chunking',
-        answer: 'NOT_FOUND',
+      // Fallback consolidado a NOT_FOUND para todos los campos
+      const notFoundAnswers = Array(documentPrompt.fieldNames.length).fill('NOT_FOUND').join(';');
+      return [{
+        pmc_field: documentPrompt.pmcField,
+        question: documentPrompt.question,
+        answer: notFoundAnswers,
         confidence: 0,
         processing_time_ms: Date.now() - processStartTime,
         error: error.message
-      }));
+      }];
     }
   }
 
@@ -897,19 +904,20 @@ export class UnderwritingService {
         
         chunkResults.push({
           pmc_field: fieldName,
-          question: fullPrompt,
+          question: chunk.prompt,
           answer: fieldValue,
           confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
           processing_time_ms: processingTime,
           error: null
         });
 
-        // Guardar evaluación en BD
+        // Guardar evaluación en BD - DESHABILITADO temporalmente por incompatibilidad de FK
+        /*
         try {
           await this.claimEvaluationRepository.save({
-            claimReference: recordId, // FIXED: Add required claimReference field
-            documentName: documentName, // FIXED: Add document name
-            promptId: null, // FIXED: No prompt ID for chunking strategy
+            claimReference: recordId,
+            documentName: documentName,
+            promptId: null,
             question: `Chunking field: ${fieldName}`,
             response: fieldValue,
             confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
@@ -919,6 +927,7 @@ export class UnderwritingService {
         } catch (saveError) {
           this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
         }
+        */
       }
 
       return chunkResults;

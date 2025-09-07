@@ -14,8 +14,8 @@ export class ClaimEvaluation {
   @Index()
   documentName: string;
 
-  @Column({ name: 'prompt_id' })
-  promptId: number;
+  @Column({ name: 'prompt_id', nullable: true })
+  promptId: number | null;
 
   @Column('text')
   question: string;

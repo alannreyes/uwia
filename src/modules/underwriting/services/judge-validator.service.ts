@@ -92,7 +92,7 @@ export class JudgeValidatorService {
             content: judgePrompt 
           }
         ],
-        // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
+        // temperature: 1, // GPT-4o: Only default value (1) supported - removed parameter
         max_completion_tokens: 500,
         response_format: { type: "json_object" }
       });
