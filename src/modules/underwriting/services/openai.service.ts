@@ -1287,7 +1287,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
         } else {
           // Bajo consenso - invocar juez GPT-4o
           
-          const judgeResult = await this.invokeGPT5Judge(
+          const judgeResult = await this.invokeGPT4oJudge(
             processedContent,
             prompt,
             primaryResult,
