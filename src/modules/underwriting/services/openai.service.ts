@@ -1173,7 +1173,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   // ===== NUEVO SISTEMA DE MIGRACIÓN =====
   
   /**
-   * Evalúa usando la nueva arquitectura: GPT-5 + Gemini 2.5 Pro + Enhanced Chunking
+   * Evalúa usando la nueva arquitectura: GPT-4o + Gemini 2.5 Pro + Enhanced Chunking
    * SOLO se ejecuta si MIGRATION_MODE está activado
    */
   private async evaluateWithNewArchitecture(
@@ -1218,21 +1218,21 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
         this.logger.debug(`✂️ Contenido reducido de ${documentText.length} a ${processedContent.length} chars`);
       }
       
-      // 2. Evaluación dual: GPT-5 + Gemini
+      // 2. Evaluación dual: GPT-4o + Gemini
       
-      const [gpt5Result, geminiResult] = await Promise.allSettled([
-        this.evaluateWithGPT5(processedContent, prompt, expectedType, additionalContext),
+      const [gpt4oResult, geminiResult] = await Promise.allSettled([
+        this.evaluateWithGPT4o(processedContent, prompt, expectedType, additionalContext),
         this.geminiService!.evaluateDocument(processedContent, prompt, expectedType, additionalContext, pmcField)
       ]);
       
       // 3. Procesar resultados
       let primaryResult, secondaryResult;
       
-      if (gpt5Result.status === 'fulfilled') {
-        primaryResult = gpt5Result.value;
-        this.prodLogger.visionApiLog('unknown', 'unknown', 0, 'GPT-5', primaryResult.response);
+      if (gpt4oResult.status === 'fulfilled') {
+        primaryResult = gpt4oResult.value;
+        this.prodLogger.visionApiLog('unknown', 'unknown', 0, 'GPT-4o', primaryResult.response);
       } else {
-        this.logger.error(`🚨 === GPT-5 FALLO === ${gpt5Result.reason?.message} ===`);
+        this.logger.error(`🚨 === GPT-4o FALLO === ${gpt4oResult.reason?.message} ===`);
       }
       
       if (geminiResult.status === 'fulfilled') {
@@ -1321,8 +1321,8 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
       // 5. Fallback si solo uno funciona
       const workingResult = primaryResult || secondaryResult;
       if (workingResult) {
-        const workingModel = primaryResult ? 'GPT-5' : 'Gemini';
-        const failedModel = primaryResult ? 'Gemini' : 'GPT-5';
+        const workingModel = primaryResult ? 'GPT-4o' : 'Gemini';
+        const failedModel = primaryResult ? 'Gemini' : 'GPT-4o';
         this.logger.log(`🔄 Usando modo single-model: ${workingModel} (${failedModel} no disponible)`);
         
         return {
@@ -1334,7 +1334,7 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
           openai_metadata: {
             architecture: 'new',
             fallback_used: true,
-            working_model: primaryResult ? 'gpt-5' : 'gemini-2.5-pro',
+            working_model: primaryResult ? 'gpt-4o' : 'gemini-2.5-pro',
             chunking_applied: !!chunkMetadata,
             chunk_metadata: chunkMetadata,
             processing_time: Date.now() - startTime
@@ -1396,33 +1396,69 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
   }
 
   /**
-   * Evalúa usando GPT-5 con fallback al método legacy si falla
+   * Evalúa usando GPT-4o con manejo robusto de errores
    */
-  private async evaluateWithGPT5(
+  private async evaluateWithGPT4o(
     documentText: string,
     prompt: string,
     expectedType: ResponseType,
     additionalContext?: string
   ): Promise<any> {
-    const systemPrompt = this.buildGPT5SystemPrompt(expectedType);
+    const systemPrompt = this.buildGPT4oSystemPrompt(expectedType);
     const fullPrompt = this.buildFullPrompt(systemPrompt, documentText, prompt, additionalContext);
     
     // Intentar primero con el método legacy que podría funcionar
     try {
+      this.logger.debug(`🤖 [GPT-4o] Making API call with prompt: "${prompt.substring(0, 200)}..."`);
+      this.logger.debug(`🤖 [GPT-4o] Document text length: ${documentText.length} chars`);
+      
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4o-2024-08-06', // CRITICAL: Use latest model with structured outputs support
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: fullPrompt }
         ],
-        max_completion_tokens: 2000, // CORRECTO para GPT-5
-        response_format: { type: 'json_object' }
+        max_tokens: 2000,
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'document_extraction',
+            strict: true, // CRITICAL: 100% adherence to schema
+            schema: {
+              type: 'object',
+              properties: {
+                response: {
+                  type: 'string',
+                  description: 'The extracted value or NOT_FOUND if not present'
+                },
+                confidence: {
+                  type: 'number',
+                  minimum: 0,
+                  maximum: 1,
+                  description: 'Confidence score between 0 and 1'
+                },
+                reasoning: {
+                  type: 'string',
+                  description: 'Brief explanation of how the value was found or why it was not found'
+                },
+                location: {
+                  type: 'string',
+                  description: 'Where in the document the information was found (e.g., page 1, form field, signature block)'
+                }
+              },
+              required: ['response', 'confidence', 'reasoning', 'location'],
+              additionalProperties: false
+            }
+          }
+        }
       });
+      
+      this.logger.debug(`🤖 [GPT-4o] Raw API response: "${response.choices[0].message.content}"`);
       
       const rawContent = response.choices[0].message.content?.trim() || '';
       
       if (!rawContent) {
-        throw new Error('GPT-5 returned empty response');
+        throw new Error('GPT-4o returned empty response');
       }
       
       let result;
@@ -1438,35 +1474,68 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
         }
       }
       
-      this.logger.log(`✅ GPT-5 found: "${result.response}" (confidence: ${result.confidence}) - legacy method`);
+      this.logger.log(`✅ GPT-4o found: "${result.response}" (confidence: ${result.confidence}) - primary method`);
       
       return {
         response: result.response || result.answer || 'No response',
         confidence: result.confidence || 0.8,
-        reasoning: result.reasoning || 'GPT-5 reasoning',
-        model: 'gpt-5'
+        reasoning: result.reasoning || 'GPT-4o analysis',
+        model: 'gpt-4o'
       };
       
     } catch (firstError) {
-      this.logger.warn(`⚠️ GPT-5 legacy method failed: ${firstError.message}`);
+      this.logger.warn(`⚠️ GPT-4o primary method failed: ${firstError.message}`);
       
       // Fallback: Intentar con diferentes parámetros
       try {
+        this.logger.debug(`🤖 [GPT-4o] Fallback attempt with alternative parameters`);
+        
         const response = await this.openai.chat.completions.create({
-          model: 'gpt-5',
+          model: 'gpt-4o-2024-08-06', // CRITICAL: Use latest model with structured outputs support
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: fullPrompt }
           ],
-          max_completion_tokens: 2000, // Usar max_completion_tokens como alternativa
-          reasoning_effort: "medium", // Reducir reasoning effort
-          response_format: { type: 'json_object' }
+          max_tokens: 2000,
+          temperature: 0.1,
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'document_extraction',
+              strict: true, // CRITICAL: 100% adherence to schema
+              schema: {
+                type: 'object',
+                properties: {
+                  response: {
+                    type: 'string',
+                    description: 'The extracted value or NOT_FOUND if not present'
+                  },
+                  confidence: {
+                    type: 'number',
+                    minimum: 0,
+                    maximum: 1,
+                    description: 'Confidence score between 0 and 1'
+                  },
+                  reasoning: {
+                    type: 'string',
+                    description: 'Brief explanation of how the value was found or why it was not found'
+                  },
+                  location: {
+                    type: 'string',
+                    description: 'Where in the document the information was found (e.g., page 1, form field, signature block)'
+                  }
+                },
+                required: ['response', 'confidence', 'reasoning', 'location'],
+                additionalProperties: false
+              }
+            }
+          }
         });
         
         const rawContent = response.choices[0].message.content?.trim() || '';
         
         if (!rawContent) {
-          throw new Error('GPT-5 returned empty response (alternative params)');
+          throw new Error('GPT-4o returned empty response (alternative params)');
         }
         
         let result;
@@ -1481,20 +1550,20 @@ Important: Base your answer ONLY on what you can visually see in the image. If y
           }
         }
         
-        this.logger.log(`✅ GPT-5 found: "${result.response}" (confidence: ${result.confidence}) - alternative params`);
+        this.logger.log(`✅ GPT-4o found: "${result.response}" (confidence: ${result.confidence}) - fallback method`);
         
         return {
           response: result.response || result.answer || 'No response',
           confidence: result.confidence || 0.8,
-          reasoning: result.reasoning || 'GPT-5 reasoning',
-          model: 'gpt-5'
+          reasoning: result.reasoning || 'GPT-4o analysis',
+          model: 'gpt-4o'
         };
         
       } catch (secondError) {
-        this.logger.error(`❌ All GPT-5 attempts failed`);
+        this.logger.error(`❌ All GPT-4o attempts failed`);
         this.logger.error(`   First error: ${firstError.message}`);
         this.logger.error(`   Second error: ${secondError.message}`);
-        throw new Error(`GPT-5 evaluation failed after all attempts: ${secondError.message}`);
+        throw new Error(`GPT-4o evaluation failed after all attempts: ${secondError.message}`);
       }
     }
   }
@@ -1622,49 +1691,42 @@ Provide your arbitration decision in JSON format:
   }
 
   /**
-   * Construye system prompt optimizado para GPT-5
+   * Construye system prompt optimizado para GPT-4o con Structured Outputs
    */
-  private buildGPT5SystemPrompt(expectedType: ResponseType): string {
-    return `<role>
-You are an expert insurance underwriting analyst powered by GPT-5. Your task is to extract precise information from insurance documents with high accuracy and confidence.
-</role>
+  private buildGPT4oSystemPrompt(expectedType: ResponseType): string {
+    return `You are an expert document extraction specialist with deep experience in insurance underwriting documents.
 
-<domain_expertise>
-- Insurance policy analysis and interpretation
-- Document structure recognition and data extraction
-- Regulatory compliance and underwriting standards
-- Risk assessment and claim validation
-</domain_expertise>
+TASK: Extract specific information from insurance documents with maximum precision.
 
-<response_requirements>
-Expected response type: ${expectedType}
+APPROACH:
+1. Scan the ENTIRE document thoroughly - check every page, form field, signature block, and text section
+2. Look for the exact information requested in the user prompt
+3. If information exists in ANY form, extract it precisely as written
+4. Pay special attention to:
+   - Form fields and their values
+   - Names and addresses in headers/footers  
+   - Policy numbers, claim numbers, dates
+   - Signatures and signature blocks
+   - Legal language and lien references
+   - Phone numbers and contact information
 
-<response_format>
-Provide your analysis in valid JSON format:
-{
-  "response": "your precise answer based on document analysis",
-  "confidence": 0.0 to 1.0,
-  "reasoning": "detailed step-by-step reasoning process"
-}
-</response_format>
-</response_requirements>
+EXTRACTION RULES:
+- Extract information EXACTLY as it appears in the document
+- For names: Use full name as written (e.g., "Oniesky Arias")
+- For addresses: Include full address with street, city, state, zip
+- For phone numbers: Include area code and full number
+- For dates: Use format as shown in document
+- For YES/NO questions: Answer "YES" if evidence exists, "NO" if clearly absent
+- For policy/claim numbers: Extract complete alphanumeric sequences
 
-<analysis_instructions>
-1. READ: Thoroughly analyze the entire document content
-2. IDENTIFY: Locate relevant sections and data points
-3. EXTRACT: Pull exact information matching the expected response type
-4. VALIDATE: Cross-reference findings for accuracy
-5. REASON: Document your logical process clearly
-6. RESPOND: Provide precise, confident answers
-</analysis_instructions>
+CONFIDENCE SCORING:
+- 0.9-1.0: Information clearly visible and unambiguous
+- 0.7-0.9: Information present but requires interpretation
+- 0.5-0.7: Information partially visible or unclear
+- 0.3-0.5: Weak evidence or uncertain interpretation  
+- 0.0-0.3: No clear evidence found
 
-<quality_standards>
-- Accuracy is paramount - never guess or approximate
-- Use exact quotes when possible
-- If uncertain, clearly state limitations
-- Maintain high confidence only when evidence is clear
-- For dates, always convert to MM-DD-YY format (e.g., 07-22-25)
-</quality_standards>`;
+The response will be structured according to a strict JSON schema for maximum reliability.`;
   }
 
   /**

@@ -608,24 +608,43 @@ export class UnderwritingService {
   }
 
   private parseConsolidatedResponse(responseText: string, fieldNames: string[]): string[] {
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Raw AI response: "${responseText}"`);
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Expected fields: ${JSON.stringify(fieldNames)}`);
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Expected field count: ${fieldNames.length}`);
+    
     // El prompt consolidado especifica que la respuesta debe venir con semicolons como separadores
     const parts = responseText.split(';').map(part => part.trim());
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Split parts: ${JSON.stringify(parts)}`);
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Parts count: ${parts.length}`);
     
     // Si tenemos el número exacto de partes esperadas, las devolvemos
     if (parts.length === fieldNames.length) {
-      return parts;
+      this.logger.debug(`🔍 [parseConsolidatedResponse] ✅ Perfect match - returning parts as-is`);
+      const result = parts.map((part, index) => {
+        this.logger.debug(`🔍 [parseConsolidatedResponse] Field[${index}] "${fieldNames[index]}" = "${part}"`);
+        return part;
+      });
+      return result;
     }
     
     // Si no, intentar extraer línea por línea o buscar patrones específicos
-    this.logger.warn(`Expected ${fieldNames.length} fields but got ${parts.length} parts from consolidated response`);
+    this.logger.warn(`🔍 [parseConsolidatedResponse] ⚠️ Mismatch: Expected ${fieldNames.length} fields but got ${parts.length} parts from consolidated response`);
+    this.logger.warn(`🔍 [parseConsolidatedResponse] Raw response was: "${responseText}"`);
     
     // Completar con NOT_FOUND si faltan campos
     const result = [...parts];
     while (result.length < fieldNames.length) {
+      this.logger.debug(`🔍 [parseConsolidatedResponse] Adding NOT_FOUND for missing field`);
       result.push('NOT_FOUND');
     }
     
-    return result.slice(0, fieldNames.length); // Truncar si hay más de los esperados
+    const finalResult = result.slice(0, fieldNames.length); // Truncar si hay más de los esperados
+    this.logger.debug(`🔍 [parseConsolidatedResponse] Final result: ${JSON.stringify(finalResult)}`);
+    finalResult.forEach((value, index) => {
+      this.logger.debug(`🔍 [parseConsolidatedResponse] Final[${index}] "${fieldNames[index]}" = "${value}"`);
+    });
+    
+    return finalResult;
   }
 
   /**
