@@ -446,6 +446,7 @@ export class UnderwritingService {
 
       // Determinar estrategia de procesamiento
       const strategy = await this.adaptiveStrategy.determineStrategy(
+        documentPrompt.pmcField || 'consolidated',
         processedPrompt,
         ResponseType.TEXT,
         preparedDocument.images && preparedDocument.images.size > 0
