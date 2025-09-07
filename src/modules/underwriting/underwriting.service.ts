@@ -636,25 +636,17 @@ export class UnderwritingService {
   private shouldUseChunkingStrategy(documentName: string, fieldCount: number): boolean {
     const docType = documentName.toUpperCase().replace('.pdf', '');
     
-    // Documentos simples siempre consolidado
-    const simpleDocuments = ['WEATHER', 'MOLD', 'ESTIMATE', 'CERTIFICATE'];
-    if (simpleDocuments.includes(docType) && fieldCount <= 3) {
-      return false; // Usar consolidado
-    }
+    // CRITICAL FIX: Force ALL documents to use CONSOLIDATED strategy
+    // This matches the working pattern of WEATHER.pdf (46;74) 
+    // The consolidated prompts from the database are designed to work as single API calls
     
-    // Documentos complejos usar chunking
-    const complexDocuments = ['LOP', 'POLICY'];
-    if (complexDocuments.includes(docType) && fieldCount > 5) {
-      return true; // Usar chunking
-    }
+    this.logger.log(`🎯 Strategy decision for ${docType}: forcing CONSOLIDATED (fields: ${fieldCount})`);
+    return false; // Always use consolidated strategy - let the database prompts do the work
     
-    // Para ROOF, depende de la cantidad de campos
-    if (docType === 'ROOF' && fieldCount > 3) {
-      return true;
-    }
-    
-    // Regla general: más de 4 campos con análisis visual = chunking
-    return fieldCount > 4;
+    // OLD LOGIC - was causing chunking to lose specific database prompts:
+    // if (complexDocuments.includes(docType) && fieldCount > 5) {
+    //   return true; // This was the problem - chunking lost database prompts
+    // }
   }
 
   /**
