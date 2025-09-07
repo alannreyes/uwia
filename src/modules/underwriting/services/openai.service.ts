@@ -84,38 +84,30 @@ export class OpenAiService {
         throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
       }
 
-      // NUEVO: Usar sistema dual GPT-4o + Gemini si está disponible
+      // Sistema complementario: GPT-4o + Gemini trabajando juntos
       if (this.geminiService && this.enhancedChunking) {
-        this.logger.debug(`[${pmcField}] 🆕 Using GPT-4o + Gemini dual validation system`);
+        this.logger.debug(`[${pmcField}] 🆕 Using GPT-4o + Gemini complementary validation system`);
         return await this.evaluateWithNewArchitecture(documentText, prompt, expectedType, additionalContext, pmcField);
       }
       
-      // SISTEMA FALLBACK: Dual validation con solo GPT-4o
-      const validationStrategy = openaiConfig.dualValidation ? 'dual' : 'simple';
+      // Fallback si Gemini no está disponible - usar solo GPT-4o
+      this.logger.debug('📊 Using GPT-4o single model (Gemini not available)');
+      const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext, undefined, pmcField);
       
-      // Sistema simplificado: GPT-4o + Gemini dual validation
-      this.logger.debug('📊 Using dual validation system');
-      
-      if (openaiConfig.dualValidation) {
-        // Validación dual existente
-        return await this.evaluateWithDualValidation(relevantText, prompt, expectedType, additionalContext, pmcField);
-      } else {
-        // Fallback a evaluación simple
-        const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext, undefined, pmcField);
-        return {
-          response: result.response,
-          confidence: result.confidence,
-          validation_response: result.response,
-          validation_confidence: result.confidence,
-          final_confidence: result.confidence,
-          openai_metadata: {
-            primary_model: openaiConfig.model,
-            validation_model: 'none',
-            primary_tokens: result.tokens_used,
-            validation_tokens: 0,
-          }
-        };
-      }
+      return {
+        response: result.response,
+        confidence: result.confidence,
+        validation_response: result.response,
+        validation_confidence: result.confidence,
+        final_confidence: result.confidence,
+        openai_metadata: {
+          primary_model: openaiConfig.model,
+          validation_model: 'none',
+          primary_tokens: result.tokens_used,
+          validation_tokens: 0,
+          system_mode: 'single_model_fallback'
+        }
+      };
     } catch (error) {
       this.logger.error(`Error en evaluación: ${error.message}`);
       throw error;
@@ -243,10 +235,6 @@ QUESTION: ${prompt}
 ANSWER:`;
   }
 
-  private buildValidationPrompt(originalPrompt: string, originalResponse: string, expectedType: ResponseType): string {
-    return `Verify: "${originalResponse}" for "${originalPrompt}"
-Same if correct, else provide correct answer.`;
-  }
 
   private extractConfidence(response: string): number {
     const confidenceMatch = response.match(/\[CONFIDENCE:\s*([0-9.]+)\]/i) || 
@@ -502,134 +490,7 @@ Same if correct, else provide correct answer.`;
     return [...new Set(relevantKeywords)]; // Eliminar duplicados
   }
 
-  async evaluateWithDualValidation(
-    documentText: string,
-    prompt: string,
-    expectedType: ResponseType,
-    additionalContext?: string,
-    pmcField?: string
-  ): Promise<EvaluationResult> {
-    this.logger.log(`🔄 Usando validación dual: ${openaiConfig.model} + ${openaiConfig.validationModel}`);
 
-    // 1. Evaluación inicial con modelo rápido
-    const primaryResult = await this.evaluatePrompt(
-      documentText, 
-      prompt, 
-      expectedType, 
-      additionalContext,
-      openaiConfig.model, // gpt-4o-mini
-      pmcField
-    );
-
-    // 2. Validación con modelo premium
-    const validationResult = await this.validateResponse(
-      documentText, 
-      prompt, 
-      primaryResult.response, 
-      expectedType,
-      additionalContext,
-      openaiConfig.validationModel // gpt-4o
-    );
-
-    // 3. LOGGING PREVIO AL JUEZ - Mostrar las dos respuestas que se van a juzgar
-    this.logger.log(`🔄 DUAL VALIDATION RESULTS for ${pmcField}:`);
-    this.prodLogger.fieldSuccess('unknown', 'dual_validation', `Primary: ${primaryResult.response}/${primaryResult.confidence}, Validation: ${validationResult.response}/${validationResult.confidence}`);
-    
-    // Determinar si hay discrepancia
-    const hasDiscrepancy = primaryResult.response !== validationResult.response;
-    if (hasDiscrepancy) {
-      this.logger.warn(`⚠️ DISCREPANCY DETECTED - Models disagreed! Invoking judge...`);
-    } else {
-      this.logger.log(`✅ CONSENSUS - Models agreed! Judge will confirm...`);
-    }
-
-    // 4. Análisis inteligente con juez
-    const judgeDecision = await this.judgeValidator.judgeResponses(
-      documentText,
-      prompt,
-      {
-        response: primaryResult.response,
-        confidence: primaryResult.confidence,
-        model: openaiConfig.model
-      },
-      {
-        response: validationResult.response,
-        confidence: validationResult.confidence,
-        model: openaiConfig.validationModel
-      },
-      expectedType,
-      pmcField
-    );
-
-    // 5. LOGGING DETALLADO DE LA DECISIÓN DEL JUEZ
-    this.logger.log(`⚖️ JUDGE DECISION for ${pmcField}:`);
-    this.logger.log(`   🎯 Selected: ${judgeDecision.selectedModel.toUpperCase()} model`);
-    this.logger.log(`   📝 Final Answer: "${judgeDecision.finalAnswer}"`);
-    this.logger.log(`   📊 Final Confidence: ${judgeDecision.confidence}`);
-    this.logger.log(`   🧠 Judge Reasoning: ${judgeDecision.reasoning}`);
-    if (judgeDecision.discrepancyAnalysis) {
-      this.logger.log(`   🔍 Discrepancy Analysis: ${judgeDecision.discrepancyAnalysis}`);
-    }
-
-    return {
-      response: judgeDecision.finalAnswer,
-      confidence: primaryResult.confidence,
-      validation_response: validationResult.response,
-      validation_confidence: validationResult.confidence,
-      final_confidence: judgeDecision.confidence,
-      openai_metadata: {
-        primary_model: openaiConfig.model,
-        validation_model: openaiConfig.validationModel,
-        primary_tokens: primaryResult.tokens_used,
-        validation_tokens: validationResult.tokens_used,
-        judge_selected: judgeDecision.selectedModel,
-        judge_reasoning: judgeDecision.reasoning,
-        discrepancy_analysis: judgeDecision.discrepancyAnalysis
-      }
-    };
-  }
-
-  private async validateResponse(
-    documentText: string,
-    originalPrompt: string,
-    originalResponse: string,
-    expectedType: ResponseType,
-    additionalContext?: string,
-    modelOverride?: string
-  ): Promise<{ response: string; confidence: number; tokens_used: number }> {
-    const validationPrompt = this.buildValidationPrompt(originalPrompt, originalResponse, expectedType);
-    const systemPrompt = this.buildSystemPrompt(expectedType, additionalContext, true);
-    const userPrompt = this.buildUserPrompt(documentText, validationPrompt);
-    const modelToUse = modelOverride || openaiConfig.validationModel;
-
-    // Usar rate limiter para todas las llamadas a OpenAI
-    const completion = await this.rateLimiter.executeWithRateLimit(
-      async () => {
-        return await this.openai.chat.completions.create({
-          model: modelToUse,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          // temperature: 1, // GPT-5: Only default value (1) supported - removed parameter
-          max_completion_tokens: openaiConfig.maxTokens,
-          reasoning_effort: "medium", // GPT-5 specific: enhanced analysis depth
-        });
-      },
-      `validation_${modelToUse.replace(/[^a-zA-Z0-9]/g, '_')}`,
-      'normal' // Prioridad normal para validación
-    );
-
-    const response = completion.choices[0].message.content.trim();
-    const confidence = this.extractConfidence(response);
-    const cleanResponse = this.cleanResponse(response, expectedType);
-
-    return {
-      response: cleanResponse,
-      confidence: confidence,
-      tokens_used: completion.usage?.total_tokens || 0
-    };
-  }
 
   /**
    * Clasifica múltiples preguntas en batch para optimizar rendimiento

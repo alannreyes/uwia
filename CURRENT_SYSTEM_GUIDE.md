@@ -2,13 +2,14 @@
 
 ## 📋 Sistema Actual en Producción
 
-**UWIA** es un sistema de underwriting inteligente que utiliza **dual validation** con:
+**UWIA** es un sistema de underwriting inteligente con **validación complementaria**:
 - **GPT-4o** - Motor principal con chunking inteligente
-- **Gemini 2.5 Pro** - Validación independiente (2M tokens contexto)
+- **Gemini 2.5 Pro** - Procesamiento independiente (2M tokens contexto)
+- **Sistema**: Ambos modelos trabajan juntos de forma complementaria, no competitiva
 
 ## 🚀 Configuración de Producción
 
-### Variables de Entorno Principales
+### Variables de Entorno Principales (Actualizado: Diciembre 2024)
 
 ```bash
 # ===== API Configuration =====
@@ -19,31 +20,52 @@ NODE_ENV=production
 DB_HOST=automate_mysql
 DB_PORT=3306
 DB_USERNAME=mysql
+DB_PASSWORD=[SECURED]
 DB_DATABASE=axioma
 DOCUMENT_PROMPTS_TABLE_NAME=document_consolidado
 
 # ===== OpenAI GPT-4o =====
-OPENAI_API_KEY=sk-proj-...
+OPENAI_API_KEY=[SECURED - sk-proj-...]
 OPENAI_MODEL=gpt-4o
 OPENAI_ENABLED=true
-OPENAI_TIMEOUT=600000
+OPENAI_TIMEOUT=90000  # 90 segundos
 OPENAI_TEMPERATURE=0.1
 OPENAI_MAX_TOKENS=8192
+OPENAI_VALIDATION_MODEL=gpt-4o
+# OPENAI_DUAL_VALIDATION - ELIMINADO (obsoleto)
+OPENAI_MAX_TEXT_LENGTH=15000
+OPENAI_USE_FOR_SIMPLE_PDFS_ONLY=true
+OPENAI_FALLBACK_TO_LOCAL=true
+OPENAI_VISION_TEMPERATURE=0.1
 
 # ===== Gemini 2.5 Pro =====
-GEMINI_API_KEY=AIzaSy...
+GEMINI_API_KEY=[SECURED - AIzaSy...]
 GEMINI_ENABLED=true
 GEMINI_MODEL=gemini-2.5-pro
 GEMINI_TEMPERATURE=0.1
+GEMINI_MAX_TOKENS=8192
 GEMINI_THINKING_MODE=true
 GEMINI_RATE_LIMIT_RPM=80
 GEMINI_RATE_LIMIT_TPM=1500000
+GEMINI_TIMEOUT=120000
+GEMINI_MAX_RETRIES=3
+GEMINI_PERFORMANCE_LOGGING=true
+GEMINI_SUCCESS_RATE_THRESHOLD=90
+GEMINI_AUTO_FALLBACK=true
 
 # ===== Procesamiento =====
 MAX_FILE_SIZE=104857600  # 100MB
-LARGE_FILE_TIMEOUT=300000
+LARGE_FILE_TIMEOUT=300000  # 5 minutos
+ULTRA_LARGE_PDF_TIMEOUT=600000  # 10 minutos
 LOCAL_PROCESSING_DEFAULT=false
+LOCAL_PROCESSING_FOR_COMPLEX_PDFS=true
 MAX_PAGES_TO_CONVERT=10
+
+# ===== Rate Limiting =====
+OPENAI_RATE_LIMIT_RPM=30
+OPENAI_RATE_LIMIT_TPM=30000
+OPENAI_MAX_RETRIES=5
+OPENAI_RETRY_DELAY=5000
 ```
 
 ## 📄 Tipos de Documentos Soportados
@@ -60,6 +82,28 @@ El sistema procesa 7 tipos de documentos con prompts consolidados:
 | **CERTIFICATE.pdf** | 1 | Fecha de completación |
 | **ROOF.pdf** | 1 | Área total del techo en pies² |
 
+## ✅ SISTEMA DE VALIDACIÓN COMPLEMENTARIA
+
+### Configuración Actual:
+- **GEMINI_ENABLED**: `true` ✅
+- **COMPLEMENTARY_VALIDATION**: Activada automáticamente
+- **RESULTADO**: GPT-4o + Gemini procesan cada documento de forma complementaria
+
+### Funcionamiento del Sistema Complementario:
+1. **GPT-4o** procesa el documento (análisis principal)
+2. **Gemini 2.5 Pro** procesa independientemente (validación masiva con 2M tokens)
+3. **Selección inteligente**:
+   - Si uno encuentra datos y el otro no → El que encontró datos gana
+   - Si ambos encuentran datos → El más confiable gana
+   - Si ninguno encuentra datos → El más confiable en "no encontrado" gana
+4. **Alta disponibilidad**: Si un servicio falla, el otro completa la tarea
+
+### Ventajas vs Sistema Anterior:
+- ✅ **No compiten** - se complementan
+- ✅ **Alta disponibilidad** - failover automático  
+- ✅ **Maximiza información** - prioriza quien encuentra datos
+- ✅ **Sin arbitrajes** - decisión directa basada en utilidad
+
 ## 🔄 Flujo de Procesamiento
 
 ```mermaid
@@ -68,13 +112,13 @@ graph TD
     B --> C{Tamaño > 30MB?}
     C -->|Sí| D[Chunking Inteligente]
     C -->|No| E[Procesamiento Directo]
-    D --> F[GPT-4o Principal]
+    D --> F[GPT-4o Procesamiento]
     E --> F
-    F --> G[Gemini 2.5 Pro Validación]
-    G --> H{Consenso?}
-    H -->|Sí| I[Respuesta Final]
-    H -->|No| J[GPT-4o Árbitro]
-    J --> I
+    D --> G[Gemini 2.5 Pro Procesamiento]
+    E --> G
+    F --> H[Selección Complementaria]
+    G --> H
+    H --> I[Mejor Respuesta Gana]
 ```
 
 ## 🛠 API Endpoints
@@ -145,19 +189,31 @@ Content-Type: application/json
 - **RPM**: 30 requests/minuto
 - **TPM**: 30,000 tokens/minuto
 - **Timeout**: 90 segundos
+- **Max Retries**: 5 intentos
+- **Retry Delay**: 5 segundos
 
 ### Gemini Límites
 - **RPM**: 80 requests/minuto
 - **TPM**: 1,500,000 tokens/minuto
 - **Timeout**: 120 segundos
+- **Max Retries**: 3 intentos
+- **Performance Logging**: ACTIVADO
+- **Auto Fallback**: ACTIVADO
 
 ## 📁 Estructura de Archivos Grandes
 
 Para archivos > 30MB:
-- **Chunking inteligente** por páginas
-- **Procesamiento paralelo** limitado
-- **Timeouts escalados** hasta 10 minutos
+- **Chunking inteligente** por páginas (3MB por chunk)
+- **Procesamiento paralelo** máx 3 chunks concurrentes
+- **Timeouts escalados**:
+  - Normal: 90 segundos
+  - Archivos grandes: 5 minutos
+  - Ultra grandes (>90MB): 10 minutos
 - **Memoria optimizada** máx 512MB
+- **Límites de páginas**:
+  - Por campo: 5 páginas
+  - Comprehensive: 8 páginas
+  - Sample máximo: 10 páginas
 
 ## 🔍 Logging y Monitoreo
 
