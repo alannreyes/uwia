@@ -776,7 +776,7 @@ export class LargePdfVisionService {
         
         try {
           // Test con GPT-4o Vision solo para mechanics_lien
-          const testResult = await this.openAiService.invokeGPTVision({
+          const testResult = await this.openaiService.invokeGPTVision({
             pmc_field: 'TEST_mechanics_lien',
             question: simplePrompt,
             expected_type: ResponseType.BOOLEAN
