@@ -1021,11 +1021,32 @@ export class LargePdfVisionService {
       }
       
       // Ambos modelos tienen resultados - calcular consenso
-      const consensus = this.calculateConsensus(bestGptResult.response, bestGeminiResult.response);
+      let consensus = this.calculateConsensus(bestGptResult.response, bestGeminiResult.response);
       
       this.logger.log(`📊 DUAL VISION CONSENSUS: Agreement=${consensus.agreement}, Final="${consensus.finalAnswer}"`);
       this.logger.log(`   GPT-4o: "${bestGptResult.response}" (${bestGptResult.confidence})`);
       this.logger.log(`   Gemini: "${bestGeminiResult.response}" (${bestGeminiResult.confidence})`);
+      
+      // 🚀 NUEVA ESTRATEGIA: FORZAR VISIÓN PARA NOT_FOUND
+      if (consensus.agreement < 0.8 || this.hasHighNotFoundRate(consensus.finalAnswer)) {
+        this.logger.log(`🔴 ACTIVANDO VISIÓN FORZADA: Low consensus (${consensus.agreement}) OR high NOT_FOUND rate`);
+        
+        const forcedVisionResult = await this.performForcedVisionAnalysis(
+          consolidatedPrompt, 
+          images, 
+          extractedText, 
+          bestGptResult, 
+          bestGeminiResult
+        );
+        
+        if (forcedVisionResult.improved) {
+          this.logger.log(`✅ Forced vision improved results: ${forcedVisionResult.confidence}`);
+          return {
+            answer: forcedVisionResult.answer,
+            confidence: forcedVisionResult.confidence
+          };
+        }
+      }
       
       if (consensus.agreement >= 0.8) {
         const finalConfidence = Math.max(bestGptResult.confidence, bestGeminiResult.confidence);
@@ -1055,5 +1076,287 @@ export class LargePdfVisionService {
       this.logger.error(`❌ Dual vision consolidated processing failed: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * 🔥 NUEVA FUNCIÓN: Detecta si hay muchos NOT_FOUND en la respuesta
+   */
+  private hasHighNotFoundRate(answer: string): boolean {
+    const values = answer.split(';');
+    const notFoundCount = values.filter(v => v.trim() === 'NOT_FOUND').length;
+    const notFoundRate = notFoundCount / values.length;
+    
+    this.logger.log(`📊 NOT_FOUND rate: ${notFoundCount}/${values.length} (${(notFoundRate * 100).toFixed(1)}%)`);
+    
+    // Si más del 60% son NOT_FOUND, activar visión forzada
+    return notFoundRate > 0.6;
+  }
+
+  /**
+   * 🚀 NUEVA FUNCIÓN: Análisis de visión forzada con estrategias múltiples
+   */
+  private async performForcedVisionAnalysis(
+    consolidatedPrompt: any,
+    images: Buffer[],
+    extractedText: string,
+    bestGptResult: any,
+    bestGeminiResult: any
+  ): Promise<{answer: string, confidence: number, improved: boolean}> {
+    
+    this.logger.log(`🔥 INICIANDO VISIÓN FORZADA con ${images.length} páginas`);
+    
+    try {
+      // ESTRATEGIA 1: Análisis con prompts más específicos
+      const enhancedResults = await this.performEnhancedVisionAnalysis(
+        consolidatedPrompt, 
+        images, 
+        extractedText
+      );
+      
+      // ESTRATEGIA 2: Análisis por chunks de campos
+      const chunkResults = await this.performChunkedFieldAnalysis(
+        consolidatedPrompt, 
+        images,
+        extractedText
+      );
+      
+      // ESTRATEGIA 3: Combinar resultados con lógica inteligente
+      const combinedResult = this.combineMultipleResults([
+        {answer: bestGptResult.response, confidence: bestGptResult.confidence, source: 'gpt-original'},
+        {answer: bestGeminiResult.response, confidence: bestGeminiResult.confidence, source: 'gemini-original'},
+        {answer: enhancedResults.answer, confidence: enhancedResults.confidence, source: 'enhanced-vision'},
+        {answer: chunkResults.answer, confidence: chunkResults.confidence, source: 'chunked-analysis'}
+      ]);
+      
+      this.logger.log(`🎯 Combined forced vision result: "${combinedResult.answer}" (confidence: ${combinedResult.confidence})`);
+      
+      // Verificar si hubo mejora significativa
+      const originalNotFoundRate = this.calculateNotFoundRate(bestGptResult.response);
+      const improvedNotFoundRate = this.calculateNotFoundRate(combinedResult.answer);
+      const improved = improvedNotFoundRate < originalNotFoundRate - 0.1; // Mejora del 10%
+      
+      this.logger.log(`📈 NOT_FOUND improvement: ${originalNotFoundRate.toFixed(2)} → ${improvedNotFoundRate.toFixed(2)} (improved: ${improved})`);
+      
+      return {
+        answer: combinedResult.answer,
+        confidence: combinedResult.confidence,
+        improved: improved
+      };
+      
+    } catch (error) {
+      this.logger.error(`❌ Forced vision analysis failed: ${error.message}`);
+      return {
+        answer: bestGptResult.response || bestGeminiResult.response,
+        confidence: Math.max(bestGptResult.confidence || 0, bestGeminiResult.confidence || 0),
+        improved: false
+      };
+    }
+  }
+
+  /**
+   * 🔍 ESTRATEGIA 1: Análisis con prompts mejorados
+   */
+  private async performEnhancedVisionAnalysis(
+    consolidatedPrompt: any,
+    images: Buffer[],
+    extractedText: string
+  ): Promise<{answer: string, confidence: number}> {
+    
+    // Crear prompt más específico y detallado
+    const enhancedPrompt = `
+${consolidatedPrompt.question}
+
+IMPORTANT INSTRUCTIONS:
+- Look very carefully at ALL visible text, numbers, dates, and signatures
+- Check every corner, margin, header, and footer of the document
+- If information seems partially visible or unclear, make your best educated guess
+- Only use NOT_FOUND if you are absolutely certain the information is not present anywhere
+- For dates, look for any format: MM/DD/YY, MM-DD-YY, DD/MM/YY, written dates, etc.
+- For signatures, look for any handwritten marks, initials, or electronic signatures
+- For addresses, check letterheads, forms, and any printed information
+- Use text information from OCR if visual analysis is unclear
+
+OCR TEXT REFERENCE:
+${extractedText.substring(0, 5000)}...
+`;
+
+    let bestResult = null;
+    let bestConfidence = 0;
+    
+    // Analizar cada página con el prompt mejorado
+    for (let i = 0; i < Math.min(images.length, 3); i++) {
+      const imageBase64 = images[i].toString('base64');
+      
+      try {
+        // Usar ambos modelos con prompt mejorado
+        const [gptResult, geminiResult] = await Promise.allSettled([
+          this.openaiService.evaluateWithVision(
+            imageBase64,
+            enhancedPrompt,
+            consolidatedPrompt.expected_type,
+            `${consolidatedPrompt.pmc_field}_enhanced`,
+            i + 1
+          ),
+          this.geminiService.analyzeWithVision(
+            imageBase64,
+            enhancedPrompt,
+            consolidatedPrompt.expected_type,
+            `${consolidatedPrompt.pmc_field}_enhanced`,
+            i + 1
+          )
+        ]);
+        
+        // Seleccionar mejor resultado de esta página
+        const results = [];
+        if (gptResult.status === 'fulfilled') results.push(gptResult.value);
+        if (geminiResult.status === 'fulfilled') results.push(geminiResult.value);
+        
+        for (const result of results) {
+          if (result.confidence > bestConfidence) {
+            bestResult = result;
+            bestConfidence = result.confidence;
+          }
+        }
+        
+      } catch (error) {
+        this.logger.warn(`⚠️ Enhanced analysis failed on page ${i + 1}: ${error.message}`);
+      }
+    }
+    
+    return {
+      answer: bestResult?.response || 'NOT_FOUND'.repeat(consolidatedPrompt.expected_fields.length).split('NOT_FOUND').join(';').slice(0, -1),
+      confidence: bestConfidence
+    };
+  }
+
+  /**
+   * 🧩 ESTRATEGIA 2: Análisis por chunks de campos
+   */
+  private async performChunkedFieldAnalysis(
+    consolidatedPrompt: any,
+    images: Buffer[],
+    extractedText: string
+  ): Promise<{answer: string, confidence: number}> {
+    
+    const fieldNames = consolidatedPrompt.expected_fields;
+    const chunkSize = Math.ceil(fieldNames.length / 3); // Dividir en 3 chunks
+    const chunks = [];
+    
+    for (let i = 0; i < fieldNames.length; i += chunkSize) {
+      chunks.push(fieldNames.slice(i, i + chunkSize));
+    }
+    
+    this.logger.log(`🧩 Analyzing ${chunks.length} field chunks: ${chunks.map(c => c.length).join(', ')} fields each`);
+    
+    const chunkResults = [];
+    
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+      
+      // Crear prompt específico para este chunk
+      const chunkPrompt = `Focus ONLY on finding these ${chunk.length} specific fields:
+${chunk.map((field, idx) => `${idx + 1}. ${field}`).join('\n')}
+
+Return exactly ${chunk.length} values separated by semicolons, in the exact order listed above.
+Use NOT_FOUND only if absolutely certain the information is not present.
+
+Document text reference:
+${extractedText.substring(0, 2000)}...`;
+      
+      try {
+        // Analizar con imagen principal (primera página)
+        const imageBase64 = images[0].toString('base64');
+        
+        const result = await this.geminiService.analyzeWithVision(
+          imageBase64,
+          chunkPrompt,
+          consolidatedPrompt.expected_type,
+          `${consolidatedPrompt.pmc_field}_chunk${chunkIndex}`,
+          1
+        );
+        
+        chunkResults.push(result.response);
+        this.logger.log(`🧩 Chunk ${chunkIndex + 1} result: "${result.response}"`);
+        
+      } catch (error) {
+        this.logger.warn(`⚠️ Chunk ${chunkIndex + 1} analysis failed: ${error.message}`);
+        chunkResults.push('NOT_FOUND'.repeat(chunk.length).split('NOT_FOUND').join(';').slice(0, -1));
+      }
+    }
+    
+    // Combinar resultados de chunks
+    const combinedAnswer = chunkResults.join(';');
+    
+    return {
+      answer: combinedAnswer,
+      confidence: 0.75 // Confianza media para análisis por chunks
+    };
+  }
+
+  /**
+   * 🎯 Combina múltiples resultados con lógica inteligente
+   */
+  private combineMultipleResults(results: Array<{answer: string, confidence: number, source: string}>): {answer: string, confidence: number} {
+    
+    this.logger.log(`🎯 Combining ${results.length} results from different strategies`);
+    
+    // Separar todas las respuestas en arrays de valores
+    const allValueArrays = results.map(r => ({
+      values: r.answer.split(';'),
+      confidence: r.confidence,
+      source: r.source
+    }));
+    
+    const fieldCount = allValueArrays[0]?.values.length || 0;
+    const finalValues = [];
+    
+    // Para cada campo, seleccionar el mejor valor
+    for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
+      const fieldOptions = allValueArrays
+        .map(arr => ({
+          value: arr.values[fieldIndex] || 'NOT_FOUND',
+          confidence: arr.confidence,
+          source: arr.source
+        }))
+        .filter(option => option.value && option.value.trim() !== '');
+      
+      // Priorizar valores que NO sean NOT_FOUND
+      const nonNotFound = fieldOptions.filter(opt => opt.value !== 'NOT_FOUND');
+      
+      if (nonNotFound.length > 0) {
+        // Usar el valor con mayor confianza que no sea NOT_FOUND
+        const bestNonNotFound = nonNotFound.reduce((best, current) => 
+          current.confidence > best.confidence ? current : best
+        );
+        finalValues.push(bestNonNotFound.value);
+        
+      } else {
+        // Todos son NOT_FOUND, usar el de mayor confianza
+        const bestNotFound = fieldOptions.reduce((best, current) => 
+          current.confidence > best.confidence ? current : best,
+          {value: 'NOT_FOUND', confidence: 0, source: 'fallback'}
+        );
+        finalValues.push(bestNotFound.value);
+      }
+    }
+    
+    const finalAnswer = finalValues.join(';');
+    const avgConfidence = results.reduce((sum, r) => sum + r.confidence, 0) / results.length;
+    
+    this.logger.log(`🎯 Final combined answer: "${finalAnswer}" (avg confidence: ${avgConfidence.toFixed(2)})`);
+    
+    return {
+      answer: finalAnswer,
+      confidence: Math.min(avgConfidence + 0.1, 0.95) // Bonus por combinación múltiple
+    };
+  }
+
+  /**
+   * 📊 Calcula tasa de NOT_FOUND
+   */
+  private calculateNotFoundRate(answer: string): number {
+    const values = answer.split(';');
+    const notFoundCount = values.filter(v => v.trim() === 'NOT_FOUND').length;
+    return notFoundCount / values.length;
   }
 }
