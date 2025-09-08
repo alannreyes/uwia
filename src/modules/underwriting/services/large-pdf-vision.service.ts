@@ -768,33 +768,58 @@ export class LargePdfVisionService {
       
       this.logger.log(`🎯 Consolidated strategy adjusted: targetedPages=${consolidatedStrategy.useTargetedPages}, maxPages=${consolidatedStrategy.maxPagesPerField}`);
 
-      // 🧪 HARDCODED TEST PARA MECHANICS_LIEN - ELIMINAR DESPUÉS
+      // 🧪 COMPREHENSIVE IMAGE VALIDATION TEST
       if (consolidatedPrompt.pmc_field === 'lop_responses') {
-        this.logger.log(`🧪🧪🧪 PRUEBA HARDCODEADA: Probando solo mechanics_lien field`);
+        this.logger.log(`🧪🧪🧪 COMPREHENSIVE VALIDATION TEST`);
         
-        const simplePrompt = "Look at this document and determine if there is any language related to liens, mechanics liens, legal claims on property, lien rights, lien waivers, liens upon property, liens upon proceeds, insurance payments, mechanics liens, letters of protection, security interests, or encumbrances. Respond with YES if found or NO if not found.";
-        
-        try {
-          // Test con GPT-4o Vision solo para mechanics_lien - usar método correcto
-          if (images.length > 0) {
-            const imageBase64 = images[0].toString('base64');
-            const testResult = await this.openaiService.evaluateWithVision(
-              imageBase64, 
-              simplePrompt, 
-              ResponseType.BOOLEAN,
-              'TEST_mechanics_lien',
-              1
+        if (images.length > 0) {
+          const imageBase64 = images[0].toString('base64');
+          
+          // Test 1: Validate PNG/JPEG headers in base64
+          const isPNG = imageBase64.startsWith('iVBORw0KGgo');
+          const isJPEG = imageBase64.startsWith('/9j/');
+          this.logger.log(`🧪 Image Format Check: PNG=${isPNG}, JPEG=${isJPEG}`);
+          
+          // Test 2: Check image size
+          const imageSizeKB = Math.round((imageBase64.length * 0.75) / 1024);
+          this.logger.log(`🧪 Image Size: ${imageSizeKB}KB (base64 length: ${imageBase64.length})`);
+          
+          // Test 3: Basic visual recognition test
+          const basicPrompt = "What type of document is this? Describe in one sentence what you see.";
+          try {
+            const basicResult = await this.openaiService.evaluateWithVision(
+              imageBase64, basicPrompt, ResponseType.TEXT, 'TEST_basic_vision', 1
             );
-            
-            this.logger.log(`🧪 RESULTADO DE PRUEBA INDIVIDUAL: "${testResult.response}" (confianza: ${testResult.confidence})`);
-            this.logger.log(`🧪 Si esto dice YES, entonces el problema es el prompt consolidado largo`);
+            this.logger.log(`🧪 Basic Vision Test: "${basicResult.response}"`);
+          } catch (error) {
+            this.logger.error(`🧪 Basic Vision Test Failed: ${error.message}`);
           }
           
-        } catch (testError) {
-          this.logger.error(`🧪 Error en prueba individual: ${testError.message}`);
+          // Test 4: Specific lien detection
+          const lienPrompt = "Look at this document and determine if there is any language related to liens, mechanics liens, or letters of protection. Answer with YES or NO only.";
+          try {
+            const lienResult = await this.openaiService.evaluateWithVision(
+              imageBase64, lienPrompt, ResponseType.BOOLEAN, 'TEST_lien_detection', 1
+            );
+            this.logger.log(`🧪 Lien Detection Test: "${lienResult.response}" (confidence: ${lienResult.confidence})`);
+          } catch (error) {
+            this.logger.error(`🧪 Lien Detection Test Failed: ${error.message}`);
+          }
+          
+          // Test 5: Gemini comparison if available
+          if (this.geminiService && this.geminiService.isAvailable()) {
+            try {
+              const geminiResult = await this.geminiService.analyzeWithVision(
+                imageBase64, lienPrompt, ResponseType.BOOLEAN, 'TEST_gemini_lien', 1
+              );
+              this.logger.log(`🧪 Gemini Lien Test: "${geminiResult.response}" (confidence: ${geminiResult.confidence})`);
+            } catch (error) {
+              this.logger.error(`🧪 Gemini Test Failed: ${error.message}`);
+            }
+          }
         }
       }
-      // 🧪 FIN DE PRUEBA HARDCODEADA
+      // 🧪 END COMPREHENSIVE TEST
 
       let result: {answer: string, confidence: number};
 
