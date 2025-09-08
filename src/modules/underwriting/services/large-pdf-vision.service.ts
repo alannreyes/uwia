@@ -775,21 +775,20 @@ export class LargePdfVisionService {
         const simplePrompt = "Look at this document and determine if there is any language related to liens, mechanics liens, legal claims on property, lien rights, lien waivers, liens upon property, liens upon proceeds, insurance payments, mechanics liens, letters of protection, security interests, or encumbrances. Respond with YES if found or NO if not found.";
         
         try {
-          // Test con GPT-4o Vision solo para mechanics_lien
-          const testResult = await this.openaiService.invokeGPTVision({
-            pmc_field: 'TEST_mechanics_lien',
-            question: simplePrompt,
-            expected_type: ResponseType.BOOLEAN
-          }, images, extractedText, {
-            useTargetedPages: false,
-            enableEarlyExit: false,
-            allowPartialAnalysis: false,
-            maxPagesPerField: images.length,
-            useGeminiPrimary: false
-          });
-          
-          this.logger.log(`🧪 RESULTADO DE PRUEBA INDIVIDUAL: "${testResult.response}" (confianza: ${testResult.confidence})`);
-          this.logger.log(`🧪 Si esto dice YES, entonces el problema es el prompt consolidado largo`);
+          // Test con GPT-4o Vision solo para mechanics_lien - usar método correcto
+          if (images.length > 0) {
+            const imageBase64 = images[0].toString('base64');
+            const testResult = await this.openaiService.evaluateWithVision(
+              imageBase64, 
+              simplePrompt, 
+              ResponseType.BOOLEAN,
+              'TEST_mechanics_lien',
+              1
+            );
+            
+            this.logger.log(`🧪 RESULTADO DE PRUEBA INDIVIDUAL: "${testResult.response}" (confianza: ${testResult.confidence})`);
+            this.logger.log(`🧪 Si esto dice YES, entonces el problema es el prompt consolidado largo`);
+          }
           
         } catch (testError) {
           this.logger.error(`🧪 Error en prueba individual: ${testError.message}`);
