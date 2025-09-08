@@ -1088,8 +1088,11 @@ export class LargePdfVisionService {
     
     this.logger.log(`📊 NOT_FOUND rate: ${notFoundCount}/${values.length} (${(notFoundRate * 100).toFixed(1)}%)`);
     
-    // Si más del 60% son NOT_FOUND, activar visión forzada
-    return notFoundRate > 0.6;
+    // 🚀 ULTRA AGRESIVO: Si más del 40% son NOT_FOUND, activar visión forzada
+    const isHighRate = notFoundRate > 0.4;
+    this.logger.log(`🎯 Ultra-aggressive threshold (40%): ${isHighRate ? 'TRIGGERED' : 'OK'}`);
+    
+    return isHighRate;
   }
 
   /**
@@ -1103,43 +1106,47 @@ export class LargePdfVisionService {
     bestGeminiResult: any
   ): Promise<{answer: string, confidence: number, improved: boolean}> {
     
-    this.logger.log(`🔥 INICIANDO VISIÓN FORZADA con ${images.length} páginas`);
+    this.logger.log(`🔥 INICIANDO VISIÓN FORZADA ULTRA-AGRESIVA con ${images.length} páginas`);
     
     try {
-      // ESTRATEGIA 1: Análisis con prompts más específicos
+      // 💾 RETENCIÓN TEMPORAL: Guardar valores del primer método
+      const temporalValues = this.extractTemporalValues(bestGptResult.response, bestGeminiResult.response);
+      this.logger.log(`💾 Valores temporales retenidos: ${temporalValues.length} campos con datos`);
+      
+      // ESTRATEGIA 1: Análisis con prompts ultra-específicos + retención temporal
       const enhancedResults = await this.performEnhancedVisionAnalysis(
         consolidatedPrompt, 
         images, 
         extractedText
       );
       
-      // ESTRATEGIA 2: Análisis por chunks de campos
+      // ESTRATEGIA 2: Análisis por micro-chunks de campos
       const chunkResults = await this.performChunkedFieldAnalysis(
         consolidatedPrompt, 
         images,
         extractedText
       );
       
-      // ESTRATEGIA 3: Combinar resultados con lógica inteligente
-      const combinedResult = this.combineMultipleResults([
-        {answer: bestGptResult.response, confidence: bestGptResult.confidence, source: 'gpt-original'},
-        {answer: bestGeminiResult.response, confidence: bestGeminiResult.confidence, source: 'gemini-original'},
-        {answer: enhancedResults.answer, confidence: enhancedResults.confidence, source: 'enhanced-vision'},
-        {answer: chunkResults.answer, confidence: chunkResults.confidence, source: 'chunked-analysis'}
-      ]);
+      // 🎯 ESTRATEGIA 3: SUMA PROGRESIVA - Combinar con retención temporal
+      const progressiveCombinedResult = this.combineProgressiveResults([
+        {answer: bestGptResult.response, confidence: bestGptResult.confidence, source: 'gpt-original', priority: 1},
+        {answer: bestGeminiResult.response, confidence: bestGeminiResult.confidence, source: 'gemini-original', priority: 1},
+        {answer: enhancedResults.answer, confidence: enhancedResults.confidence, source: 'ultra-enhanced-vision', priority: 2},
+        {answer: chunkResults.answer, confidence: chunkResults.confidence, source: 'micro-chunked-analysis', priority: 3}
+      ], temporalValues, consolidatedPrompt.expected_fields);
       
-      this.logger.log(`🎯 Combined forced vision result: "${combinedResult.answer}" (confidence: ${combinedResult.confidence})`);
+      this.logger.log(`🎯 Progressive combined result: "${progressiveCombinedResult.answer}" (confidence: ${progressiveCombinedResult.confidence})`);
       
-      // Verificar si hubo mejora significativa
+      // Verificar mejora ultra-agresiva
       const originalNotFoundRate = this.calculateNotFoundRate(bestGptResult.response);
-      const improvedNotFoundRate = this.calculateNotFoundRate(combinedResult.answer);
-      const improved = improvedNotFoundRate < originalNotFoundRate - 0.1; // Mejora del 10%
+      const improvedNotFoundRate = this.calculateNotFoundRate(progressiveCombinedResult.answer);
+      const improved = improvedNotFoundRate < originalNotFoundRate - 0.05; // Mejora del 5%
       
-      this.logger.log(`📈 NOT_FOUND improvement: ${originalNotFoundRate.toFixed(2)} → ${improvedNotFoundRate.toFixed(2)} (improved: ${improved})`);
+      this.logger.log(`📈 ULTRA-AGGRESSIVE improvement: ${originalNotFoundRate.toFixed(2)} → ${improvedNotFoundRate.toFixed(2)} (improved: ${improved})`);
       
       return {
-        answer: combinedResult.answer,
-        confidence: combinedResult.confidence,
+        answer: progressiveCombinedResult.answer,
+        confidence: progressiveCombinedResult.confidence,
         improved: improved
       };
       
@@ -1348,6 +1355,109 @@ ${extractedText.substring(0, 2000)}...`;
     return {
       answer: finalAnswer,
       confidence: Math.min(avgConfidence + 0.1, 0.95) // Bonus por combinación múltiple
+    };
+  }
+
+  /**
+   * 💾 NUEVA FUNCIÓN: Extraer y retener valores temporales del primer método
+   */
+  private extractTemporalValues(gptResponse: string, geminiResponse: string): Array<{index: number, value: string, confidence: number, source: string}> {
+    const temporalValues = [];
+    
+    const gptValues = gptResponse.split(';');
+    const geminiValues = geminiResponse.split(';');
+    
+    // Extraer todos los valores que NO sean NOT_FOUND
+    for (let i = 0; i < Math.max(gptValues.length, geminiValues.length); i++) {
+      const gptValue = gptValues[i]?.trim();
+      const geminiValue = geminiValues[i]?.trim();
+      
+      // Priorizar valores reales sobre NOT_FOUND
+      if (gptValue && gptValue !== 'NOT_FOUND') {
+        temporalValues.push({
+          index: i,
+          value: gptValue,
+          confidence: 0.7,
+          source: 'gpt-temporal'
+        });
+      } else if (geminiValue && geminiValue !== 'NOT_FOUND') {
+        temporalValues.push({
+          index: i,
+          value: geminiValue,
+          confidence: 0.8,
+          source: 'gemini-temporal'
+        });
+      }
+    }
+    
+    this.logger.log(`💾 Extracted ${temporalValues.length} temporal values: ${temporalValues.map(v => `[${v.index}]=${v.value}`).join(', ')}`);
+    return temporalValues;
+  }
+
+  /**
+   * 🎯 NUEVA FUNCIÓN: Combina múltiples resultados con suma progresiva y retención temporal
+   */
+  private combineProgressiveResults(
+    results: Array<{answer: string, confidence: number, source: string, priority: number}>,
+    temporalValues: Array<{index: number, value: string, confidence: number, source: string}>,
+    expectedFields: string[]
+  ): {answer: string, confidence: number} {
+    
+    this.logger.log(`🎯 Progressive combining ${results.length} results + ${temporalValues.length} temporal values`);
+    
+    const fieldCount = expectedFields.length;
+    const finalValues = new Array(fieldCount).fill('NOT_FOUND');
+    const fieldConfidences = new Array(fieldCount).fill(0);
+    
+    // PASO 1: Aplicar valores temporales retenidos (prioridad máxima)
+    temporalValues.forEach(temp => {
+      if (temp.index < fieldCount) {
+        finalValues[temp.index] = temp.value;
+        fieldConfidences[temp.index] = temp.confidence + 0.2; // Bonus por retención temporal
+        this.logger.log(`💾 Applied temporal value [${temp.index}]: ${temp.value}`);
+      }
+    });
+    
+    // PASO 2: Procesar resultados por orden de prioridad
+    results.sort((a, b) => a.priority - b.priority);
+    
+    for (const result of results) {
+      const values = result.answer.split(';');
+      
+      for (let i = 0; i < Math.min(values.length, fieldCount); i++) {
+        const value = values[i]?.trim();
+        
+        // Solo reemplazar si:
+        // 1. El campo actual es NOT_FOUND, O
+        // 2. El nuevo valor tiene mayor confianza Y no es NOT_FOUND
+        if (value && 
+            (finalValues[i] === 'NOT_FOUND' || 
+             (value !== 'NOT_FOUND' && result.confidence > fieldConfidences[i]))) {
+          
+          const oldValue = finalValues[i];
+          finalValues[i] = value;
+          fieldConfidences[i] = result.confidence;
+          
+          if (oldValue !== value) {
+            this.logger.log(`🔄 Field [${i}] updated: "${oldValue}" → "${value}" (${result.source}, conf: ${result.confidence})`);
+          }
+        }
+      }
+    }
+    
+    // PASO 3: Calcular confianza final promedio ponderada
+    const totalConfidence = fieldConfidences.reduce((sum, conf) => sum + conf, 0);
+    const avgConfidence = Math.min(totalConfidence / fieldCount, 0.95);
+    
+    const finalAnswer = finalValues.join(';');
+    const notFoundCount = finalValues.filter(v => v === 'NOT_FOUND').length;
+    
+    this.logger.log(`🎯 Progressive result: ${fieldCount - notFoundCount}/${fieldCount} fields filled (${((1 - notFoundCount/fieldCount) * 100).toFixed(1)}%)`);
+    this.logger.log(`🎯 Final answer: "${finalAnswer}"`);
+    
+    return {
+      answer: finalAnswer,
+      confidence: Math.max(avgConfidence, 0.7) // Mínimo 0.7 para suma progresiva
     };
   }
 
