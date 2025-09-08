@@ -768,69 +768,6 @@ export class LargePdfVisionService {
       
       this.logger.log(`🎯 Consolidated strategy adjusted: targetedPages=${consolidatedStrategy.useTargetedPages}, maxPages=${consolidatedStrategy.maxPagesPerField}`);
 
-      // 🧪 CRITICAL DEBUG: SAVE PNG TO INVESTIGATE CONVERSION ISSUE
-      if (consolidatedPrompt.pmc_field === 'lop_responses') {
-        this.logger.log(`🧪🧪🧪 CRITICAL DEBUG FOR LOP CONVERSION ISSUE`);
-        
-        if (images.length > 0) {
-          const imageBase64 = images[0].toString('base64');
-          
-          // Test 1: Validate PNG headers and size
-          const isPNG = imageBase64.startsWith('iVBORw0KGgo');
-          const isJPEG = imageBase64.startsWith('/9j/');
-          const imageSizeKB = Math.round((imageBase64.length * 0.75) / 1024);
-          this.logger.log(`🧪 Image Format: PNG=${isPNG}, JPEG=${isJPEG}, Size=${imageSizeKB}KB`);
-          
-          // Test 2: Save PNG to filesystem for manual inspection
-          const fs = require('fs');
-          const path = require('path');
-          try {
-            const debugPath = '/tmp/lop_debug_page1.png';
-            fs.writeFileSync(debugPath, Buffer.from(imageBase64, 'base64'));
-            this.logger.log(`🧪 PNG SAVED FOR INSPECTION: ${debugPath}`);
-            
-            // Also save first 1000 chars of base64 for debugging
-            this.logger.log(`🧪 Base64 Preview (first 200 chars): ${imageBase64.substring(0, 200)}...`);
-          } catch (saveError) {
-            this.logger.error(`🧪 Failed to save PNG: ${saveError.message}`);
-          }
-          
-          // Test 3: Ultra-specific text detection
-          const specificPrompt = "Look at this document. Can you see the words 'Letter of Protection' or 'LOP' anywhere? Answer YES if you can see these words, NO if you cannot.";
-          try {
-            const specificResult = await this.openaiService.evaluateWithVision(
-              imageBase64, specificPrompt, ResponseType.BOOLEAN, 'TEST_specific_text', 1
-            );
-            this.logger.log(`🧪 Specific Text Test: "${specificResult.response}" (confidence: ${specificResult.confidence})`);
-          } catch (error) {
-            this.logger.error(`🧪 Specific Text Test Failed: ${error.message}`);
-          }
-          
-          // Test 4: Read ALL text
-          const readAllPrompt = "Please read all the text you can see in this document and tell me the first sentence or heading.";
-          try {
-            const readResult = await this.openaiService.evaluateWithVision(
-              imageBase64, readAllPrompt, ResponseType.TEXT, 'TEST_read_all', 1
-            );
-            this.logger.log(`🧪 Read All Text Test: "${readResult.response}"`);
-          } catch (error) {
-            this.logger.error(`🧪 Read All Text Failed: ${error.message}`);
-          }
-          
-          // Test 5: Gemini text reading
-          if (this.geminiService && this.geminiService.isAvailable()) {
-            try {
-              const geminiReadResult = await this.geminiService.analyzeWithVision(
-                imageBase64, readAllPrompt, ResponseType.TEXT, 'TEST_gemini_read', 1
-              );
-              this.logger.log(`🧪 Gemini Read Test: "${geminiReadResult.response}"`);
-            } catch (error) {
-              this.logger.error(`🧪 Gemini Read Test Failed: ${error.message}`);
-            }
-          }
-        }
-      }
-      // 🧪 END CRITICAL DEBUG
 
       let result: {answer: string, confidence: number};
 
