@@ -453,8 +453,9 @@ export class UnderwritingService {
         preparedDocument.images && preparedDocument.images.size > 0
       );
 
-      // FORZAR análisis visual para documentos críticos
-      const forceVisualDocuments = ['LOP', 'ROOF', 'CERTIFICATE', 'INVOICES'];
+      // FORZAR análisis visual solo para documentos que realmente lo necesitan
+      // TEMP FIX: Removiendo LOP y CERTIFICATE para usar análisis de texto
+      const forceVisualDocuments = ['ROOF', 'INVOICES'];
       const shouldForceVisual = forceVisualDocuments.some(doc => 
         documentName.toUpperCase().includes(doc)
       );
@@ -877,8 +878,9 @@ export class UnderwritingService {
         preparedDocument.images && preparedDocument.images.size > 0
       );
 
-      // FORZAR análisis visual para documentos críticos
-      const forceVisualDocuments = ['LOP', 'ROOF', 'CERTIFICATE', 'POLICY'];
+      // FORZAR análisis visual solo para documentos que realmente lo necesitan
+      // TEMP FIX: Removiendo LOP, CERTIFICATE y POLICY para usar análisis de texto
+      const forceVisualDocuments = ['ROOF'];
       const shouldForceVisual = forceVisualDocuments.some(doc => 
         documentName.toUpperCase().includes(doc)
       );
