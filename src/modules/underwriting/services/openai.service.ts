@@ -72,24 +72,63 @@ export class OpenAiService {
         throw new Error('OpenAI está deshabilitado');
       }
 
-      // Optimización: Usar chunking inteligente para documentos grandes
+      // NUEVO: Si la arquitectura dual está disponible, úsala antes de validar tamaño
+      if (this.geminiService && this.enhancedChunking) {
+        this.logger.debug(`[${pmcField}] 🆕 Using GPT-4o + Gemini complementary validation system (pre-size-check)`);
+        return await this.evaluateWithNewArchitecture(documentText, prompt, expectedType, additionalContext, pmcField);
+      }
+
+      // Optimización clásica: Usar chunking inteligente para documentos grandes
       const relevantText = this.extractRelevantChunks(documentText, prompt);
 
       // Verificar tamaño del texto optimizado
       if (relevantText.length > openaiConfig.maxTextLength) {
         this.logger.warn(`Texto excede el límite de ${openaiConfig.maxTextLength} caracteres`);
-        if (openaiConfig.fallbackToLocal) {
-          throw new Error('Texto muy largo, se requiere procesamiento local');
+        // Fallback robusto: 1) Si Gemini está disponible, usarlo; 2) Si no, recortar.
+        if (this.geminiService && this.geminiService.isAvailable()) {
+          this.logger.log('🔁 Routing to Gemini due to OpenAI text limit');
+          const g = await this.geminiService.evaluateDocument(
+            documentText,
+            prompt,
+            expectedType,
+            additionalContext,
+            pmcField
+          );
+          return {
+            response: g.response,
+            confidence: g.confidence,
+            validation_response: g.response,
+            validation_confidence: g.confidence,
+            final_confidence: g.confidence,
+            openai_metadata: {
+              primary_model: 'gemini-2.5-pro',
+              validation_model: 'none',
+              primary_tokens: g.tokensUsed,
+              validation_tokens: 0,
+              system_mode: 'fallback_gemini'
+            }
+          };
         }
-        throw new Error(`El texto excede el límite máximo de ${openaiConfig.maxTextLength} caracteres`);
+        // Último recurso: recortar al límite y continuar con GPT-4o
+        const clamped = relevantText.substring(0, openaiConfig.maxTextLength);
+        this.logger.warn(`✂️ Clamping text to ${openaiConfig.maxTextLength} chars for OpenAI`);
+        const resultClamped = await this.evaluatePrompt(clamped, prompt, expectedType, additionalContext, undefined, pmcField);
+        return {
+          response: resultClamped.response,
+          confidence: resultClamped.confidence,
+          validation_response: resultClamped.response,
+          validation_confidence: resultClamped.confidence,
+          final_confidence: resultClamped.confidence,
+          openai_metadata: {
+            primary_model: openaiConfig.model,
+            validation_model: 'none',
+            primary_tokens: resultClamped.tokens_used,
+            validation_tokens: 0,
+            system_mode: 'clamped_openai'
+          }
+        };
       }
 
-      // Sistema complementario: GPT-4o + Gemini trabajando juntos
-      if (this.geminiService && this.enhancedChunking) {
-        this.logger.debug(`[${pmcField}] 🆕 Using GPT-4o + Gemini complementary validation system`);
-        return await this.evaluateWithNewArchitecture(documentText, prompt, expectedType, additionalContext, pmcField);
-      }
-      
       // Fallback si Gemini no está disponible - usar solo GPT-4o
       this.logger.debug('📊 Using GPT-4o single model (Gemini not available)');
       const result = await this.evaluatePrompt(relevantText, prompt, expectedType, additionalContext, undefined, pmcField);
