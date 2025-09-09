@@ -1,0 +1,28 @@
+Plan de correcciones UWIA (Codex)
+
+Estado: [IN PROGRESS]
+
+1) Fix multipart DTO (orden y context)
+   - Reordenar construcción de DTO para no sobrescribir `context` parseado.
+   - Normalizar `document_name` y asignar `*_pdf` y `file_data` sin conflictos.
+   Estado: [DONE]
+
+2) Ampliar páginas para visión (prepareDocument)
+   - En vez de solo primera/última, convertir: 1,2,3, medio, penúltima y última (limitado por MAX_PAGES_TO_CONVERT).
+   - Usar `getPageCount` y `convertPages` con `documentName` para alta resolución de LOP.
+   Estado: [DONE]
+
+3) Aumentar límites de texto para POLICY y grandes
+   - Elevar clamps de 12K → 25K chars en `OpenAiService` para chunking.
+   - Mantener control por `openaiConfig.maxTextLength`.
+   Estado: [DONE]
+
+4) Post-proceso programático de campos *_match
+   - Recalcular YES/NO en código con normalización (street, zip, city, address, DOL, policy/claim).
+   - Sobrescribir posiciones correspondientes en la respuesta consolidada.
+   Estado: [DONE]
+
+5) Documentación y cierre
+   - Actualizar este archivo con estados [DONE], anotar archivos tocados.
+   - Sugerir test en n8n.
+   Estado: [IN PROGRESS]

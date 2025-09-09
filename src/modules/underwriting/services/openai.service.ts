@@ -385,14 +385,14 @@ ANSWER:`;
     }
     
     // Si el documento es pequeño, retornarlo completo
-    if (documentText.length <= 6000) { // Reducido de 15000
+    if (documentText.length <= 12000) { // elevar umbral para evitar truncado innecesario
       return documentText;
     }
 
     // Dividir el documento en chunks más pequeños para mejor procesamiento
-    const MAX_CHUNK_CHARACTERS = 8000; // Límite máximo por chunk
-    const chunkSize = 5000; // Reducido de 8000
-    const overlap = 300; // Reducido de 500 para menos repetición
+    const MAX_CHUNK_CHARACTERS = 12000; // elevar por chunk
+    const chunkSize = 8000; // elevar tamaño base
+    const overlap = 500; // overlap moderado
     const chunks: string[] = [];
     
     for (let i = 0; i < documentText.length; i += chunkSize - overlap) {
@@ -425,8 +425,8 @@ ANSWER:`;
     // Ordenar por score y tomar los mejores chunks
     scoredChunks.sort((a, b) => b.score - a.score);
     
-    // Tomar chunks hasta un máximo de 8,000 caracteres (reducido de 25,000)
-    const MAX_TOTAL_CHARACTERS = 8000;
+    // Tomar chunks hasta un máximo de 25,000 caracteres
+    const MAX_TOTAL_CHARACTERS = 25000;
     let totalLength = 0;
     const selectedChunks: { chunk: string; index: number }[] = [];
     
@@ -1881,7 +1881,7 @@ The response will be structured according to a strict JSON schema for maximum re
     
     // Calcular límite dinámico basado en configuración
     const configLimit = openaiConfig.maxTextLength;
-    const safeLimit = Math.min(configLimit * 0.8, 12000); // 80% del límite configurado, máximo 12K
+    const safeLimit = Math.min(configLimit * 0.8, 25000); // 80% del límite configurado, máximo 25K
     const maxChunks = Math.max(1, Math.floor(safeLimit / 2000)); // Mínimo 1 chunk
     
     this.logger.log(`📊 Límite configurado: ${configLimit}, límite seguro: ${safeLimit}, max chunks: ${maxChunks}`);
@@ -1936,12 +1936,12 @@ The response will be structured according to a strict JSON schema for maximum re
     this.logger.log(`📊 Procesamiento con chunking mejorado: ${(documentText.length/1000).toFixed(0)}K chars`);
     
     const keywordMap = this.getRelevantKeywords(prompt.toLowerCase());
-    const CHUNK_SIZE = 8000;
-    const OVERLAP = 500;
+    const CHUNK_SIZE = 10000;
+    const OVERLAP = 600;
     
     // Calcular límite dinámico basado en configuración
     const configLimit = openaiConfig.maxTextLength;
-    const MAX_FINAL_SIZE = Math.min(configLimit * 0.8, 12000); // 80% del límite configurado
+    const MAX_FINAL_SIZE = Math.min(configLimit * 0.8, 25000); // 80% del límite configurado (máx 25K)
     
     this.logger.log(`📊 Límite configurado: ${configLimit}, límite final: ${MAX_FINAL_SIZE}`);
     
