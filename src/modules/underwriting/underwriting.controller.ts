@@ -128,19 +128,19 @@ export class UnderwritingController {
       }
     }
 
-    // Crear DTO flexible basado en document_name
+    // Crear DTO flexible basado en document_name (evitar sobrescribir context parseado)
+    // Primero copiar el body crudo, luego forzar campos normalizados
     const dto: any = {
+      ...body,
       record_id: body.record_id,
       carpeta_id: body.carpeta_id,
       document_name: document_name,
-      context: context,
+      context: context, // asegurar objeto ya parseado
       // Asignar el archivo según el document_name
       ...(document_name === 'LOP' && { lop_pdf: fileBase64 }),
       ...(document_name === 'POLICY' && { policy_pdf: fileBase64 }),
       // Fallback para cualquier archivo
       file_data: fileBase64,
-      // Incluir todos los demás campos del body
-      ...body
     };
 
     this.logger.log('DTO created:', {

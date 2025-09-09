@@ -588,11 +588,21 @@ export class UnderwritingService {
         actualProcessingTime = Date.now() - processStartTime;
       }
 
+      // Post-proceso: recalcular campos *_match con lógica programática para mayor exactitud
+      try {
+        const recalculated = this.recalculateMatches(finalAnswer, documentPrompt.fieldNames, variables);
+        if (recalculated) {
+          finalAnswer = recalculated;
+        }
+      } catch (ppErr) {
+        this.logger.warn(`⚠️ Post-processing of *_match fields failed: ${ppErr.message}`);
+      }
+
       // Crear UNA SOLA respuesta consolidada
       results.push({
-        pmc_field: documentPrompt.pmcField,    // "lop_responses"
-        question: processedPrompt,             // Prompt consolidado de la DB
-        answer: finalAnswer,                   // "NO;NOT_FOUND;YES;YES;..."
+        pmc_field: documentPrompt.pmcField,
+        question: processedPrompt,
+        answer: finalAnswer,
         confidence: finalConfidence,
         processing_time_ms: actualProcessingTime,
         error: null
@@ -650,6 +660,99 @@ export class UnderwritingService {
         error: error.message
       }];
     }
+  }
+
+  /**
+   * Recalcula campos *_match de forma determinística usando variables de contexto
+   */
+  private recalculateMatches(
+    answer: string,
+    fieldNames: string[],
+    variables: Record<string, string>
+  ): string | null {
+    if (!answer) return null;
+    const parts = answer.split(';');
+    if (parts.length !== fieldNames.length) return null;
+
+    // Helpers de normalización
+    const norm = (s?: string) => (s || '')
+      .toString()
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    const normAlnum = (s?: string) => norm(s).replace(/[^a-z0-9]/g, '');
+    const normDigits = (s?: string) => (s || '').toString().replace(/\D+/g, '');
+
+    // Construir mapa campo->indice
+    const indexOf = (name: string) => fieldNames.findIndex(f => f === name);
+
+    // Valores extraídos base
+    const streetVal = parts[indexOf('onb_street1')] || '';
+    const zipVal = parts[indexOf('onb_zip1')] || '';
+    const cityVal = parts[indexOf('onb_city1')] || '';
+    const stateVal = parts[indexOf('state1')] || '';
+    const dolVal = parts[indexOf('onb_date_of_loss1')] || '';
+    const policyVal = parts[indexOf('onb_policy_number1')] || '';
+    const claimVal = parts[indexOf('onb_claim_number1')] || '';
+
+    // Variables de referencia
+    const vStreet = variables['insured_street'] || variables['insured_address'];
+    const vZip = variables['insured_zip'];
+    const vCity = variables['insured_city'];
+    const vAddress = variables['insured_address'];
+    const vDol = variables['date_of_loss'];
+    const vPolicy = variables['policy_number'];
+    const vClaim = variables['claim_number'];
+
+    // Reglas de comparación
+    const eq = (a: string, b: string) => normAlnum(a) === normAlnum(b);
+    const eqDigits = (a: string, b: string) => normDigits(a) === normDigits(b);
+    const eqLoose = (a: string, b: string) => {
+      const A = norm(a);
+      const B = norm(b);
+      if (!A || !B) return false;
+      if (A === B) return true;
+      // contener recíproco ayuda para abreviaturas menores
+      return A.includes(B) || B.includes(A);
+    };
+
+    const setIfExists = (field: string, value: 'YES' | 'NO') => {
+      const idx = indexOf(field);
+      if (idx >= 0) parts[idx] = value;
+    };
+
+    // onb_street_match
+    if (indexOf('onb_street_match') >= 0 && (streetVal || vStreet)) {
+      setIfExists('onb_street_match', eqLoose(streetVal, vStreet) ? 'YES' : 'NO');
+    }
+    // onb_zip_match
+    if (indexOf('onb_zip_match') >= 0 && (zipVal || vZip)) {
+      setIfExists('onb_zip_match', eqDigits(zipVal, vZip) ? 'YES' : 'NO');
+    }
+    // onb_city_match
+    if (indexOf('onb_city_match') >= 0 && (cityVal || vCity)) {
+      setIfExists('onb_city_match', eqLoose(cityVal, vCity) ? 'YES' : 'NO');
+    }
+    // onb_address_match: construir address desde piezas extraídas si no hay un campo dedicado
+    if (indexOf('onb_address_match') >= 0 && vAddress) {
+      const extractedAddress = [streetVal, cityVal, stateVal, zipVal].filter(Boolean).join(', ');
+      setIfExists('onb_address_match', eqLoose(extractedAddress, vAddress) ? 'YES' : 'NO');
+    }
+    // onb_date_of_loss_match
+    if (indexOf('onb_date_of_loss_match') >= 0 && (dolVal || vDol)) {
+      setIfExists('onb_date_of_loss_match', eqDigits(dolVal, vDol) ? 'YES' : 'NO');
+    }
+    // onb_policy_number_match
+    if (indexOf('onb_policy_number_match') >= 0 && (policyVal || vPolicy)) {
+      setIfExists('onb_policy_number_match', eq(policyVal, vPolicy) ? 'YES' : 'NO');
+    }
+    // onb_claim_number_match
+    if (indexOf('onb_claim_number_match') >= 0 && (claimVal || vClaim)) {
+      setIfExists('onb_claim_number_match', eq(claimVal, vClaim) ? 'YES' : 'NO');
+    }
+
+    return parts.join(';');
   }
 
 
@@ -1069,10 +1172,30 @@ export class UnderwritingService {
 
       // Convertir a imágenes si es necesario
       if (requirements.needsVisual) {
-        // Convertir todas las páginas a imágenes para análisis visual
-        // Use convertSignaturePages for complete document conversion
-        prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent, documentName);
-        this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images for ${documentName}`);
+        // Seleccionar páginas clave: 1,2,3, medio, penúltima y última (limitado por MAX_PAGES_TO_CONVERT)
+        try {
+          const pageCount = await this.pdfImageService.getPageCount(pdfContent);
+          const maxPages = Math.max(2, Math.min(parseInt(process.env.MAX_PAGES_TO_CONVERT) || 6, 12));
+          const selected = new Set<number>();
+          selected.add(1);
+          if (pageCount >= 2) selected.add(2);
+          if (pageCount >= 3) selected.add(3);
+          const mid = Math.ceil(pageCount / 2);
+          if (mid >= 1 && mid <= pageCount) selected.add(mid);
+          if (pageCount > 1) selected.add(pageCount);
+          if (pageCount > 2) selected.add(pageCount - 1);
+
+          // Limitar a maxPages manteniendo orden ascendente
+          const pagesToProcess = Array.from(selected).sort((a, b) => a - b).slice(0, maxPages);
+
+          prepared.images = await this.pdfImageService.convertPages(pdfContent, pagesToProcess, { documentName });
+          this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images for ${documentName}`);
+        } catch (e) {
+          // Fallback: primera y última
+          prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent, documentName);
+          this.logger.warn(`⚠️ Using fallback signature pages for ${documentName}`);
+          this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images for ${documentName}`);
+        }
       }
     } catch (error) {
       this.logger.error(`Error preparing document ${documentName}:`, error);
