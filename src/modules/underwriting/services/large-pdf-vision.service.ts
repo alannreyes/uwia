@@ -1271,19 +1271,35 @@ Document text reference:
 ${extractedText.substring(0, 2000)}...`;
       
       try {
-        // Analizar con imagen principal (primera página)
-        const imageBase64 = images[0].toString('base64');
-        
-        const result = await this.geminiService.analyzeWithVision(
-          imageBase64,
-          chunkPrompt,
-          consolidatedPrompt.expected_type,
-          `${consolidatedPrompt.pmc_field}_chunk${chunkIndex}`,
-          1
-        );
-        
-        chunkResults.push(result.response);
-        this.logger.log(`🧩 Chunk ${chunkIndex + 1} result: "${result.response}"`);
+        // Analizar TODAS las páginas disponibles y quedarse con el mejor resultado
+        let bestChunkResp = 'NOT_FOUND'.repeat(chunk.length).split('NOT_FOUND').join(';').slice(0, -1);
+        let bestConf = 0;
+        let bestPage = 1;
+
+        const maxPages = Math.min(images.length, 6);
+        for (let p = 0; p < maxPages; p++) {
+          const imageBase64 = images[p].toString('base64');
+          try {
+            const res = await this.geminiService.analyzeWithVision(
+              imageBase64,
+              chunkPrompt,
+              consolidatedPrompt.expected_type,
+              `${consolidatedPrompt.pmc_field}_chunk${chunkIndex}`,
+              p + 1
+            );
+            if ((res.confidence || 0) > bestConf) {
+              bestConf = res.confidence || 0;
+              bestChunkResp = res.response || bestChunkResp;
+              bestPage = p + 1;
+            }
+          } catch (perPageErr) {
+            this.logger.debug(`⚠️ Chunk ${chunkIndex + 1} page ${p + 1} failed: ${perPageErr.message}`);
+            continue;
+          }
+        }
+
+        chunkResults.push(bestChunkResp);
+        this.logger.log(`🧩 Chunk ${chunkIndex + 1} best page ${bestPage} result: "${bestChunkResp}" (conf: ${bestConf})`);
         
       } catch (error) {
         this.logger.warn(`⚠️ Chunk ${chunkIndex + 1} analysis failed: ${error.message}`);
@@ -1425,19 +1441,41 @@ ${extractedText.substring(0, 2000)}...`;
       const values = result.answer.split(';');
       
       for (let i = 0; i < Math.min(values.length, fieldCount); i++) {
-        const value = values[i]?.trim();
-        
-        // Solo reemplazar si:
-        // 1. El campo actual es NOT_FOUND, O
-        // 2. El nuevo valor tiene mayor confianza Y no es NOT_FOUND
-        if (value && 
-            (finalValues[i] === 'NOT_FOUND' || 
-             (value !== 'NOT_FOUND' && result.confidence > fieldConfidences[i]))) {
-          
+        const valueRaw = values[i];
+        const value = valueRaw ? valueRaw.trim() : '';
+        const fname = expectedFields[i] || '';
+        const isBooleanHint = fname.toLowerCase().includes('sign') || fname.toLowerCase().endsWith('_match') || fname === 'mechanics_lien';
+
+        if (!value) continue;
+
+        if (isBooleanHint) {
+          // Regla: YES siempre sobreescribe; NO solo si actual es NOT_FOUND
+          if (value === 'YES') {
+            const oldValue = finalValues[i];
+            finalValues[i] = 'YES';
+            fieldConfidences[i] = Math.max(fieldConfidences[i], result.confidence, 0.8);
+            if (oldValue !== 'YES') {
+              this.logger.log(`🔄 [BOOL] Field [${i} ${fname}] set to YES (source ${result.source}, conf ${result.confidence})`);
+            }
+          } else if (value === 'NO' && finalValues[i] === 'NOT_FOUND') {
+            finalValues[i] = 'NO';
+            fieldConfidences[i] = Math.max(fieldConfidences[i], result.confidence);
+          }
+          continue;
+        }
+
+        // No boolean: preferir reemplazar NOT_FOUND; si ambos válidos, usar mayor confianza
+        if (value && (finalValues[i] === 'NOT_FOUND')) {
           const oldValue = finalValues[i];
           finalValues[i] = value;
           fieldConfidences[i] = result.confidence;
-          
+          if (oldValue !== value) {
+            this.logger.log(`🔄 Field [${i}] updated: "${oldValue}" → "${value}" (${result.source}, conf: ${result.confidence})`);
+          }
+        } else if (value !== 'NOT_FOUND' && result.confidence > fieldConfidences[i]) {
+          const oldValue = finalValues[i];
+          finalValues[i] = value;
+          fieldConfidences[i] = result.confidence;
           if (oldValue !== value) {
             this.logger.log(`🔄 Field [${i}] updated: "${oldValue}" → "${value}" (${result.source}, conf: ${result.confidence})`);
           }

@@ -468,84 +468,103 @@ export class UnderwritingService {
       this.logger.log(`   - Force visual: ${shouldForceVisual}`);
       this.logger.log(`   - Final decision: Visual=${useVisualAnalysis}`);
 
-      let aiResponse: any;
-      if (useVisualAnalysis && preparedDocument.images && preparedDocument.images.size > 0) {
-        // Usar análisis visual CON NUEVO MÉTODO CONSOLIDADO
+      // Ejecutar SIEMPRE TEXTO y, si hay imágenes, VISIÓN, y fusionar por campo
+      const runVision = useVisualAnalysis && preparedDocument.images && preparedDocument.images.size > 0;
+      const runText = !!preparedDocument.text && preparedDocument.text.length > 0;
+
+      let visionAnswer: string | null = null;
+      let visionConf = 0;
+      let visionTime = 0;
+      let textAnswer: string | null = null;
+      let textConf = 0;
+
+      const promises: Promise<any>[] = [];
+      if (runVision) {
         this.logger.log(`🔍 Using CONSOLIDATED VISUAL ANALYSIS for ${documentName} with ${preparedDocument.images.size} pages`);
-        
-        // NUEVO: Usar método especializado para prompts consolidados
         this.logger.log(`🏗️ Processing with NEW consolidated method - expecting ${documentPrompt.fieldNames.length} fields in one response`);
-        
-        const consolidatedResult = await this.largePdfVision.processConsolidatedPromptWithVision(
+        const p = this.largePdfVision.processConsolidatedPromptWithVision(
           {
-            pmc_field: documentPrompt.pmcField,         // "lop_responses"
-            question: processedPrompt,                  // Prompt consolidado de la DB
-            expected_fields: documentPrompt.fieldNames, // Array con los nombres de los campos individuales
+            pmc_field: documentPrompt.pmcField,
+            question: processedPrompt,
+            expected_fields: documentPrompt.fieldNames,
             expected_type: ResponseType.TEXT
           },
           Array.from(preparedDocument.images.values()).map(img => Buffer.from(img, 'base64')),
           preparedDocument.text || '',
           fileSizeEstimate
-        );
-        
-        // DEBUG: Log del resultado consolidado
-        this.logger.log(`🔍 CONSOLIDATED visual analysis result:`);
-        this.logger.log(`   - Answer: "${consolidatedResult.answer}"`);
-        this.logger.log(`   - Confidence: ${consolidatedResult.confidence}`);
-        this.logger.log(`   - Processing time: ${consolidatedResult.processing_time_ms}ms`);
-        this.logger.log(`   - Answer length: ${consolidatedResult.answer.length} chars`);
-        this.logger.log(`   - Split by semicolons: ${consolidatedResult.answer.split(';').length} values`);
-        
-        if (consolidatedResult.answer) {
-          // El nuevo método ya devuelve la respuesta consolidada en el formato correcto
-          aiResponse = { 
-            response: consolidatedResult.answer,
-            confidence: consolidatedResult.confidence,
-            processing_time_ms: consolidatedResult.processing_time_ms
-          };
-          this.logger.log(`🎯 Using consolidated visual response: "${consolidatedResult.answer}"`);
-        } else {
-          this.logger.warn(`⚠️ No response from consolidated visual analysis, using fallback`);
-          aiResponse = { 
-            response: documentPrompt.fieldNames.map(() => 'NOT_FOUND').join(';'),
-            confidence: 0,
-            processing_time_ms: 0
-          };
-        }
-        
-        this.logger.log(`✅ CONSOLIDATED visual analysis completed for ${documentName}`);
-      } else if (useVisualAnalysis && (!preparedDocument.images || preparedDocument.images.size === 0)) {
-        // Se requiere visual pero no hay imágenes
-        this.logger.warn(`⚠️ Visual analysis required for ${documentName} but no images available, falling back to text`);
-        
-        const textPrompt = `${processedPrompt}\n\nDocument content:\n${preparedDocument.text || 'No text extracted'}`;
-        const openAiResult = await this.openAiService.evaluateWithValidation(
-          preparedDocument.text || '',
-          processedPrompt,
-          ResponseType.TEXT,
-          undefined,
-          documentPrompt.pmcField
-        );
-        aiResponse = { response: openAiResult.response };
-      } else {
-        // Usar análisis de texto
-        this.logger.log(`📝 Using TEXT ANALYSIS for ${documentName}`);
-        
-        const textPrompt = `${processedPrompt}\n\nDocument content:\n${preparedDocument.text || 'No text extracted'}`;
-        const openAiResult = await this.openAiService.evaluateWithValidation(
-          preparedDocument.text || '',
-          processedPrompt,
-          ResponseType.TEXT,
-          undefined,
-          documentPrompt.pmcField
-        );
-        aiResponse = { response: openAiResult.response };
-        
-        this.logger.log(`✅ Text analysis completed for ${documentName}`);
+        ).then(res => {
+          visionAnswer = res.answer;
+          visionConf = res.confidence || 0;
+          visionTime = res.processing_time_ms || 0;
+          this.logger.log(`🔍 CONSOLIDATED visual analysis result: "${res.answer}" (conf: ${res.confidence})`);
+        }).catch(err => {
+          this.logger.warn(`⚠️ Visual analysis failed: ${err.message}`);
+        });
+        promises.push(p);
       }
 
-      // Procesar respuesta consolidada - MEJORADO
-      const responseText = aiResponse.response || aiResponse;
+      if (runText) {
+        const p = this.openAiService.evaluateWithValidation(
+          preparedDocument.text || '',
+          processedPrompt,
+          ResponseType.TEXT,
+          undefined,
+          documentPrompt.pmcField
+        ).then(res => {
+          textAnswer = res.response;
+          textConf = res.final_confidence || res.confidence || 0;
+          this.logger.log(`📝 CONSOLIDATED text analysis result: "${res.response}" (conf: ${textConf})`);
+        }).catch(err => {
+          this.logger.warn(`⚠️ Text analysis failed: ${err.message}`);
+        });
+        promises.push(p);
+      }
+
+      if (promises.length === 0) {
+        throw new Error('No analysis path available (neither text nor vision)');
+      }
+      await Promise.allSettled(promises);
+
+      // Asegurar respuestas en el tamaño correcto
+      const visionArr = visionAnswer ? this.parseConsolidatedResponse(visionAnswer, documentPrompt.fieldNames) : null;
+      const textArr = textAnswer ? this.parseConsolidatedResponse(textAnswer, documentPrompt.fieldNames) : null;
+
+      // Fusión por campo con reglas: preferir no-NOT_FOUND; YES gana a NO; para address/date/policy/claim preferir texto
+      const preferTextSubstrings = ['street', 'zip', 'city', 'state', 'date', 'policy_number', 'claim_number'];
+      const booleanHint = (fname: string) => fname.includes('sign') || fname.endsWith('_match') || fname === 'mechanics_lien';
+      const takeTextFor = (fname: string) => preferTextSubstrings.some(s => fname.includes(s));
+
+      const combinedValues: string[] = [];
+      for (let i = 0; i < documentPrompt.fieldNames.length; i++) {
+        const fname = documentPrompt.fieldNames[i];
+        const v = visionArr ? (visionArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
+        const t = textArr ? (textArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
+
+        let chosen = 'NOT_FOUND';
+
+        if (booleanHint(fname)) {
+          // YES tiene prioridad; si ninguno YES, usar NO si está presente
+          if (t === 'YES' || v === 'YES') chosen = 'YES';
+          else if (t === 'NO' || v === 'NO') chosen = 'NO';
+          else chosen = (t !== 'NOT_FOUND') ? t : v;
+        } else {
+          if (t !== 'NOT_FOUND' && v === 'NOT_FOUND') chosen = t;
+          else if (v !== 'NOT_FOUND' && t === 'NOT_FOUND') chosen = v;
+          else if (t !== 'NOT_FOUND' && v !== 'NOT_FOUND') {
+            if (takeTextFor(fname)) {
+              chosen = t.length >= v.length ? t : t; // preferir texto
+            } else {
+              // elegir el más informativo (más largo) como aproximación
+              chosen = (v.length > t.length) ? v : t;
+            }
+          } else {
+            chosen = 'NOT_FOUND';
+          }
+        }
+        combinedValues.push((chosen || '').toString().trim());
+      }
+
+      const responseText = combinedValues.join(';');
       
       // LOGGING: Respuesta recibida
       this.logger.log(`📊 Response received for ${documentName}:`);
@@ -558,35 +577,19 @@ export class UnderwritingService {
       let finalConfidence: number;
       let actualProcessingTime: number;
       
-      if (aiResponse.confidence !== undefined && aiResponse.processing_time_ms !== undefined) {
-        // La respuesta viene del nuevo método consolidado - ya está procesada
-        finalAnswer = responseText;
-        finalConfidence = aiResponse.confidence;
-        actualProcessingTime = aiResponse.processing_time_ms;
-        
-        this.logger.log(`🏗️ Using PRE-PROCESSED consolidated response:`);
-        this.logger.log(`   - Final answer: "${finalAnswer}"`);
-        this.logger.log(`   - Pre-calculated confidence: ${finalConfidence}`);
-        this.logger.log(`   - Pre-calculated processing time: ${actualProcessingTime}ms`);
-      } else {
-        // Fallback: procesar respuesta manualmente (para compatibilidad con métodos antiguos)
-        this.logger.log(`🔄 Using FALLBACK processing for response`);
-        
-        const fieldValues = this.parseConsolidatedResponse(responseText, documentPrompt.fieldNames);
-        
-        // LOGGING: Valores parseados
-        this.logger.log(`📋 Parsed values for ${documentName}:`);
-        this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
-        this.logger.log(`   - Parsed values: ${fieldValues.length}`);
-        this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
+      // Calcular métricas y confianza del resultado combinado
+      const fieldValues = this.parseConsolidatedResponse(responseText, documentPrompt.fieldNames);
+      this.logger.log(`📋 Parsed values for ${documentName}:`);
+      this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
+      this.logger.log(`   - Parsed values: ${fieldValues.length}`);
+      this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
 
-        finalAnswer = fieldValues.join(';');
-        
-        // Calcular confianza basada en cuántos campos se encontraron
-        const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
-        finalConfidence = foundFields > 0 ? 0.8 : 0;
-        actualProcessingTime = Date.now() - processStartTime;
-      }
+      finalAnswer = fieldValues.join(';');
+      const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
+      // Confianza: combinar aportes de texto y visión si existen; si no, proporción encontrada
+      const baseConf = Math.max(textConf, visionConf);
+      finalConfidence = baseConf > 0 ? baseConf : (foundFields / Math.max(1, fieldValues.length));
+      actualProcessingTime = Math.max(visionTime, Date.now() - processStartTime);
 
       // Post-proceso: recalcular campos *_match con lógica programática para mayor exactitud
       try {
