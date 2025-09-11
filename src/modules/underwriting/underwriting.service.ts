@@ -598,6 +598,28 @@ export class UnderwritingService {
         this.logger.warn(`⚠️ Post-processing of *_match fields failed: ${ppErr.message}`);
       }
 
+      // Post-proceso complementario: mechanics_lien basado en evidencia textual (solo si AI dijo NO/NOT_FOUND)
+      try {
+        const idxLien = documentPrompt.fieldNames.findIndex(f => f === 'mechanics_lien');
+        if (idxLien >= 0 && preparedDocument?.text) {
+          const parts = finalAnswer.split(';');
+          const current = (parts[idxLien] || '').trim().toUpperCase();
+          if (current === 'NO' || current === 'NOT_FOUND') {
+            const detected = this.detectMechanicsLien(preparedDocument.text);
+            if (detected) {
+              parts[idxLien] = 'YES';
+              const updated = parts.join(';');
+              if (updated !== finalAnswer) {
+                this.logger.log('🧭 Post-check mechanics_lien: AI=NO/NOT_FOUND pero texto evidencia LIEN → Ajustando a YES');
+                finalAnswer = updated;
+              }
+            }
+          }
+        }
+      } catch (ppErr) {
+        this.logger.warn(`⚠️ Post-processing mechanics_lien check failed: ${ppErr.message}`);
+      }
+
       // Crear UNA SOLA respuesta consolidada
       results.push({
         pmc_field: documentPrompt.pmcField,
@@ -660,6 +682,33 @@ export class UnderwritingService {
         error: error.message
       }];
     }
+  }
+
+  /**
+   * Detección textual robusta de referencias a LIEN (evita falsos positivos como "client")
+   */
+  private detectMechanicsLien(text: string): boolean {
+    if (!text) return false;
+    const t = text.toLowerCase();
+    const patterns: RegExp[] = [
+      /\bmechanic'?s?\s+lien(s)?\b/i,
+      /\bconstruction\s+lien\b/i,
+      /\blien\s+upon\b/i,
+      /\blien\s+(right|rights)\b/i,
+      /\bsecurity\s+interest\b/i,
+      /\bconstruction\s+lien\s+law\b/i,
+      /\bletter\s+of\s+protection\b.*\blien\b/i,
+      /\blien\b\s+upon\s+(any\s+and\s+all\s+)?proceeds?/i,
+    ];
+    // Primero, patrones estrictos con límites de palabra (evita "client")
+    for (const re of patterns) {
+      if (re.test(t)) return true;
+    }
+    // Como último recurso, si hay muchas ocurrencias de "\blien\b" y "proceeds", también considerarlo
+    const lienCount = (t.match(/\blien\b/gi) || []).length;
+    const proceedsCount = (t.match(/\bproceeds?\b/gi) || []).length;
+    if (lienCount >= 2 && proceedsCount >= 1) return true;
+    return false;
   }
 
   /**
@@ -734,10 +783,32 @@ export class UnderwritingService {
     if (indexOf('onb_city_match') >= 0 && (cityVal || vCity)) {
       setIfExists('onb_city_match', eqLoose(cityVal, vCity) ? 'YES' : 'NO');
     }
-    // onb_address_match: construir address desde piezas extraídas si no hay un campo dedicado
+    // onb_address_match: comparar dirección completa con normalización específica
+    // Mantener state1 tal cual (p.ej. "FL Florida") en la respuesta, pero para VALIDACIÓN usar solo la abreviatura de 2 letras.
     if (indexOf('onb_address_match') >= 0 && vAddress) {
-      const extractedAddress = [streetVal, cityVal, stateVal, zipVal].filter(Boolean).join(', ');
-      setIfExists('onb_address_match', eqLoose(extractedAddress, vAddress) ? 'YES' : 'NO');
+      // Extrae abreviatura de estado a partir de state1 (p.ej., "FL Florida" -> "FL")
+      const stateAbbrevFrom = (s: string) => {
+        const m = (s || '').toString().trim().match(/^([A-Za-z]{2})\b/);
+        return m ? m[1].toUpperCase() : '';
+      };
+
+      // Comparación específica para direcciones: remover puntuación y espacios, comparar por inclusión/equivalencia
+      const eqAddress = (a: string, b: string) => {
+        const A = normAlnum(a);
+        const B = normAlnum(b);
+        return A === B || A.includes(B) || B.includes(A);
+      };
+
+      // Construir dirección extraída usando solo la abreviatura de estado para la comparación
+      const extractedStateAbbrev = stateAbbrevFrom(stateVal) || stateVal;
+      const extractedAddressForMatch = [
+        streetVal,
+        cityVal,
+        extractedStateAbbrev,
+        normDigits(zipVal)
+      ].filter(Boolean).join(' ');
+
+      setIfExists('onb_address_match', eqAddress(extractedAddressForMatch, vAddress) ? 'YES' : 'NO');
     }
     // onb_date_of_loss_match
     if (indexOf('onb_date_of_loss_match') >= 0 && (dolVal || vDol)) {
