@@ -831,6 +831,14 @@ export class UnderwritingService {
 
 
   private parseConsolidatedResponse(responseText: string, fieldNames: string[]): string[] {
+    // Coerción defensiva: asegurar string para evitar errores como "responseText.split is not a function"
+    if (typeof (responseText as any) !== 'string') {
+      try {
+        responseText = String(responseText ?? '');
+      } catch {
+        responseText = '';
+      }
+    }
     this.logger.debug(`🔍 [parseConsolidatedResponse] Raw AI response: "${responseText}"`);
     this.logger.debug(`🔍 [parseConsolidatedResponse] Expected fields: ${JSON.stringify(fieldNames)}`);
     this.logger.debug(`🔍 [parseConsolidatedResponse] Expected field count: ${fieldNames.length}`);
