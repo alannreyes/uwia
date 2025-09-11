@@ -13,6 +13,12 @@ Sistema backend enterprise en NestJS para procesamiento inteligente de documento
 - **🛡️ Rate Limiting Inteligente**: Manejo automático de límites de API con fallbacks robustos
 - **⚙️ Performance Optimizado**: Chunking inteligente para documentos grandes (50MB+)
 
+## 🧠 Post-proceso Determinístico
+
+- **Campos `*_match`**: Recalculados programáticamente (street/zip/city/address/DOL/policy/claim) con normalización robusta.
+- **Address match**: Mantiene `state1` en formato requerido (ej. `FL Florida`) pero para validar la dirección usa solo la abreviatura (`FL`) y limpia puntuación/espacios.
+- **LOP mechanics_lien**: Si la IA devuelve `NO/NOT_FOUND` y el texto contiene evidencia fuerte (p.ej., “lien upon proceeds”, “construction lien law”), se ajusta a `YES`.
+
 ## 📋 Documentos Soportados
 
 El sistema procesa **7 tipos de documentos** con respuestas consolidadas:

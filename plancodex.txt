@@ -23,6 +23,7 @@ Estado: [IN PROGRESS]
    Estado: [DONE]
 
 5) Documentación y cierre
-   - Actualizar este archivo con estados [DONE], anotar archivos tocados.
+   - Actualizar docs para reflejar: validación de onb_address_match con abreviatura de estado, verificación textual de mechanics_lien, puerto 5035 y health path.
+   - Archivos tocados: README.md, CURRENT_SYSTEM_GUIDE.md, EASYPANEL_DEPLOYMENT.md.
    - Sugerir test en n8n.
-   Estado: [IN PROGRESS]
+   Estado: [DONE]

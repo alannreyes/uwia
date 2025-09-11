@@ -58,7 +58,7 @@ En la sección "Environment Variables", agrega todas estas variables:
 
 ```env
 # API Configuration
-PORT=5015
+PORT=5035
 NODE_ENV=production
 
 # Database Configuration
@@ -102,8 +102,8 @@ LOG_LEVEL=info
 ### 2.4 Configurar Build & Deploy
 
 1. **Dockerfile Path**: `Dockerfile`
-2. **Port**: `5015`
-3. **Health Check Path**: `/health`
+2. **Port**: `5035`
+3. **Health Check Path**: `/api/underwriting/health`
 4. **Resources**:
    - CPU: 0.5 - 1 core
    - Memory: 512MB - 1GB
@@ -127,7 +127,7 @@ LOG_LEVEL=info
 
 ### 4.1 Health Check
 ```bash
-curl https://tu-dominio.easypanel.host/health
+curl https://tu-dominio.easypanel.host/api/underwriting/health
 ```
 
 Respuesta esperada:

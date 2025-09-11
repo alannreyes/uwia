@@ -353,3 +353,8 @@ npm run build && pm2 restart uwia
 
 *Última actualización: Septiembre 2025*
 *Sistema: GPT-4o + Gemini 2.5 Pro*
+## 🧠 Post-procesamiento Determinístico
+
+- **Recalculo `*_match`**: Tras recibir la respuesta consolidada, el sistema recalcula determinísticamente campos de comparación (street, zip, city, address, DOL, policy number, claim number) con normalización (minusculado, limpieza de puntuación y dígitos).
+- **`onb_address_match`**: La salida de `state1` se mantiene en el formato requerido (ej. `FL Florida`). Para la validación de dirección completa se usa solo la abreviatura (`FL`) y se normaliza la cadena para evitar falsos negativos por formato.
+- **`mechanics_lien` (LOP)**: Si el modelo devuelve `NO/NOT_FOUND` pero el texto del PDF contiene evidencia fuerte (por ejemplo, “mechanic(s) lien”, “construction lien law”, “lien upon … proceeds”, “security interest”), el sistema ajusta el valor a `YES`.
