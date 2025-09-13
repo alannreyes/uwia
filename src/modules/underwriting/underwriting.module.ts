@@ -17,10 +17,20 @@ import { GeminiService } from './services/gemini.service';
 import { RateLimiterService } from './services/rate-limiter.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
+import { ConfigService } from '@nestjs/config';
+
+import { ChunkingModule } from './chunking/chunking.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DocumentPrompt, ClaimEvaluation]),
+    TypeOrmModule.forFeature([
+      Claim,
+      Document,
+      ClaimHistory,
+      DocumentPrompt,
+      DocumentPromptV2,
+    ]),
+    ChunkingModule,
   ],
   controllers: [UnderwritingController],
   providers: [
@@ -38,6 +48,7 @@ import { ClaimEvaluation } from './entities/claim-evaluation.entity';
     LargePdfVisionService,
     GeminiService,
     RateLimiterService,
+    ConfigService,
   ],
   exports: [UnderwritingService],
 })

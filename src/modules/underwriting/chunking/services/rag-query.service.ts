@@ -5,15 +5,18 @@ import { OpenAiService } from '../../services/openai.service';
 import { ResponseType } from '../../entities/uw-evaluation.entity';
 import { PdfChunk } from '../entities/pdf-chunk.entity';
 
+// ... existing code ...
 interface QueryResult {
   answer: string;
   confidence: number;
   sourceChunks: string[];
   processingTime: number;
+  error?: string;
 }
 
 @Injectable()
 export class RagQueryService {
+// ... existing code ...
   private readonly logger = new Logger(RagQueryService.name);
 
   constructor(

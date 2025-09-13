@@ -5,7 +5,11 @@ export class PMCFieldResultDto {
   confidence: number;
   expected_type: string;
   error?: string;
+  processing_time?: number;
 }
+
+export class DocumentResultDto {
+// ... existing code ...
 
 export class DocumentResultDto {
   document_name: string;

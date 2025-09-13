@@ -55,6 +55,100 @@ export class UnderwritingService {
     private largePdfVision: LargePdfVisionService,
   ) {}
 
+  private getVariableMapping(dto: any, contextData: any): Record<string, string> {
+    return {
+      '%insured_name%': dto.insured_name || contextData?.insured_name || '',
+      '%insurance_company%': dto.insurance_company || contextData?.insurance_company || '',
+      '%insured_address%': dto.insured_address || contextData?.insured_address || '',
+      '%insured_street%': dto.insured_street || contextData?.insured_street || '',
+      '%insured_city%': dto.insured_city || contextData?.insured_city || '',
+      '%insured_zip%': dto.insured_zip || contextData?.insured_zip || '',
+      '%date_of_loss%': dto.date_of_loss || contextData?.date_of_loss || '',
+      '%policy_number%': dto.policy_number || contextData?.policy_number || '',
+      '%claim_number%': dto.claim_number || contextData?.claim_number || '',
+      '%type_of_job%': dto.type_of_job || contextData?.type_of_job || '',
+      '%cause_of_loss%': dto.cause_of_loss || contextData?.cause_of_loss || '',
+    };
+  }
+
+  private replaceVariablesInPrompt(prompt: string, variables: Record<string, string>): string {
+    let replacedPrompt = prompt;
+    for (const key in variables) {
+      replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
+    }
+    return replacedPrompt;
+  }
+
+  async processLargeFileSynchronously(
+    file: Express.Multer.File,
+    body: any,
+  ): Promise<EvaluateClaimResponseDto> {
+    const { record_id, document_name, context } = body;
+
+    this.logger.log(`[SYNC-LARGE] Starting synchronous processing for ${file.originalname}`);
+
+    try {
+      // 1. Procesar y almacenar el archivo en la base de datos
+      const session = await this.enhancedPdfProcessorService.processAndStorePdf(
+        file.buffer,
+        file.originalname,
+        { record_id, document_name, context }
+      );
+
+      this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
+
+      // 2. Obtener el prompt para este documento
+      const documentPrompts = await this.documentPromptRepository.find({
+        where: { documentName: `${document_name}.pdf`, active: true },
+        order: { promptOrder: 'ASC' },
+      });
+
+      if (documentPrompts.length === 0) {
+        throw new Error(`No active prompts found for document: ${document_name}.pdf`);
+      }
+      const prompt = documentPrompts[0];
+      const question = this.replaceVariablesInPrompt(prompt.question, this.getVariableMapping(body, context));
+
+      // 3. Ejecutar la consulta RAG y esperar la respuesta
+      this.logger.log(`[SYNC-LARGE] Executing RAG query for session ${session.id}`);
+      const ragResult = await this.ragQueryService.queryDocument(session.id, question);
+      this.logger.log(`[SYNC-LARGE] RAG query completed.`);
+
+      // 4. Formatear la respuesta para que coincida con la estructura esperada
+      const pmcResult: PMCFieldResultDto = {
+        pmc_field: prompt.pmcField,
+        question: prompt.question,
+        answer: ragResult.answer,
+        confidence: ragResult.confidence,
+        processing_time: ragResult.processingTime,
+        error: ragResult.error,
+      };
+
+      const results = {
+        [`${document_name}.pdf`]: [pmcResult],
+      };
+
+      return {
+        record_id: record_id,
+        status: 'success',
+        results,
+        summary: {
+          total_documents: 1,
+          processed_documents: 1,
+          total_fields: 1,
+          answered_fields: ragResult.error ? 0 : 1,
+        },
+        processed_at: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`[SYNC-LARGE] Error during synchronous large file processing: ${error.message}`, error.stack);
+      throw new HttpException(
+        `Failed to process large file synchronously: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async evaluateClaim(dto: EvaluateClaimRequestDto): Promise<EvaluateClaimResponseDto> {
     const startTime = Date.now();
     const results: Record<string, any[]> = {};
@@ -1210,124 +1304,3 @@ export class UnderwritingService {
       processed_at: new Date(),
     };
   }
-
-  /**
-   * Función centralizada para obtener el mapeo de variables consistente
-   */
-  private getVariableMapping(dto: EvaluateClaimRequestDto, contextData: any): Record<string, any> {
-    return {
-      'insured_name': dto.insured_name || contextData.insured_name,
-      'insurance_company': dto.insurance_company || contextData.insurance_company,
-      'insured_address': dto.insured_address || contextData.insured_address,
-      'insured_street': dto.insured_street || contextData.insured_street,
-      'insured_city': dto.insured_city || contextData.insured_city,
-      'insured_zip': dto.insured_zip || contextData.insured_zip,
-      'date_of_loss': dto.date_of_loss || contextData.date_of_loss,
-      'policy_number': dto.policy_number || contextData.policy_number,
-      'claim_number': dto.claim_number || contextData.claim_number,
-      'type_of_job': dto.type_of_job || contextData.type_of_job,
-      'cause_of_loss': dto.cause_of_loss || contextData.cause_of_loss
-    };
-  }
-
-  /**
-   * Prepara el documento según las necesidades detectadas
-   */
-  private async prepareDocument(
-    pdfContent: string | null,
-    requirements: { needsText: boolean; needsVisual: boolean },
-    documentName?: string
-  ): Promise<{ text?: string; images?: Map<number, string> }> {
-    const prepared: { text?: string; images?: Map<number, string> } = {};
-    
-    if (!pdfContent) {
-      return prepared;
-    }
-
-    try {
-      // Extraer texto si es necesario
-      if (requirements.needsText) {
-        const cleanBase64 = pdfContent.replace(/^data:application\/pdf;base64,/, '');
-        const buffer = Buffer.from(cleanBase64, 'base64');
-        prepared.text = await this.pdfParserService.extractTextFromBase64(pdfContent);
-      }
-
-      // Convertir a imágenes si es necesario
-      if (requirements.needsVisual) {
-        // Seleccionar páginas clave: 1,2,3, medio, penúltima y última (limitado por MAX_PAGES_TO_CONVERT)
-        try {
-          const pageCount = await this.pdfImageService.getPageCount(pdfContent);
-          const maxPages = Math.max(2, Math.min(parseInt(process.env.MAX_PAGES_TO_CONVERT) || 6, 12));
-          const selected = new Set<number>();
-          selected.add(1);
-          if (pageCount >= 2) selected.add(2);
-          if (pageCount >= 3) selected.add(3);
-          const mid = Math.ceil(pageCount / 2);
-          if (mid >= 1 && mid <= pageCount) selected.add(mid);
-          if (pageCount > 1) selected.add(pageCount);
-          if (pageCount > 2) selected.add(pageCount - 1);
-
-          // Limitar a maxPages manteniendo orden ascendente
-          const pagesToProcess = Array.from(selected).sort((a, b) => a - b).slice(0, maxPages);
-
-          prepared.images = await this.pdfImageService.convertPages(pdfContent, pagesToProcess, { documentName });
-          this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images for ${documentName}`);
-        } catch (e) {
-          // Fallback: primera y última
-          prepared.images = await this.pdfImageService.convertSignaturePages(pdfContent, documentName);
-          this.logger.warn(`⚠️ Using fallback signature pages for ${documentName}`);
-          this.logger.log(`📸 Converted ${prepared.images?.size || 0} pages to images for ${documentName}`);
-        }
-      }
-    } catch (error) {
-      this.logger.error(`Error preparing document ${documentName}:`, error);
-    }
-
-    return prepared;
-  }
-
-  /**
-   * Prepara documento con truncación para archivos extremos
-   */
-  private async prepareDocumentWithTruncation(
-    pdfContent: string | null,
-    requirements: { needsText: boolean; needsVisual: boolean },
-    truncationLimit: number
-  ): Promise<{ text?: string; images?: Map<number, string> }> {
-    
-    this.logger.warn(`🚨 Using truncation for large file - limit: ${truncationLimit} pages`);
-    
-    const prepared: { text?: string; images?: Map<number, string> } = {};
-    
-    if (!pdfContent) {
-      return prepared;
-    }
-    
-    try {
-      const cleanBase64 = pdfContent.replace(/^data:application\/pdf;base64,/, '');
-      const buffer = Buffer.from(cleanBase64, 'base64');
-      
-      if (requirements.needsText) {
-        // Extraer texto limitado
-        prepared.text = await this.pdfParserService.extractTextFromBase64(pdfContent);
-        if (prepared.text && prepared.text.length > 100000) {
-          prepared.text = prepared.text.substring(0, 100000) + '...[TRUNCATED]';
-        }
-      }
-      
-      if (requirements.needsVisual) {
-        // Convertir solo páginas limitadas
-        const maxPages = Math.min(truncationLimit, 5); // Máximo 5 páginas para archivos extremos
-        prepared.images = await this.pdfImageService.convertPages(pdfContent, 
-          Array.from({length: maxPages}, (_, i) => i + 1)
-        );
-        this.logger.warn(`⚠️ Converted only ${prepared.images?.size || 0} pages due to file size`);
-      }
-    } catch (error) {
-      this.logger.error(`Error in truncated preparation:`, error);
-    }
-    
-    return prepared;
-  }
-
-}

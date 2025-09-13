@@ -5,12 +5,18 @@ import { UnderwritingService } from './underwriting.service';
 import { EvaluateClaimRequestDto } from './dto/evaluate-claim-request.dto';
 import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
 import { EvaluateClaimBatchRequestDto } from './dto/evaluate-claim-batch-request.dto';
+import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('underwriting')
 export class UnderwritingController {
   private readonly logger = new Logger(UnderwritingController.name);
   
-  constructor(private readonly underwritingService: UnderwritingService) {}
+  constructor(
+    private readonly underwritingService: UnderwritingService,
+    private readonly enhancedPdfProcessorService: EnhancedPdfProcessorService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('evaluate-claim')
   @HttpCode(HttpStatus.OK)
@@ -73,7 +79,7 @@ export class UnderwritingController {
   @HttpCode(HttpStatus.OK)
   async evaluateClaimMultipart(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: any
+    @Body() body: any,
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('📥 Received multipart/form-data request');
     this.logger.log('Body fields:', body);
@@ -81,7 +87,11 @@ export class UnderwritingController {
 
     // Log cada archivo recibido
     files?.forEach((file, index) => {
-      this.logger.log(`File ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
+      this.logger.log(
+        `File ${index + 1}: ${file.originalname} (${file.size} bytes, ${
+          file.mimetype
+        })`,
+      );
     });
 
     // Procesar el archivo (tomar el primero si hay varios)
@@ -90,6 +100,18 @@ export class UnderwritingController {
     let document_name = body.document_name;
 
     if (uploadedFile) {
+      const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES');
+      
+      if (uploadedFile.size > largeFileThreshold) {
+        this.logger.log(`🐘 Large file detected: ${uploadedFile.originalname} (${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)`);
+        
+        // Iniciar procesamiento síncrono para archivos grandes
+        return this.underwritingService.processLargeFileSynchronously(
+          uploadedFile,
+          body,
+        );
+      }
+
       try {
         // Log del tamaño del archivo
         const fileSizeMB = (uploadedFile.size / 1048576).toFixed(2);
