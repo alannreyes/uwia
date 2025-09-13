@@ -203,8 +203,10 @@ export class PdfParserService {
     }
 
     try {
+      // Convert Buffer to Uint8Array for pdf.js compatibility
+      const uint8Array = new Uint8Array(buffer);
       const loadingTask = pdfjs.getDocument({
-        data: buffer,
+        data: uint8Array,
         useSystemFonts: true,
         disableFontFace: false,
         verbosity: 0
@@ -339,8 +341,10 @@ export class PdfParserService {
     }
     
     try {
+      // Convert Buffer to Uint8Array for pdf.js compatibility
+      const uint8Array = new Uint8Array(buffer);
       const loadingTask = pdfjs.getDocument({
-        data: buffer,
+        data: uint8Array,
         useSystemFonts: true,
         disableFontFace: false,
         verbosity: 0
@@ -993,7 +997,9 @@ export class PdfParserService {
         try {
           // Para las últimas páginas, usar pdfjs-dist que permite más control
           const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-          const loadingTask = pdfjsLib.getDocument({ data: buffer });
+          // Convert Buffer to Uint8Array for pdf.js compatibility
+          const uint8Array = new Uint8Array(buffer);
+          const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
           const pdfDoc = await loadingTask.promise;
           
           // Extraer las últimas páginas
