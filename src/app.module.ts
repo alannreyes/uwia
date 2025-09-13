@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { UnderwritingModule } from './modules/underwriting/underwriting.module';
+import { ChunkingModule } from './modules/underwriting/chunking/chunking.module';
 import { databaseConfig } from './config/database.config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -38,6 +39,9 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     
     // Módulo principal de underwriting
     UnderwritingModule,
+
+    // Módulo para procesamiento de chunks
+    ChunkingModule,
   ],
   controllers: [],
   providers: [

@@ -192,6 +192,52 @@ export class PdfParserService {
   }
 
   /**
+   * Extrae texto de cada página de un PDF.
+   */
+  async extractTextByPages(buffer: Buffer): Promise<{page: number, content: string}[]> {
+    if (!pdfjs) {
+      this.logger.warn('pdfjs-dist not available, cannot extract by pages.');
+      // Fallback a procesar el documento completo y dividirlo artificialmente.
+      const fullText = await this.extractText(buffer);
+      return [{ page: 1, content: fullText }];
+    }
+
+    try {
+      const loadingTask = pdfjs.getDocument({
+        data: buffer,
+        useSystemFonts: true,
+        disableFontFace: false,
+        verbosity: 0
+      });
+
+      const pdf = await loadingTask.promise;
+      const pages = [];
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          
+          if (pageText.trim()) {
+            pages.push({ page: pageNum, content: pageText });
+          }
+          page.cleanup();
+        } catch (pageError) {
+          this.logger.warn(`⚠️ Error en página ${pageNum}: ${pageError.message}`);
+          continue;
+        }
+      }
+      pdf.destroy();
+      return pages;
+    } catch (error) {
+      throw new Error(`pdfjs-dist page extraction failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Detecta inteligentemente el tipo de PDF y qué método de extracción usar
    */
   async analyzePdfType(buffer: Buffer): Promise<{

@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, LogLevel } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { EnvValidation } from './config/env-validation';
 
@@ -52,6 +53,16 @@ async function bootstrap() {
   // Configurar prefijo global para API
   app.setGlobalPrefix('api');
 
+  // Setup Swagger
+  const config = new DocumentBuilder()
+    .setTitle('UWIA API')
+    .setDescription('The UWIA API for intelligent underwriting.')
+    .setVersion('1.0')
+    .addTag('uwia')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
   const port = parseInt(process.env.PORT) || 5011; // Puerto por defecto 5011 para uwia
   await app.listen(port, '0.0.0.0'); // Escuchar en todas las interfaces para permitir conexiones desde otros contenedores
   
@@ -62,6 +73,7 @@ async function bootstrap() {
   console.log(`🌐 Accesible desde: http://automate_uwia_qa:${port}/api`);
   console.log('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
   console.log(`🚀 UWIA - Underwriting IA iniciado en: http://0.0.0.0:${port}/api`);
+  console.log(`📚 Swagger Docs: http://0.0.0.0:${port}/api/docs`);
   console.log(`📋 Health check: http://0.0.0.0:${port}/api/health`);
   console.log(`🔍 Evaluate claim: POST http://0.0.0.0:${port}/api/underwriting/evaluate-claim`);
   console.log('🔧 Build version: 09-05-25-NETWORK-FIX (Docker ports dynamic)');
