@@ -9,16 +9,16 @@ export class PdfProcessingSession {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
 
-  @Column('varchar', { length: 255 })
+  @Column('varchar', { length: 255, name: 'file_name' })
   fileName: string;
 
-  @Column('bigint')
+  @Column('bigint', { name: 'file_size' })
   fileSize: number;
 
-  @Column('int', { default: 0 })
+  @Column('int', { default: 0, name: 'total_chunks' })
   totalChunks: number;
 
-  @Column('int', { default: 0 })
+  @Column('int', { default: 0, name: 'processed_chunks' })
   processedChunks: number;
 
   @Column({
@@ -28,11 +28,11 @@ export class PdfProcessingSession {
   })
   status: ProcessingStatus;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @Index('idx_status_expires')
-  @Column('timestamp')
+  @Column('timestamp', { name: 'expires_at' })
   expiresAt: Date;
 
   @Column('json', { nullable: true })
