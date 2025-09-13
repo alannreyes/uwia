@@ -21,6 +21,7 @@ import { largePdfConfig } from '../../config/large-pdf.config';
 import { ProductionLogger } from '../../common/utils/production-logger';
 import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
 import { RagQueryService } from './chunking/services/rag-query.service';
+import { ChunkStorageService } from './chunking/services/chunk-storage.service';
 import { Express } from 'express';
 
 // Interface para prompts consolidados de la tabla document_consolidado
@@ -58,6 +59,7 @@ export class UnderwritingService {
     private largePdfVision: LargePdfVisionService,
     private enhancedPdfProcessorService: EnhancedPdfProcessorService,
     private ragQueryService: RagQueryService,
+    private chunkStorageService: ChunkStorageService,
   ) {}
 
   private getVariableMapping(dto: any, contextData: any): Record<string, string> {
@@ -114,8 +116,12 @@ export class UnderwritingService {
       const prompt = documentPrompts[0];
       const question = this.replaceVariablesInPrompt(prompt.question, this.getVariableMapping(body, context));
 
-      // 3. Ejecutar la consulta RAG y esperar la respuesta
-      this.logger.log(`[SYNC-LARGE] Executing RAG query for session ${session.id}`);
+      // 3. Esperar a que la sesión esté lista para consultas
+      this.logger.log(`[SYNC-LARGE] Waiting for session ${session.id} to be ready...`);
+      await this.waitForSessionReady(session.id);
+      this.logger.log(`[SYNC-LARGE] Session ${session.id} is ready. Executing RAG query...`);
+
+      // 4. Ejecutar la consulta RAG y esperar la respuesta
       const ragResult = await this.ragQueryService.queryDocument(session.id, question);
       this.logger.log(`[SYNC-LARGE] RAG query completed.`);
 
@@ -1399,6 +1405,52 @@ export class UnderwritingService {
       this.logger.error(`❌ Error preparing document with truncation: ${error.message}`);
       return { text: null, images: null };
     }
+  }
+
+  /**
+   * Waits for a session to be ready for querying
+   * @param sessionId The session ID to wait for
+   * @param maxWaitTime Maximum time to wait in milliseconds (default: 5 minutes)
+   * @param checkInterval Interval between checks in milliseconds (default: 2 seconds)
+   */
+  private async waitForSessionReady(sessionId: string, maxWaitTime: number = 300000, checkInterval: number = 2000): Promise<void> {
+    const startTime = Date.now();
+    this.logger.log(`[SESSION-WAIT] Starting to wait for session ${sessionId} to be ready...`);
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Get the session from chunk storage service
+        const session = await this.chunkStorageService.getSession(sessionId);
+        
+        if (!session) {
+          throw new Error(`Session ${sessionId} not found`);
+        }
+
+        this.logger.debug(`[SESSION-WAIT] Session ${sessionId} status: ${session.status}, processed: ${session.processedChunks}/${session.totalChunks}`);
+
+        if (session.status === 'ready') {
+          this.logger.log(`[SESSION-WAIT] ✅ Session ${sessionId} is ready! Total wait time: ${Date.now() - startTime}ms`);
+          return;
+        }
+
+        if (session.status === 'error') {
+          throw new Error(`Session ${sessionId} processing failed`);
+        }
+
+        if (session.status === 'expired') {
+          throw new Error(`Session ${sessionId} has expired`);
+        }
+
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+
+      } catch (error) {
+        this.logger.error(`[SESSION-WAIT] Error checking session ${sessionId}: ${error.message}`);
+        throw error;
+      }
+    }
+
+    throw new Error(`Timeout waiting for session ${sessionId} to be ready after ${maxWaitTime}ms`);
   }
 
 }
