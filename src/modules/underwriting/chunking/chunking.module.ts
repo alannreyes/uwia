@@ -9,11 +9,6 @@ import { MemoryManagerService } from './services/memory-manager.service';
 import { ChunkStorageService } from './services/chunk-storage.service';
 import { RagQueryService } from './services/rag-query.service';
 import { SessionCleanupService } from './services/session-cleanup.service';
-import { UnderwritingModule } from '../underwriting.module';
-import { PdfParserService } from '../services/pdf-parser.service';
-import { OpenAiService } from '../services/openai.service';
-import { PdfFormExtractorService } from '../services/pdf-form-extractor.service';
-import { JudgeValidatorService } from '../services/judge-validator.service';
 
 @Module({
   imports: [

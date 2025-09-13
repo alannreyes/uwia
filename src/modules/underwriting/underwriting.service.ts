@@ -19,6 +19,9 @@ import { IntelligentPageSelectorService } from './services/intelligent-page-sele
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { largePdfConfig } from '../../config/large-pdf.config';
 import { ProductionLogger } from '../../common/utils/production-logger';
+import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
+import { RagQueryService } from './chunking/services/rag-query.service';
+import { Express } from 'express';
 
 // Interface para prompts consolidados de la tabla document_consolidado
 interface ConsolidatedPrompt {
@@ -53,6 +56,8 @@ export class UnderwritingService {
     private adaptiveStrategy: AdaptiveProcessingStrategyService,
     private pageSelector: IntelligentPageSelectorService,
     private largePdfVision: LargePdfVisionService,
+    private enhancedPdfProcessorService: EnhancedPdfProcessorService,
+    private ragQueryService: RagQueryService,
   ) {}
 
   private getVariableMapping(dto: any, contextData: any): Record<string, string> {
@@ -89,11 +94,11 @@ export class UnderwritingService {
 
     try {
       // 1. Procesar y almacenar el archivo en la base de datos
-      const session = await this.enhancedPdfProcessorService.processAndStorePdf(
-        file.buffer,
-        file.originalname,
-        { record_id, document_name, context }
-      );
+      const session = await this.enhancedPdfProcessorService.processLargePdf({
+        buffer: file.buffer,
+        originalname: file.originalname,
+        size: file.size
+      });
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
 
@@ -120,6 +125,7 @@ export class UnderwritingService {
         question: prompt.question,
         answer: ragResult.answer,
         confidence: ragResult.confidence,
+        expected_type: 'text',
         processing_time: ragResult.processingTime,
         error: ragResult.error,
       };
@@ -583,7 +589,7 @@ export class UnderwritingService {
             expected_fields: documentPrompt.fieldNames,
             expected_type: ResponseType.TEXT
           },
-          Array.from(preparedDocument.images.values()).map(img => Buffer.from(img, 'base64')),
+          Array.from(preparedDocument.images.values()).map(img => Buffer.from(img as string, 'base64')),
           preparedDocument.text || '',
           fileSizeEstimate
         ).then(res => {
@@ -1304,3 +1310,95 @@ export class UnderwritingService {
       processed_at: new Date(),
     };
   }
+
+  /**
+   * Prepara un documento PDF para análisis extrayendo texto e imágenes
+   */
+  private async prepareDocument(
+    pdfContent: string | null,
+    documentNeeds: { needsVisual: boolean; needsText: boolean },
+    documentName: string
+  ): Promise<{ text: string | null; images: Map<number, string> | null }> {
+    if (!pdfContent) {
+      return { text: null, images: null };
+    }
+
+    const result = { text: null as string | null, images: null as Map<number, string> | null };
+
+    try {
+      // Extraer texto si se necesita
+      if (documentNeeds.needsText) {
+        const buffer = Buffer.from(pdfContent, 'base64');
+        result.text = await this.pdfParserService.extractText(buffer);
+        this.logger.log(`📄 Text extracted: ${result.text?.length || 0} characters`);
+      }
+
+      // Extraer imágenes si se necesita
+      if (documentNeeds.needsVisual) {
+        try {
+          // Convertir páginas a imágenes (máximo 10 páginas para documentos normales)
+          const pagesToConvert = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+          result.images = await this.pdfImageService.convertPages(pdfContent, pagesToConvert, { 
+            documentName: documentName 
+          });
+          this.logger.log(`🖼️ Images extracted: ${result.images?.size || 0} pages`);
+        } catch (imageError) {
+          this.logger.warn(`⚠️ Image extraction failed: ${imageError.message}`);
+          result.images = new Map();
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`❌ Error preparing document: ${error.message}`);
+      return { text: null, images: null };
+    }
+  }
+
+  /**
+   * Prepara un documento PDF con truncación para archivos extremadamente grandes
+   */
+  private async prepareDocumentWithTruncation(
+    pdfContent: string | null,
+    documentNeeds: { needsVisual: boolean; needsText: boolean },
+    truncationLimit: number
+  ): Promise<{ text: string | null; images: Map<number, string> | null }> {
+    if (!pdfContent) {
+      return { text: null, images: null };
+    }
+
+    const result = { text: null as string | null, images: null as Map<number, string> | null };
+
+    try {
+      // Extraer texto truncado si se necesita
+      if (documentNeeds.needsText) {
+        const buffer = Buffer.from(pdfContent, 'base64');
+        result.text = await this.pdfParserService.extractTextTruncated(buffer, {
+          maxPages: truncationLimit,
+          firstPercentage: 0.6,
+          lastPercentage: 0.4
+        });
+        this.logger.log(`📄 Truncated text extracted: ${result.text?.length || 0} characters (max ${truncationLimit} pages)`);
+      }
+
+      // Extraer solo primeras páginas para análisis visual si se necesita
+      if (documentNeeds.needsVisual) {
+        try {
+          // Para archivos extremos, solo convertir las primeras páginas
+          const limitedPages = Array.from({length: Math.min(truncationLimit, 5)}, (_, i) => i + 1);
+          result.images = await this.pdfImageService.convertPages(pdfContent, limitedPages);
+          this.logger.log(`🖼️ Truncated images extracted: ${result.images?.size || 0} pages (max ${limitedPages.length})`);
+        } catch (imageError) {
+          this.logger.warn(`⚠️ Truncated image extraction failed: ${imageError.message}`);
+          result.images = new Map();
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`❌ Error preparing document with truncation: ${error.message}`);
+      return { text: null, images: null };
+    }
+  }
+
+}

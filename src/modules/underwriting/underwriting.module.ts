@@ -24,11 +24,8 @@ import { ChunkingModule } from './chunking/chunking.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      Claim,
-      Document,
-      ClaimHistory,
       DocumentPrompt,
-      DocumentPromptV2,
+      ClaimEvaluation,
     ]),
     ChunkingModule,
   ],

@@ -9,9 +9,6 @@ export class PMCFieldResultDto {
 }
 
 export class DocumentResultDto {
-// ... existing code ...
-
-export class DocumentResultDto {
   document_name: string;
   fields: PMCFieldResultDto[];
   error?: string;
