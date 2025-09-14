@@ -1,3 +1,70 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { OpenAIEmbeddingsService } from './openai-embeddings.service';
+import { split } from 'sentence-splitter';
+import * as crypto from 'crypto';
+
+// --- Interfaces y Tipos ---
+
+export interface SemanticChunk {
+  id: string;
+  sessionId: string;
+  chunkIndex: number;
+  content: string;
+  contentHash: string;
+  tokenCount: number;
+  characterCount: number;
+  embedding?: number[]; // Opcional, se puede generar después
+  metadata: ChunkMetadata;
+}
+
+export interface ChunkMetadata {
+  pageStart?: number;
+  pageEnd?: number;
+  positionStart: number;
+  positionEnd: number;
+  semanticType: 'header' | 'content' | 'table' | 'list' | 'conclusion' | 'signature' | 'footer' | 'metadata';
+  importance: 'critical' | 'high' | 'medium' | 'low';
+  hasNumbers: boolean;
+  hasDates: boolean;
+  hasNames: boolean;
+  hasMonetaryValues: boolean;
+  keywords: string[];
+}
+
+export interface ChunkingOptions {
+  strategy: 'semantic' | 'recursive';
+  chunkSize?: number; // Para estrategia recursiva
+  overlap?: number;   // Para estrategia recursiva
+  similarityThreshold?: number; // Para estrategia semántica
+}
+
+// --- Servicio Principal ---
+
+@Injectable()
+export class SemanticChunkingService {
+  private readonly logger = new Logger(SemanticChunkingService.name);
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly embeddingsService: OpenAIEmbeddingsService,
+  ) {
+    this.logger.log('🚀 Semantic Chunking Service initialized');
+  }
+
+// ...existing code...
+
+@Injectable()
+export class SemanticChunkingService {
+  private readonly logger = new Logger(SemanticChunkingService.name);
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly embeddingsService: OpenAIEmbeddingsService,
+  ) {
+    this.logger.log('🚀 Semantic Chunking Service initialized');
+  }
+
   /**
    * Divide el texto en chunks semánticos usando embeddings de oraciones.
    * Devuelve un array de SemanticChunk.
@@ -42,6 +109,9 @@
       keywords: this.extractKeywords(text),
     };
   }
+
+  // ...resto de métodos existentes de la clase...
+}
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OpenAIEmbeddingsService } from './openai-embeddings.service';
