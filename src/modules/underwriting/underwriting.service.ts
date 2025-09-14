@@ -106,6 +106,31 @@ export class UnderwritingService {
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
 
+      // 1.5. Procesar chunks semánticamente y almacenar en vector storage para RAG
+      this.logger.log(`🔄 [RAG-INTEGRATION] Processing document chunks for RAG system...`);
+      try {
+        // Obtener chunks procesados de la sesión
+        const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(session.id);
+        this.logger.log(`📦 [RAG-INTEGRATION] Found ${processedChunks.length} chunks to process for RAG`);
+        
+        if (processedChunks.length > 0) {
+          // Convertir chunks a formato semántico
+          const semanticChunks = await this.semanticChunkingService.convertChunksToSemantic(
+            processedChunks, 
+            session.id, 
+            file.originalname
+          );
+          
+          // Almacenar embeddings en el vector storage
+          await this.vectorStorageService.storeEmbeddings(semanticChunks);
+          
+          this.logger.log(`✅ [RAG-INTEGRATION] Successfully stored ${semanticChunks.length} chunks in vector storage`);
+        }
+      } catch (error) {
+        this.logger.error(`❌ [RAG-INTEGRATION] Failed to process chunks for RAG: ${error.message}`);
+        // Continue processing - RAG integration failure shouldn't stop document processing
+      }
+
       // 2. Obtener el prompt para este documento
       const documentPrompts = await this.documentPromptRepository.find({
         where: { documentName: `${document_name}.pdf`, active: true },
@@ -127,7 +152,7 @@ export class UnderwritingService {
   this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
   this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
   
-  const ragResult = await this.modernRagService.executeRAGPipeline(question);
+  const ragResult = await this.modernRagService.executeRAGPipeline(question, session.id);
   
   this.logger.log(`✅ [RAG-INTEGRATION] RAG pipeline completed successfully`);
   this.logger.log(`📊 [RAG-INTEGRATION] Answer received: ${ragResult.answer ? ragResult.answer.length + ' chars' : 'empty'}`);

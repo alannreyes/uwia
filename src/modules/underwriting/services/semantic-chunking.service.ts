@@ -247,4 +247,52 @@ export class SemanticChunkingService {
       .slice(0, 5)
       .map(entry => entry[0]);
   }
+
+  /**
+   * Convierte PdfChunks a SemanticChunks para uso en RAG
+   */
+  async convertChunksToSemantic(
+    pdfChunks: any[], 
+    sessionId: string, 
+    filename: string
+  ): Promise<SemanticChunk[]> {
+    this.logger.log(`🔄 [SEMANTIC-CHUNKING] Converting ${pdfChunks.length} PDF chunks to semantic chunks`);
+    this.logger.log(`📄 [SEMANTIC-CHUNKING] Session: ${sessionId}, File: ${filename}`);
+    
+    const semanticChunks: SemanticChunk[] = [];
+    
+    for (let i = 0; i < pdfChunks.length; i++) {
+      const pdfChunk = pdfChunks[i];
+      
+      try {
+        // Crear semantic chunk usando el método existente
+        const semanticChunk = this.createChunkFromText(
+          pdfChunk.content,
+          sessionId,
+          i,
+          pdfChunk.pageStart || 0,
+          pdfChunk.pageEnd || pdfChunk.content.length
+        );
+        
+        // Enriquecer con información adicional del PdfChunk
+        semanticChunk.metadata = {
+          ...semanticChunk.metadata,
+          pageStart: pdfChunk.pageStart,
+          pageEnd: pdfChunk.pageEnd
+        };
+        
+        semanticChunks.push(semanticChunk);
+        
+        this.logger.log(`   ✅ Converted chunk ${i + 1}/${pdfChunks.length}: ${pdfChunk.content.substring(0, 50)}...`);
+        
+      } catch (error) {
+        this.logger.error(`   ❌ Failed to convert chunk ${i}: ${error.message}`);
+        // Continue with other chunks
+      }
+    }
+    
+    this.logger.log(`✅ [SEMANTIC-CHUNKING] Successfully converted ${semanticChunks.length}/${pdfChunks.length} chunks`);
+    
+    return semanticChunks;
+  }
 }

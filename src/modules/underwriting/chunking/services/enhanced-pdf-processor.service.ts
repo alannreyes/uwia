@@ -99,4 +99,20 @@ export class EnhancedPdfProcessorService {
     }
     return chunks;
   }
+
+  /**
+   * Obtiene los chunks procesados de una sesión para usar en RAG
+   */
+  async getProcessedChunks(sessionId: string) {
+    this.logger.log(`📦 [ENHANCED-PDF] Retrieving processed chunks for session ${sessionId}`);
+    
+    try {
+      const chunks = await this.chunkStorageService.getChunks(sessionId);
+      this.logger.log(`✅ [ENHANCED-PDF] Found ${chunks.length} chunks for session ${sessionId}`);
+      return chunks;
+    } catch (error) {
+      this.logger.error(`❌ [ENHANCED-PDF] Failed to get chunks for session ${sessionId}: ${error.message}`);
+      throw error;
+    }
+  }
 }

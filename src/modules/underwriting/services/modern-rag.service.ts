@@ -47,7 +47,7 @@ export class ModernRagService {
       // Búsqueda semántica usando embeddings
       const semanticResults = await this.vectorStorage.findSimilar(queryEmbedding, {
         topK: 10,
-        minScore: 0.7,
+        minScore: 0.3,  // Reducido de 0.7 a 0.3 para ser menos restrictivo
         ...filters
       });
       
@@ -214,9 +214,14 @@ export class ModernRagService {
   /**
    * Main RAG pipeline - orchestrates all steps
    */
-  async executeRAGPipeline(query: string): Promise<{ answer: string, sources: any[] }> {
+  async executeRAGPipeline(query: string, sessionId?: string): Promise<{ answer: string, sources: any[] }> {
     this.logger.log('🚀 [RAG] ========== STARTING RAG PIPELINE ==========');
     this.logger.log(`📋 [RAG] Processing query: "${query.substring(0, 100)}..."`);
+    if (sessionId) {
+      this.logger.log(`🎯 [RAG] Filtering results for session: ${sessionId}`);
+    } else {
+      this.logger.log(`🌐 [RAG] Searching all available documents (no session filter)`);
+    }
     
     try {
       // Step 1: Generate query embedding
@@ -227,7 +232,7 @@ export class ModernRagService {
       this.logger.log(`🔑 [RAG] Extracted keywords: ${keywords.join(', ')}`);
       
       // Step 2: Multi-modal retrieval
-      const retrievedResults = await this.multiModalRetrieve(queryEmbedding, keywords);
+      const retrievedResults = await this.multiModalRetrieve(queryEmbedding, keywords, { sessionId });
       
       // Step 3: Re-rank and score
       const rerankedResults = await this.rerankAndScore(retrievedResults);
