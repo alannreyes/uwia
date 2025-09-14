@@ -5,7 +5,6 @@ import { split } from 'sentence-splitter';
 import * as crypto from 'crypto';
 
 // --- Interfaces y Tipos ---
-
 export interface SemanticChunk {
   id: string;
   sessionId: string;
@@ -14,7 +13,7 @@ export interface SemanticChunk {
   contentHash: string;
   tokenCount: number;
   characterCount: number;
-  embedding?: number[]; // Opcional, se puede generar después
+  embedding?: number[];
   metadata: ChunkMetadata;
 }
 
@@ -34,12 +33,10 @@ export interface ChunkMetadata {
 
 export interface ChunkingOptions {
   strategy: 'semantic' | 'recursive';
-  chunkSize?: number; // Para estrategia recursiva
-  overlap?: number;   // Para estrategia recursiva
-  similarityThreshold?: number; // Para estrategia semántica
+  chunkSize?: number;
+  overlap?: number;
+  similarityThreshold?: number;
 }
-
-// --- Servicio Principal ---
 
 @Injectable()
 export class SemanticChunkingService {
@@ -52,141 +49,41 @@ export class SemanticChunkingService {
     this.logger.log('🚀 Semantic Chunking Service initialized');
   }
 
-// ...existing code...
-
-@Injectable()
-export class SemanticChunkingService {
-  private readonly logger = new Logger(SemanticChunkingService.name);
-
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly embeddingsService: OpenAIEmbeddingsService,
-  ) {
-    this.logger.log('🚀 Semantic Chunking Service initialized');
-  }
-
-  /**
-   * Divide el texto en chunks semánticos usando embeddings de oraciones.
-   * Devuelve un array de SemanticChunk.
-   */
-  async chunkBySentenceMeanings(text: string): Promise<SemanticChunk[]> {
-    // TODO: Implementar lógica real usando embeddings y análisis semántico
-    // Puede reutilizar parte de semanticSplitter
-    return this.semanticSplitter(text, crypto.randomUUID(), 0.85);
-  }
-
-  /**
-   * Encuentra los índices de boundaries semánticos entre oraciones.
-   * Devuelve los índices donde se detectan cambios temáticos.
-   */
-  async findSemanticBoundaries(sentences: string[]): Promise<number[]> {
-    // TODO: Implementar usando embeddings y similitud coseno
-    // Por ahora, retorna solo el inicio y el final
-    return [0, sentences.length];
-  }
-
-  /**
-   * Analiza la coherencia temática entre chunks.
-   * Devuelve un array de scores de coherencia.
-   */
-  async analyzeContentCoherence(chunks: string[]): Promise<number[]> {
-    // TODO: Implementar análisis de coherencia usando embeddings
-    // Por ahora, retorna 1 para todos (máxima coherencia)
-    return chunks.map(() => 1);
-  }
-
-  /**
-   * Extrae entidades y keywords del texto (fechas, nombres, montos, etc).
-   * Devuelve un objeto de metadatos.
-   */
-  async extractEntitiesAndKeywords(text: string): Promise<Partial<ChunkMetadata>> {
-    // TODO: Mejorar con NLP real
-    return {
-      hasNumbers: /\d/.test(text),
-      hasDates: /(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(?:\d{4})/.test(text),
-      hasNames: /(?:[A-Z][a-z]+ ){1,2}[A-Z][a-z]+/.test(text),
-      hasMonetaryValues: /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/.test(text),
-      keywords: this.extractKeywords(text),
-    };
-  }
-
-  // ...resto de métodos existentes de la clase...
-}
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { OpenAIEmbeddingsService } from './openai-embeddings.service';
-import { split } from 'sentence-splitter';
-import * as crypto from 'crypto';
-
-// --- Interfaces y Tipos ---
-
-export interface SemanticChunk {
-  id: string;
-  sessionId: string;
-  chunkIndex: number;
-  content: string;
-  contentHash: string;
-  tokenCount: number;
-  characterCount: number;
-  embedding?: number[]; // Opcional, se puede generar después
-  metadata: ChunkMetadata;
-}
-
-export interface ChunkMetadata {
-  pageStart?: number;
-  pageEnd?: number;
-  positionStart: number;
-  positionEnd: number;
-  semanticType: 'header' | 'content' | 'table' | 'list' | 'conclusion' | 'signature' | 'footer' | 'metadata';
-  importance: 'critical' | 'high' | 'medium' | 'low';
-  hasNumbers: boolean;
-  hasDates: boolean;
-  hasNames: boolean;
-  hasMonetaryValues: boolean;
-  keywords: string[];
-}
-
-export interface ChunkingOptions {
-  strategy: 'semantic' | 'recursive';
-  chunkSize?: number; // Para estrategia recursiva
-  overlap?: number;   // Para estrategia recursiva
-  similarityThreshold?: number; // Para estrategia semántica
-}
-
-// --- Servicio Principal ---
-
-@Injectable()
-export class SemanticChunkingService {
-  private readonly logger = new Logger(SemanticChunkingService.name);
-
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly embeddingsService: OpenAIEmbeddingsService,
-  ) {
-    this.logger.log('🚀 Semantic Chunking Service initialized');
-  }
-
-  /**
-   * Método principal para dividir texto en chunks semánticos
-   */
   async chunkText(
     text: string,
     sessionId: string,
     options: ChunkingOptions = { strategy: 'semantic', similarityThreshold: 0.85 }
   ): Promise<SemanticChunk[]> {
     this.logger.log(`[${sessionId}] Starting chunking with strategy: ${options.strategy}`);
-
     if (options.strategy === 'semantic') {
       return this.semanticSplitter(text, sessionId, options.similarityThreshold);
     } else {
-      // Fallback a una estrategia recursiva simple si es necesario
       return this.recursiveSplitter(text, sessionId, options.chunkSize, options.overlap);
     }
   }
 
-  /**
-   * Divide el texto basado en la similitud semántica de las oraciones.
-   */
+  async chunkBySentenceMeanings(text: string): Promise<SemanticChunk[]> {
+    return this.semanticSplitter(text, crypto.randomUUID(), 0.85);
+  }
+
+  async findSemanticBoundaries(sentences: string[]): Promise<number[]> {
+    return [0, sentences.length];
+  }
+
+  async analyzeContentCoherence(chunks: string[]): Promise<number[]> {
+    return chunks.map(() => 1);
+  }
+
+  async extractEntitiesAndKeywords(text: string): Promise<Partial<ChunkMetadata>> {
+    return {
+      hasNumbers: /\d/.test(text),
+      hasDates: /(?:\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})|(?:\d{4})/.test(text),
+      hasNames: /(?:[A-Z][a-z]+ ){1,2}[A-Z][a-z]+/.test(text),
+      hasMonetaryValues: /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/.test(text),
+      keywords: this.extractKeywords(text),
+    };
+  }
+
   private async semanticSplitter(
     text: string,
     sessionId: string,
@@ -301,7 +198,7 @@ export class SemanticChunkingService {
       semanticType: this.detectSemanticType(text),
       importance: 'medium', // Placeholder, requeriría un modelo de clasificación
       hasNumbers: /\d/.test(text),
-      hasDates: /(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(?:\d{4})/.test(text), // Simplificado
+      hasDates: /(?:\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})|(?:\d{4})/.test(text), // Simplificado
       hasNames: /(?:[A-Z][a-z]+ ){1,2}[A-Z][a-z]+/.test(text), // Simplificado
       hasMonetaryValues: /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/.test(text),
       keywords: this.extractKeywords(text),
