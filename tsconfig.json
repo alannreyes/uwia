@@ -1,27 +1,13 @@
 {
-  "c    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "ES2021",
-    "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "incremental": true,
-    "skipLibCheck": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
-  }
-}s": {
+  "compilerOptions": {
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2021",
+    "target": "ES2015",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -36,7 +22,8 @@
     "esModuleInterop": true,
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "exclude": [
     "node_modules",
@@ -46,4 +33,4 @@
     "test-*.ts",
     "**/test-*.ts"
   ]
-} 
+}
