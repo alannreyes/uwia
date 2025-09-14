@@ -38,6 +38,13 @@ import { JudgeValidatorService } from '../services/judge-validator.service';
     RateLimiterService,
     JudgeValidatorService,
   ],
-  exports: [EnhancedPdfProcessorService, RagQueryService, ChunkStorageService],
+  exports: [
+    EnhancedPdfProcessorService,
+    RagQueryService,
+    ChunkStorageService,
+    MemoryManagerService,
+    PdfParserService,
+    OpenAiService,
+  ],
 })
 export class ChunkingModule {}

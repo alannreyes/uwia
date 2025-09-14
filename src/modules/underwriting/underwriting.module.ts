@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnderwritingController } from './underwriting.controller';
 import { UnderwritingService } from './underwriting.service';
-import { OpenAiService } from './services/openai.service';
-import { PdfParserService } from './services/pdf-parser.service';
 import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
@@ -15,7 +13,6 @@ import { IntelligentPageSelectorService } from './services/intelligent-page-sele
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { GeminiService } from './services/gemini.service';
 import { RateLimiterService } from './services/rate-limiter.service';
-import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
 import { ModernRagService } from './services/modern-rag.service';
 import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
@@ -41,8 +38,7 @@ import { ChunkingModule } from './chunking/chunking.module';
   controllers: [UnderwritingController],
   providers: [
     UnderwritingService,
-    OpenAiService,
-    PdfParserService,
+    // Services not provided by ChunkingModule
     PdfFormExtractorService,
     PdfHybridAnalyzerService,
     PdfStreamProcessorService,
@@ -54,7 +50,6 @@ import { ChunkingModule } from './chunking/chunking.module';
     LargePdfVisionService,
     GeminiService,
     RateLimiterService,
-    EnhancedPdfProcessorService,
     ModernRagService,
     VectorStorageService,
     SemanticChunkingService,
