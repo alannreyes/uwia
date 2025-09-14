@@ -54,13 +54,39 @@ export class VectorStorageService {
         
         this.logger.log(`💾 [VECTOR-STORAGE] Cached embedding for chunk ${chunk.id}`);
         
-        // TODO: Guardar en base de datos
-        // const entity = new DocumentEmbedding();
-        // entity.documentId = chunk.sessionId;
-        // entity.chunkIndex = chunk.chunkIndex;
-        // entity.content = chunk.content;
-        // entity.embedding = JSON.stringify(chunk.embedding);
-        // await this.documentEmbeddingRepository.save(entity);
+        // Guardar en base de datos MySQL (mejores prácticas 2025)
+        try {
+          const entity = this.documentEmbeddingRepository.create({
+            sessionId: chunk.sessionId,
+            chunkId: chunk.id,
+            chunkIndex: chunk.chunkIndex,
+            content: chunk.content,
+            contentHash: chunk.contentHash,
+            embedding: chunk.embedding, // TypeORM handleará la serialización JSON automáticamente
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimensions: 3072,
+            semanticType: chunk.metadata.semanticType,
+            importance: chunk.metadata.importance,
+            tokenCount: chunk.tokenCount,
+            characterCount: chunk.characterCount,
+            pageStart: chunk.metadata.pageStart,
+            pageEnd: chunk.metadata.pageEnd,
+            positionStart: chunk.metadata.positionStart,
+            positionEnd: chunk.metadata.positionEnd,
+            hasNumbers: chunk.metadata.hasNumbers,
+            hasDates: chunk.metadata.hasDates,
+            hasNames: chunk.metadata.hasNames,
+            hasMonetaryValues: chunk.metadata.hasMonetaryValues,
+            keywords: chunk.metadata.keywords
+          });
+          
+          await this.documentEmbeddingRepository.save(entity);
+          this.logger.log(`✅ [VECTOR-STORAGE] Saved embedding to database for chunk ${chunk.id}`);
+          
+        } catch (dbError) {
+          this.logger.error(`❌ [VECTOR-STORAGE] Failed to save to database: ${dbError.message}`);
+          // Continue with cache-only operation
+        }
       }
       
       this.logger.log(`✅ [VECTOR-STORAGE] Successfully stored ${chunks.length} embeddings in cache`);
@@ -74,55 +100,137 @@ export class VectorStorageService {
 
   /**
    * Busca chunks similares dado un embedding de consulta.
+   * Implementa búsqueda híbrida: base de datos + cache (mejores prácticas 2025)
    */
   async findSimilar(
     queryEmbedding: number[], 
     options: SearchOptions = {}
   ): Promise<SimilarityResult[]> {
-    const { topK = 5, minScore = 0.7, sessionId } = options;
+    const { topK = 5, minScore = 0.3, sessionId } = options;
     
     this.logger.log(`🔍 [VECTOR-STORAGE] Searching for similar chunks...`);
     this.logger.log(`   - Top K: ${topK}`);
     this.logger.log(`   - Min Score: ${minScore}`);
-    this.logger.log(`   - Cache size: ${this.embeddingCache.size} embeddings`);
-    
-    if (this.embeddingCache.size === 0) {
-      this.logger.warn(`⚠️ [VECTOR-STORAGE] No embeddings in cache to search`);
-      
-      // Intentar cargar algunos documentos de ejemplo si existen
-      await this.loadSampleDocuments();
-      
-      if (this.embeddingCache.size === 0) {
-        return [];
-      }
-    }
+    this.logger.log(`   - Session ID: ${sessionId || 'all sessions'}`);
     
     const results: SimilarityResult[] = [];
     
-    // Buscar en cache
-    for (const [key, value] of this.embeddingCache.entries()) {
-      // Filtrar por sessionId si se especifica
-      if (sessionId && !key.startsWith(sessionId)) {
-        continue;
+    // 1. Buscar primero en base de datos (persistente y escalable)
+    try {
+      this.logger.log(`📊 [VECTOR-STORAGE] Searching in database...`);
+      
+      const queryBuilder = this.documentEmbeddingRepository.createQueryBuilder('embedding');
+      
+      if (sessionId) {
+        queryBuilder.where('embedding.sessionId = :sessionId', { sessionId });
       }
       
-      // Calcular similitud coseno
-      const similarity = this.embeddingsService.calculateCosineSimilarity(
-        queryEmbedding,
-        value.embedding
-      );
+      const dbEmbeddings = await queryBuilder
+        .orderBy('embedding.importance', 'DESC')
+        .addOrderBy('embedding.createdAt', 'DESC')
+        .limit(50) // Pre-filtrar para performance
+        .getMany();
       
-      if (similarity >= minScore) {
-        results.push({
-          chunk: value.chunk,
-          score: similarity
-        });
+      this.logger.log(`📊 [VECTOR-STORAGE] Found ${dbEmbeddings.length} embeddings in database`);
+      
+      // Calcular similitudes en batch
+      for (const dbEmbedding of dbEmbeddings) {
+        const similarity = this.embeddingsService.calculateCosineSimilarity(
+          queryEmbedding,
+          dbEmbedding.embedding
+        );
         
-        this.logger.log(`   📍 Found match: ${key} (score: ${similarity.toFixed(3)})`);
+        if (similarity >= minScore) {
+          // Convertir de DocumentEmbedding a SemanticChunk para compatibilidad
+          const semanticChunk: SemanticChunk = {
+            id: dbEmbedding.chunkId,
+            sessionId: dbEmbedding.sessionId,
+            chunkIndex: dbEmbedding.chunkIndex,
+            content: dbEmbedding.content,
+            contentHash: dbEmbedding.contentHash,
+            tokenCount: dbEmbedding.tokenCount,
+            characterCount: dbEmbedding.characterCount,
+            embedding: dbEmbedding.embedding,
+            metadata: {
+              positionStart: dbEmbedding.positionStart,
+              positionEnd: dbEmbedding.positionEnd,
+              semanticType: dbEmbedding.semanticType,
+              importance: dbEmbedding.importance,
+              hasNumbers: dbEmbedding.hasNumbers,
+              hasDates: dbEmbedding.hasDates,
+              hasNames: dbEmbedding.hasNames,
+              hasMonetaryValues: dbEmbedding.hasMonetaryValues,
+              keywords: dbEmbedding.keywords || [],
+              pageStart: dbEmbedding.pageStart,
+              pageEnd: dbEmbedding.pageEnd
+            }
+          };
+          
+          results.push({
+            chunk: semanticChunk,
+            score: similarity
+          });
+          
+          this.logger.log(`   📍 DB match: ${dbEmbedding.chunkId} (score: ${similarity.toFixed(3)}, importance: ${dbEmbedding.importance})`);
+        }
+      }
+      
+    } catch (dbError) {
+      this.logger.error(`❌ [VECTOR-STORAGE] Database search failed: ${dbError.message}`);
+    }
+    
+    // 2. Si no hay resultados en BD o sessionId específico, buscar en cache como fallback
+    if (results.length === 0 && this.embeddingCache.size > 0) {
+      this.logger.log(`🔄 [VECTOR-STORAGE] Falling back to cache search...`);
+      
+      for (const [key, value] of this.embeddingCache.entries()) {
+        // Filtrar por sessionId si se especifica
+        if (sessionId && !key.startsWith(sessionId)) {
+          continue;
+        }
+        
+        const similarity = this.embeddingsService.calculateCosineSimilarity(
+          queryEmbedding,
+          value.embedding
+        );
+        
+        if (similarity >= minScore) {
+          results.push({
+            chunk: value.chunk,
+            score: similarity
+          });
+          
+          this.logger.log(`   📍 Cache match: ${key} (score: ${similarity.toFixed(3)})`);
+        }
       }
     }
     
-    // Ordenar por score descendente
+    // 3. Si no hay resultados, cargar samples para demo
+    if (results.length === 0) {
+      this.logger.warn(`⚠️ [VECTOR-STORAGE] No embeddings found, loading samples...`);
+      await this.loadSampleDocuments();
+      
+      // Intentar de nuevo con samples
+      for (const [key, value] of this.embeddingCache.entries()) {
+        if (sessionId && !key.startsWith(sessionId)) {
+          continue;
+        }
+        
+        const similarity = this.embeddingsService.calculateCosineSimilarity(
+          queryEmbedding,
+          value.embedding
+        );
+        
+        if (similarity >= minScore) {
+          results.push({
+            chunk: value.chunk,
+            score: similarity
+          });
+        }
+      }
+    }
+    
+    // 4. Ordenar por score descendente
     results.sort((a, b) => b.score - a.score);
     
     // Limitar a topK resultados

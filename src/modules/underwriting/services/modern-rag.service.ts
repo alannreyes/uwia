@@ -152,12 +152,13 @@ export class ModernRagService {
           If you cannot find the specific information, respond with "NOT_FOUND" or provide the most appropriate response format requested.
         `;
         
-        const directResponse = await this.openAiService.evaluateWithVision(
-          '',  // No hay imagen en contexto puro de texto
+        // Para consultas de texto puro, usar método de texto regular en lugar de Vision
+        const directResponse = await this.openAiService.evaluateWithValidation(
+          '', // Sin contexto de documento
           directPrompt,
-          ResponseType.TEXT,  // tipo de respuesta esperada
-          'rag_query',  // campo PMC
-          1  // número de página
+          ResponseType.TEXT,
+          undefined, // Sin contexto adicional
+          'rag_query' // Campo PMC
         );
         
         this.logger.log(`🤖 [RAG] Fallback response generated`);
@@ -185,12 +186,13 @@ export class ModernRagService {
       
       this.logger.log(`📤 [RAG] Sending to LLM with ${context.length} chars of context`);
       
-      const response = await this.openAiService.evaluateWithVision(
-        '',  // No hay imagen en contexto puro de texto
+      // Para consultas RAG con contexto de texto, usar método de texto regular
+      const response = await this.openAiService.evaluateWithValidation(
+        context, // Contexto del RAG
         ragPrompt,
-        ResponseType.TEXT,  // tipo de respuesta esperada
-        'rag_query',  // campo PMC
-        1  // número de página
+        ResponseType.TEXT,
+        undefined, // Sin contexto adicional
+        'rag_query' // Campo PMC
       );
       
       this.logger.log(`✅ [RAG] Answer generated successfully`);

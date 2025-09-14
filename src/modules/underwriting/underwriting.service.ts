@@ -106,31 +106,6 @@ export class UnderwritingService {
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
 
-      // 1.5. Procesar chunks semánticamente y almacenar en vector storage para RAG
-      this.logger.log(`🔄 [RAG-INTEGRATION] Processing document chunks for RAG system...`);
-      try {
-        // Obtener chunks procesados de la sesión
-        const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(session.id);
-        this.logger.log(`📦 [RAG-INTEGRATION] Found ${processedChunks.length} chunks to process for RAG`);
-        
-        if (processedChunks.length > 0) {
-          // Convertir chunks a formato semántico
-          const semanticChunks = await this.semanticChunkingService.convertChunksToSemantic(
-            processedChunks, 
-            session.id, 
-            file.originalname
-          );
-          
-          // Almacenar embeddings en el vector storage
-          await this.vectorStorageService.storeEmbeddings(semanticChunks);
-          
-          this.logger.log(`✅ [RAG-INTEGRATION] Successfully stored ${semanticChunks.length} chunks in vector storage`);
-        }
-      } catch (error) {
-        this.logger.error(`❌ [RAG-INTEGRATION] Failed to process chunks for RAG: ${error.message}`);
-        // Continue processing - RAG integration failure shouldn't stop document processing
-      }
-
       // 2. Obtener el prompt para este documento
       const documentPrompts = await this.documentPromptRepository.find({
         where: { documentName: `${document_name}.pdf`, active: true },
@@ -146,13 +121,40 @@ export class UnderwritingService {
       // 3. Esperar a que la sesión esté lista para consultas
       this.logger.log(`[SYNC-LARGE] Waiting for session ${session.id} to be ready...`);
       await this.waitForSessionReady(session.id);
-  this.logger.log(`[SYNC-LARGE] Session ${session.id} is ready. Ejecutando consulta RAG MODERNA...`);
+      this.logger.log(`[SYNC-LARGE] Session ${session.id} is ready. Processing chunks for RAG system...`);
 
-  // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
-  this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
-  this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
-  
-  const ragResult = await this.modernRagService.executeRAGPipeline(question, session.id);
+      // 3.5. Ahora que la sesión está lista, procesar chunks para RAG
+      this.logger.log(`🔄 [RAG-INTEGRATION] Processing document chunks for RAG system...`);
+      try {
+        // Obtener chunks procesados de la sesión (ahora que sabemos que existen)
+        const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(session.id);
+        this.logger.log(`📦 [RAG-INTEGRATION] Found ${processedChunks.length} chunks to process for RAG`);
+        
+        if (processedChunks.length > 0) {
+          // Convertir chunks a formato semántico
+          const semanticChunks = await this.semanticChunkingService.convertChunksToSemantic(
+            processedChunks, 
+            session.id, 
+            file.originalname
+          );
+          
+          // Almacenar embeddings en el vector storage
+          await this.vectorStorageService.storeEmbeddings(semanticChunks);
+          
+          this.logger.log(`✅ [RAG-INTEGRATION] Successfully stored ${semanticChunks.length} chunks in vector storage`);
+        } else {
+          this.logger.warn(`⚠️ [RAG-INTEGRATION] No processed chunks found for session ${session.id}`);
+        }
+      } catch (error) {
+        this.logger.error(`❌ [RAG-INTEGRATION] Failed to process chunks for RAG: ${error.message}`);
+        // Continue processing - RAG integration failure shouldn't stop document processing
+      }
+
+      // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
+      this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
+      this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
+      
+      const ragResult = await this.modernRagService.executeRAGPipeline(question, session.id);
   
   this.logger.log(`✅ [RAG-INTEGRATION] RAG pipeline completed successfully`);
   this.logger.log(`📊 [RAG-INTEGRATION] Answer received: ${ragResult.answer ? ragResult.answer.length + ' chars' : 'empty'}`);
