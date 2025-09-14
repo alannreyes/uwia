@@ -1,20 +1,35 @@
 # 🚀 Plan de Optimización RAG + Vision Híbrido
 ## Sistema de Detección de Firmas y Documentos Scaneados - Sept 2025
 
+**🕒 ÚLTIMA ACTUALIZACIÓN: 14 Sept 2025 - 15:30**  
+**📊 STATUS ACTUAL: Diagnóstico en curso - RAG no funcional**
+
 ---
 
-## 📋 **RESUMEN EJECUTIVO**
+## 📋 **RESUMEN EJECUTIVO ACTUALIZADO**
 
-### **Problema Crítico Identificado:**
-- **Fallo total en detección de firmas**: 0% accuracy en `lop_signed_by_client1` y `lop_signed_by_ho1`
-- **Documentos scaneados/protegidos**: Fallan cuando OCR no puede extraer texto
-- **Falta de análisis visual**: RAG solo procesa texto, ignora elementos visuales críticos
+### **Problema Crítico CONFIRMADO (Sept 14):**
+- ❌ **RAG completamente no funcional**: 0 chunks encontrados en todas las sesiones
+- ❌ **Race condition confirmado**: Chunks se procesan DESPUÉS de que RAG termina
+- ❌ **Fallo total en detección de firmas**: 0% accuracy en `lop_signed_by_client1` y `lop_signed_by_ho1`
+- ❌ **Falta Gemini en RAG**: Sistema no es dual como requerido
 
-### **Solución Propuesta:**
-**Sistema Híbrido RAG + Vision** que combina:
-1. **RAG**: Contexto semántico y conocimiento documental
-2. **Vision API**: Análisis visual de firmas, sellos, checkboxes
-3. **OCR Fallback**: Para documentos protegidos/scaneados
+### **DIAGNÓSTICO DE EVIDENCIA (Sept 14):**
+```logs
+📦 [RAG-INTEGRATION] Found 0 chunks to process for RAG
+📊 [VECTOR-STORAGE] Found 0 embeddings in database  
+⚠️ [RAG] No context available, using fallback response
+📚 [RAG-INTEGRATION] Sources used: 0
+
+PERO 2 segundos después:
+✅ [ENHANCED-PDF] Successfully processed all 1 chunks. Session is ready.
+```
+
+### **Solución REVISADA - Enfoque Incremental:**
+1. ✅ **FASE 0**: Diagnóstico completo (EN CURSO)
+2. 🔄 **FASE 1**: Fix race condition básico  
+3. 🔄 **FASE 2**: Integrar Gemini como sistema dual
+4. 🔄 **FASE 3**: Sistema híbrido RAG + Vision
 
 ---
 
@@ -62,10 +77,67 @@ const needsVision = requiresVisualAnalysis(query);
 
 ---
 
-## 🛠️ **DESARROLLO LÓGICO**
+## 🛠️ **DESARROLLO LÓGICO ACTUALIZADO**
 
-### **Fase 1: Pipeline Híbrido Core** ⚡
-**Tiempo: 2 horas**
+### **🔬 FASE 0: Diagnóstico Profundo** ✅ **COMPLETADO**
+**Tiempo: 45 minutos**  
+**Estado: DESPLEGADO - Esperando test**
+
+#### **Logros:**
+- ✅ **RagDebugController creado**: Endpoint completo de diagnóstico
+- ✅ **Endpoints disponibles**: 
+  - `GET /api/debug/rag/session/{sessionId}` - Diagnóstico completo
+  - `POST /api/debug/rag/test-race-condition` - Test de timing
+- ✅ **Build exitoso**: Sin errores TypeScript
+- ✅ **Deploy iniciado**: Esperando disponibilidad
+
+#### **Funciones de Diagnóstico:**
+1. **Session Check**: Valida existencia y estado de sesión
+2. **Chunks Analysis**: Cuenta y analiza chunks procesados  
+3. **Semantic Conversion Test**: Prueba conversión de chunks
+4. **Vector Storage Test**: Verifica almacenamiento
+5. **RAG Search Test**: Prueba búsqueda completa
+6. **Race Condition Test**: Confirma timing issues
+
+---
+
+### **🔧 FASE 1: Fix Race Condition Básico** 🔄 **PENDIENTE**
+**Tiempo estimado: 1 hora**  
+**Estado: Esperando diagnóstico para confirmar estrategia**
+
+#### **Estrategias Identificadas:**
+1. **Polling Approach**: Verificar chunks cada X segundos
+2. **Event-Driven**: Usar eventos para notificar cuando chunks están listos
+3. **Synchronous Wait**: Esperar confirmación real de chunks
+
+#### **Target Fix:**
+```typescript
+// En lugar de asumir que chunks están listos
+await this.waitForSessionReady(session.id);
+
+// Verificar realmente que chunks existen antes de RAG
+const chunksReady = await this.verifyChunksAvailable(session.id);
+if (chunksReady) {
+  // Proceder con RAG
+}
+```
+
+---
+
+### **🚀 FASE 2: Gemini Dual System** 🔄 **PLANIFICADO**
+**Tiempo estimado: 45 minutos**  
+**Dependencia: FASE 1 completada**
+
+#### **Componentes:**
+1. **GeminiEmbeddingsService**: Paralelo a OpenAI
+2. **Dual Storage**: Embeddings de ambos modelos
+3. **Consensus Logic**: Comparar resultados
+
+---
+
+### **👁️ FASE 3: Pipeline Híbrido RAG + Vision** 🔄 **EN ESPERA**
+**Tiempo estimado: 2 horas**  
+**Dependencia: FASE 1 y 2 completadas**
 
 #### **Componentes a Desarrollar:**
 1. **Detector de Modalidad**
@@ -146,13 +218,27 @@ const testCases = [
 ];
 ```
 
-### **Métricas de Éxito**
-| Métrica | Actual | Target | Medición |
+### **Métricas de Éxito ACTUALIZADAS**
+| Métrica | Actual Sept 14 | Target | Estado |
 |---------|---------|---------|-----------|
-| Accuracy Firmas | 0% | 95%+ | Test contra validacion.txt |
-| Tiempo Respuesta | 30s | <35s | Promedio en pruebas |
-| Documentos Scaneados | Falla | 100% | Test con PDFs protegidos |
-| Fallback Success | N/A | 90%+ | Test con APIs down |
+| RAG Funcional | ❌ 0% (0 chunks) | ✅ 90%+ | 🚨 CRÍTICO |
+| Accuracy Firmas | ❌ 0% | ✅ 95%+ | Dependiente de RAG |
+| Tiempo Respuesta | ⚠️ 30-40s | ✅ <35s | Aceptable |
+| Race Condition | ❌ Confirmado | ✅ Resuelto | 🔧 EN PROGRESS |
+| Gemini Integration | ❌ No existe | ✅ Dual system | 📋 PLANIFICADO |
+
+### **Criterios de GO/NO-GO ACTUALIZADOS**
+#### **FASE 1 - RAG Básico:**
+- ✅ **GO Criteria**: RAG encuentra >80% de chunks procesados
+- ❌ **NO-GO**: RAG sigue encontrando 0 chunks después del fix
+
+#### **FASE 2 - Gemini Integration:**  
+- ✅ **GO Criteria**: RAG básico funciona + Gemini embeddings generados
+- ❌ **NO-GO**: Consensus entre modelos <70%
+
+#### **FASE 3 - Vision Híbrido:**
+- ✅ **GO Criteria**: RAG + Gemini stable + Vision API disponible
+- ❌ **NO-GO**: Performance degradation >50%
 
 ### **Tests de Regresión**
 - **Documentos actuales**: No empeorar accuracy en campos no-visuales
