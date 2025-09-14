@@ -1,5 +1,20 @@
 {
-  "compilerOptions": {
+  "c    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false
+  }
+}s": {
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,
