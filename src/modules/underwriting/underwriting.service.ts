@@ -124,9 +124,14 @@ export class UnderwritingService {
   this.logger.log(`[SYNC-LARGE] Session ${session.id} is ready. Ejecutando consulta RAG MODERNA...`);
 
   // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
-  // TODO: Migrar lógica de consulta a modernRagService
-  const ragResult = await this.modernRagService.generateAnswer('contexto', question); // Placeholder
-  this.logger.log(`[SYNC-LARGE] Modern RAG query completed.`);
+  this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
+  this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
+  
+  const ragResult = await this.modernRagService.executeRAGPipeline(question);
+  
+  this.logger.log(`✅ [RAG-INTEGRATION] RAG pipeline completed successfully`);
+  this.logger.log(`📊 [RAG-INTEGRATION] Answer received: ${ragResult.answer ? ragResult.answer.length + ' chars' : 'empty'}`);
+  this.logger.log(`📚 [RAG-INTEGRATION] Sources used: ${ragResult.sources?.length || 0}`);
 
       // 4. Formatear la respuesta para que coincida con la estructura esperada
       const pmcResult: PMCFieldResultDto = {
