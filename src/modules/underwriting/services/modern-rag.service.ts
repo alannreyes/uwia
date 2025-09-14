@@ -91,7 +91,7 @@ export class ModernRagService {
   }
 
   /**
-   * 4. Context assembly con overlap detection
+   * 4. Context assembly optimized for RAG-sized chunks (8KB each)
    */
   async assembleContext(results: any[]): Promise<string> {
     this.logger.log('🔍 [RAG] STEP 4: Assembling context from results...');
@@ -104,34 +104,30 @@ export class ModernRagService {
     const contextParts: string[] = [];
     let totalTokens = 0;
     const maxTokens = 8000; // Límite de tokens para el contexto
+    let chunksSkipped = 0;
+    let chunksTruncated = 0;
 
     for (const result of results) {
       let content = result.chunk?.content || result.content || '';
       const fullTokens = this.embeddingsService.estimateTokens(content);
 
-      // Si el chunk es demasiado grande, truncarlo para que quepa
-      if (fullTokens > maxTokens && contextParts.length === 0) {
-        // Si es el primer chunk y es muy grande, tomar al menos una parte
-        const maxChars = Math.floor(maxTokens * 3.5); // Aproximadamente 3.5 caracteres por token
-        content = content.substring(0, maxChars);
-        this.logger.warn(`⚠️ [RAG] First chunk truncated from ${fullTokens} to ~${maxTokens} tokens`);
+      // Con los nuevos chunks de 8KB (~2000 tokens), raramente deberíamos truncar
+      if (fullTokens > 3000) {
+        this.logger.warn(`⚠️ [RAG] Unexpectedly large chunk: ${fullTokens} tokens (expected ~2000 with 8KB chunks)`);
+        if (contextParts.length === 0) {
+          // Si es el primer chunk y es muy grande, truncar para que quepa
+          const maxChars = Math.floor(maxTokens * 3.5);
+          content = content.substring(0, maxChars);
+          chunksTruncated++;
+          this.logger.warn(`⚠️ [RAG] First chunk truncated from ${fullTokens} to ~${maxTokens} tokens`);
+        }
       }
 
       const tokens = this.embeddingsService.estimateTokens(content);
 
       if (totalTokens + tokens > maxTokens) {
-        // Si no es el primer chunk y excede el límite, intentar agregar una parte
-        if (contextParts.length === 0) {
-          // Asegurar que al menos agregamos algo del primer chunk
-          const remainingTokens = maxTokens - totalTokens;
-          if (remainingTokens > 100) { // Al menos 100 tokens para que valga la pena
-            const remainingChars = Math.floor(remainingTokens * 3.5);
-            content = content.substring(0, remainingChars);
-            contextParts.push(`[Score: ${result.score?.toFixed(3)}]\n${content}`);
-            totalTokens += remainingTokens;
-          }
-        }
-        this.logger.warn(`⚠️ [RAG] Context size limit reached (${totalTokens} tokens)`);
+        this.logger.log(`📊 [RAG] Context limit reached: ${totalTokens} + ${tokens} > ${maxTokens} tokens`);
+        chunksSkipped = results.length - contextParts.length;
         break;
       }
 
@@ -141,10 +137,15 @@ export class ModernRagService {
 
     const context = contextParts.join('\n\n---\n\n');
 
-    this.logger.log(`📚 [RAG] Context assembled:`);
-    this.logger.log(`   - Chunks used: ${contextParts.length}`);
-    this.logger.log(`   - Total tokens: ~${totalTokens}`);
+    this.logger.log(`📚 [RAG] Context assembled with RAG-optimized chunks:`);
+    this.logger.log(`   - Chunks included: ${contextParts.length}/${results.length}`);
+    this.logger.log(`   - Total tokens: ~${totalTokens}/${maxTokens}`);
     this.logger.log(`   - Context length: ${context.length} characters`);
+    this.logger.log(`   - Chunks skipped: ${chunksSkipped}`);
+    this.logger.log(`   - Chunks truncated: ${chunksTruncated}`);
+    if (chunksTruncated === 0) {
+      this.logger.log(`   ✅ No truncation needed with new 8KB chunking!`);
+    }
     this.logger.log(`   - Preview: "${context.substring(0, 200)}..."`);
 
     return context;

@@ -1,44 +1,48 @@
 # 🚀 Plan de Optimización RAG + Vision Híbrido
 ## Sistema de Detección de Firmas y Documentos Scaneados - Sept 2025
 
-**🕒 ÚLTIMA ACTUALIZACIÓN: 14 Sept 2025 - 21:00**
-**📊 STATUS ACTUAL: Race condition resuelto - Context assembly roto - Accuracy crítica**
+**🕒 ÚLTIMA ACTUALIZACIÓN: 14 Sept 2025 - 21:25**
+**📊 STATUS ACTUAL: Context assembly ARREGLADO - RAG funcional - POLICY.pdf 100% accurate**
 
 ---
 
 ## 📋 **RESUMEN EJECUTIVO ACTUALIZADO**
 
-### **Estado Actual (Sept 14 - 21:00):**
+### **Estado Actual (Sept 14 - 21:25):**
 - ✅ **Race condition RESUELTO**: RAG ahora espera y encuentra chunks correctamente
 - ✅ **Vector Storage funcional**: Embeddings se almacenan exitosamente
-- ❌ **Context Assembly ROTO**: 0 tokens incluidos a pesar de encontrar chunks
-- ❌ **Accuracy CRÍTICA**: Solo 16.7% en LOP.pdf (3/18 campos correctos)
+- ✅ **Context Assembly ARREGLADO**: Trunca chunks grandes a 8000 tokens y los incluye
+- ✅ **POLICY.pdf 100% ACCURATE**: 7/7 campos correctos con datos reales
+- ⚠️ **LOP.pdf problemas persisten**: Matches fallan aunque encuentra datos correctos
 - ❌ **Fallo total en detección de firmas**: 0% accuracy en `lop_signed_by_client1` y `lop_signed_by_ho1`
 - ❌ **Falta Gemini en RAG**: Sistema no es dual como requerido
 
-### **DIAGNÓSTICO DE EVIDENCIA (Sept 14 - 21:00):**
+### **DIAGNÓSTICO DE EVIDENCIA (Sept 14 - 21:25):**
 ```logs
-ANTES (Race condition):
+EVOLUCIÓN DEL FIX:
+
+1. ANTES (Race condition):
 📦 [RAG-INTEGRATION] Found 0 chunks to process for RAG
 ⚠️ [RAG] No context available, using fallback response
 
-AHORA (Race condition resuelto, pero context assembly roto):
+2. DESPUÉS (Race resuelto, context roto - 21:00):
 ✅ [SESSION-WAIT] Session ready with 1 chunks
-📦 [RAG-INTEGRATION] Found 1 chunks to process for RAG
-✅ [VECTOR-STORAGE] Successfully stored 1 embeddings
-✅ [VECTOR-STORAGE] Found 1 relevant chunks (score: 0.491)
-PERO:
 ⚠️ [RAG] Context size limit reached (0 tokens)
 ⚠️ [RAG] Chunks used: 0
-⚠️ [RAG] No context available, using fallback response
+
+3. AHORA (Context assembly arreglado - 21:25):
+✅ [SESSION-WAIT] Session ready with 1 chunks
+⚠️ [RAG] First chunk truncated from 87169 to ~8000 tokens
+📚 [RAG] Context assembled: Chunks used: 1, Total tokens: ~8000
+✅ [RAG] Answer: "08-12-24;08-12-25;YES;YES;YES;flood, sinkhole losses;NOT_FOUND"
 ```
 
 ### **Solución REVISADA - Enfoque Incremental:**
 1. ✅ **FASE 0**: Diagnóstico completo (COMPLETADO)
-2. ✅ **FASE 1**: Fix race condition básico (COMPLETADO - parcial)
-3. 🚨 **FASE 1.5**: Fix context assembly (NUEVO - URGENTE)
+2. ✅ **FASE 1**: Fix race condition básico (COMPLETADO)
+3. ✅ **FASE 1.5**: Fix context assembly (COMPLETADO - 21:25)
 4. 🔄 **FASE 2**: Integrar Gemini como sistema dual
-5. 🔄 **FASE 3**: Sistema híbrido RAG + Vision
+5. 🔄 **FASE 3**: Sistema híbrido RAG + Vision para firmas
 
 ---
 
@@ -272,15 +276,17 @@ const testCases = [
 ```
 
 ### **Métricas de Éxito ACTUALIZADAS**
-| Métrica | Actual Sept 14 | Post-Fix (16:27) | Test Actual (21:00) | Target | Estado |
+| Métrica | Sept 14 Inicial | Test 21:00 | Test 21:25 (Post-Fix) | Target | Estado |
 |---------|---------|---------|---------|---------|-----------|
-| RAG Chunk Finding | ❌ 0% (0 chunks) | ✅ **100% (1 chunk)** | ✅ **100% (1 chunk)** | ✅ 90%+ | ✅ **RESUELTO** |
-| Vector Storage | ❌ 0 embeddings | ✅ **1 embedding** | ✅ **1 embedding** | ✅ Funcional | ✅ **RESUELTO** |
-| Race Condition | ❌ Confirmado | ✅ **ELIMINADO** | ✅ **ELIMINADO** | ✅ Resuelto | ✅ **ÉXITO TOTAL** |
-| Context Assembly | ❓ No evaluado | ❌ **0 tokens** | ❌ **0 tokens** | ✅ Funcional | 🚨 **PROBLEMA CRÍTICO** |
-| Accuracy Firmas | ❌ 0% | ❌ 0% (context issue) | ❌ **0%** | ✅ 95%+ | ❌ **FALLA TOTAL** |
-| Accuracy General LOP | ❌ No medido | ❌ No medido | ❌ **16.7% (3/18)** | ✅ 90%+ | ❌ **CRÍTICO** |
-| Tiempo Respuesta | ⚠️ 30-40s | ⚠️ 42s (similar) | ⚠️ **47s** | ✅ <35s | ⚠️ DEGRADANDO |
+| RAG Chunk Finding | ❌ 0% (0 chunks) | ✅ 100% (1 chunk) | ✅ **100% (1 chunk)** | ✅ 90%+ | ✅ **RESUELTO** |
+| Vector Storage | ❌ 0 embeddings | ✅ 1 embedding | ✅ **1 embedding** | ✅ Funcional | ✅ **RESUELTO** |
+| Race Condition | ❌ Confirmado | ✅ ELIMINADO | ✅ **ELIMINADO** | ✅ Resuelto | ✅ **ÉXITO TOTAL** |
+| Context Assembly | ❓ No evaluado | ❌ 0 tokens | ✅ **8000 tokens** | ✅ Funcional | ✅ **ARREGLADO** |
+| RAG con contexto | ❌ Fallback only | ❌ Fallback only | ✅ **Usando contexto real** | ✅ Funcional | ✅ **FUNCIONANDO** |
+| POLICY.pdf Accuracy | ❌ 0/7 campos | ❌ 0/7 campos | ✅ **7/7 campos (100%)** | ✅ 90%+ | ✅ **PERFECTO** |
+| LOP.pdf Accuracy | ❌ No medido | ❌ 3/18 campos | ⚠️ **~5/18 campos** | ✅ 90%+ | ❌ **Necesita trabajo** |
+| Accuracy Firmas | ❌ 0% | ❌ 0% | ❌ **0%** | ✅ 95%+ | ❌ **Requiere Vision** |
+| Tiempo Respuesta | ⚠️ 30-40s | ⚠️ 47s | ⚠️ **33-38s** | ✅ <35s | ✅ **MEJORADO** |
 
 ### **Criterios de GO/NO-GO ACTUALIZADOS**
 #### **FASE 1 - RAG Básico:**

@@ -66,42 +66,45 @@ export class MemoryManagerService {
 
   getOptimalChunkSize(fileSize: number): number {
     const fileSizeMB = fileSize / 1024 / 1024;
-    const minChunkSize = this.configService.get<number>('MIN_CHUNK_SIZE', 2097152);
-    const maxChunkSize = this.configService.get<number>('MAX_CHUNK_SIZE', 8388608);
+    // RAG-optimized chunk sizes (~8KB for optimal embedding and retrieval)
+    const ragChunkSize = this.configService.get<number>('RAG_CHUNK_SIZE', 8192); // 8KB
+    const ragLargeChunkSize = this.configService.get<number>('RAG_LARGE_CHUNK_SIZE', 16384); // 16KB
 
-    if (fileSizeMB <= 10) {
-      return 0; // No chunking needed
+    if (fileSizeMB <= 5) {
+      return 0; // No chunking needed for very small files
     }
-    if (fileSizeMB > 10 && fileSizeMB <= 25) {
-      return minChunkSize; // 2MB
+    if (fileSizeMB > 5 && fileSizeMB <= 20) {
+      return ragChunkSize; // 8KB - optimal for RAG
     }
-    if (fileSizeMB > 25 && fileSizeMB <= 50) {
-      return 5 * 1024 * 1024; // 5MB
+    if (fileSizeMB > 20 && fileSizeMB <= 50) {
+      return ragLargeChunkSize; // 16KB - larger but still RAG-compatible
     }
-    return maxChunkSize; // 8MB
+    // For very large files (>50MB), use 32KB to balance processing speed and RAG effectiveness
+    return 32768; // 32KB
   }
 
   getProcessingConfig(fileSize: number): { chunkSize: number; maxParallel: number; memoryLimit: number; useStreaming: boolean; enableSwap: boolean; } {
     const fileSizeMB = fileSize / 1024 / 1024;
     let config = {
         chunkSize: this.getOptimalChunkSize(fileSize),
-        maxParallel: this.configService.get<number>('MAX_PARALLEL_CHUNKS', 4),
+        maxParallel: this.configService.get<number>('MAX_PARALLEL_CHUNKS', 8),
         memoryLimit: this.memoryLimitMB,
         useStreaming: false,
         enableSwap: false,
     };
 
-    if (fileSizeMB <= 10) {
+    // With smaller RAG-optimized chunks, we can process more in parallel
+    if (fileSizeMB <= 5) {
         config.maxParallel = 1;
         config.useStreaming = false;
-    } else if (fileSizeMB <= 25) {
-        config.maxParallel = 4;
+    } else if (fileSizeMB <= 20) {
+        config.maxParallel = 8; // More parallel processing for small chunks
         config.useStreaming = true;
     } else if (fileSizeMB <= 50) {
-        config.maxParallel = 2;
+        config.maxParallel = 6; // Moderate parallel processing
         config.useStreaming = true;
     } else { // > 50MB
-        config.maxParallel = 1;
+        config.maxParallel = 4; // Conservative parallel processing for large files
         config.useStreaming = true;
         config.enableSwap = true; // Suggests swapping if memory pressure is extreme
     }
