@@ -369,10 +369,9 @@ export class UnderwritingService {
       // CRITICAL: Si el archivo es más de 50MB, FORZAR truncación
       isExtremeLargeFile = fileSizeEstimate > EXTREME_FILE_LIMIT_MB;
       
-      // SPECIAL CASE: POLICY files > 30MB siempre son extremos
-      if (documentName.toUpperCase().includes('POLICY') && fileSizeEstimate > 30) {
+      // Check if file exceeds extreme size limit
+      if (fileSizeEstimate > EXTREME_FILE_LIMIT_MB) {
         isExtremeLargeFile = true;
-        this.logger.error(`🚨 POLICY FILE DETECTED: ${fileSizeEstimate.toFixed(2)}MB - FORCING EXTREME MODE`);
       }
       
       if (isExtremeLargeFile) {
@@ -556,9 +555,8 @@ export class UnderwritingService {
       // Preparar documento para análisis
       const documentNeeds = { needsVisual: true, needsText: true };
       
-      // MEJORADO: Usar truncación menos agresiva para documentos que necesitan visual
-      const truncationLimit = documentName.toUpperCase().includes('LOP') || 
-                              documentName.toUpperCase().includes('ROOF') ? 100 : 50;
+      // Standard truncation limit for extreme files
+      const truncationLimit = 50;
       
       const preparedDocument = isExtremeLargeFile 
         ? await this.prepareDocumentWithTruncation(pdfContent, documentNeeds, truncationLimit)
@@ -594,19 +592,12 @@ export class UnderwritingService {
         preparedDocument.images && preparedDocument.images.size > 0
       );
 
-      // FORZAR análisis visual solo para documentos que realmente lo necesitan
-      // TEMP FIX: Removiendo LOP y CERTIFICATE para usar análisis de texto
-      const forceVisualDocuments = ['ROOF', 'INVOICES'];
-      const shouldForceVisual = forceVisualDocuments.some(doc => 
-        documentName.toUpperCase().includes(doc)
-      );
+      // Use strategy from AdaptiveProcessingStrategy (database-agnostic)
+      let useVisualAnalysis = strategy.useVisualAnalysis;
 
-      let useVisualAnalysis = strategy.useVisualAnalysis || shouldForceVisual;
-      
       // LOGGING: Decisión de estrategia
       this.logger.log(`🎯 Strategy decision for ${documentName}:`);
-      this.logger.log(`   - Original strategy: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
-      this.logger.log(`   - Force visual: ${shouldForceVisual}`);
+      this.logger.log(`   - Strategy: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);
       this.logger.log(`   - Final decision: Visual=${useVisualAnalysis}`);
 
       // Ejecutar SIEMPRE TEXTO y, si hay imágenes, VISIÓN, y fusionar por campo
@@ -670,37 +661,27 @@ export class UnderwritingService {
       const visionArr = visionAnswer ? this.parseConsolidatedResponse(visionAnswer, documentPrompt.fieldNames) : null;
       const textArr = textAnswer ? this.parseConsolidatedResponse(textAnswer, documentPrompt.fieldNames) : null;
 
-      // Fusión por campo con reglas: preferir no-NOT_FOUND; YES gana a NO; para address/date/policy/claim preferir texto
-      const preferTextSubstrings = ['street', 'zip', 'city', 'state', 'date', 'policy_number', 'claim_number'];
-      const booleanHint = (fname: string) => fname.includes('sign') || fname.endsWith('_match') || fname === 'mechanics_lien';
-      const takeTextFor = (fname: string) => preferTextSubstrings.some(s => fname.includes(s));
-
+      // Simple fusion: prefer non-NOT_FOUND answers, prefer longer answers for data fields
       const combinedValues: string[] = [];
       for (let i = 0; i < documentPrompt.fieldNames.length; i++) {
-        const fname = documentPrompt.fieldNames[i];
         const v = visionArr ? (visionArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
         const t = textArr ? (textArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
 
         let chosen = 'NOT_FOUND';
 
-        if (booleanHint(fname)) {
-          // YES tiene prioridad; si ninguno YES, usar NO si está presente
-          if (t === 'YES' || v === 'YES') chosen = 'YES';
-          else if (t === 'NO' || v === 'NO') chosen = 'NO';
-          else chosen = (t !== 'NOT_FOUND') ? t : v;
-        } else {
-          if (t !== 'NOT_FOUND' && v === 'NOT_FOUND') chosen = t;
-          else if (v !== 'NOT_FOUND' && t === 'NOT_FOUND') chosen = v;
-          else if (t !== 'NOT_FOUND' && v !== 'NOT_FOUND') {
-            if (takeTextFor(fname)) {
-              chosen = t.length >= v.length ? t : t; // preferir texto
-            } else {
-              // elegir el más informativo (más largo) como aproximación
-              chosen = (v.length > t.length) ? v : t;
-            }
+        // Simple fusion logic without hardcoded field knowledge
+        if (t !== 'NOT_FOUND' && v === 'NOT_FOUND') chosen = t;
+        else if (v !== 'NOT_FOUND' && t === 'NOT_FOUND') chosen = v;
+        else if (t !== 'NOT_FOUND' && v !== 'NOT_FOUND') {
+          // For boolean-like answers, prefer YES over NO
+          if ((t === 'YES' || v === 'YES') && (t === 'NO' || v === 'NO')) {
+            chosen = 'YES';
           } else {
-            chosen = 'NOT_FOUND';
+            // Prefer longer, more informative answer
+            chosen = (v.length > t.length) ? v : t;
           }
+        } else {
+          chosen = 'NOT_FOUND';
         }
         combinedValues.push((chosen || '').toString().trim());
       }
@@ -732,37 +713,9 @@ export class UnderwritingService {
       finalConfidence = baseConf > 0 ? baseConf : (foundFields / Math.max(1, fieldValues.length));
       actualProcessingTime = Math.max(visionTime, Date.now() - processStartTime);
 
-      // Post-proceso: recalcular campos *_match con lógica programática para mayor exactitud
-      try {
-        const recalculated = this.recalculateMatches(finalAnswer, documentPrompt.fieldNames, variables);
-        if (recalculated) {
-          finalAnswer = recalculated;
-        }
-      } catch (ppErr) {
-        this.logger.warn(`⚠️ Post-processing of *_match fields failed: ${ppErr.message}`);
-      }
-
-      // Post-proceso complementario: mechanics_lien basado en evidencia textual (solo si AI dijo NO/NOT_FOUND)
-      try {
-        const idxLien = documentPrompt.fieldNames.findIndex(f => f === 'mechanics_lien');
-        if (idxLien >= 0 && preparedDocument?.text) {
-          const parts = finalAnswer.split(';');
-          const current = (parts[idxLien] || '').trim().toUpperCase();
-          if (current === 'NO' || current === 'NOT_FOUND') {
-            const detected = this.detectMechanicsLien(preparedDocument.text);
-            if (detected) {
-              parts[idxLien] = 'YES';
-              const updated = parts.join(';');
-              if (updated !== finalAnswer) {
-                this.logger.log('🧭 Post-check mechanics_lien: AI=NO/NOT_FOUND pero texto evidencia LIEN → Ajustando a YES');
-                finalAnswer = updated;
-              }
-            }
-          }
-        }
-      } catch (ppErr) {
-        this.logger.warn(`⚠️ Post-processing mechanics_lien check failed: ${ppErr.message}`);
-      }
+      // REMOVED: All hardcoded post-processing logic
+      // The database prompts are the single source of truth
+      // If AI responses are incorrect, the prompts should be improved, not overridden with code
 
       // Crear UNA SOLA respuesta consolidada
       results.push({
@@ -828,147 +781,9 @@ export class UnderwritingService {
     }
   }
 
-  /**
-   * Detección textual robusta de referencias a LIEN (evita falsos positivos como "client")
-   */
-  private detectMechanicsLien(text: string): boolean {
-    if (!text) return false;
-    const t = text.toLowerCase();
-    const patterns: RegExp[] = [
-      /\bmechanic'?s?\s+lien(s)?\b/i,
-      /\bconstruction\s+lien\b/i,
-      /\blien\s+upon\b/i,
-      /\blien\s+(right|rights)\b/i,
-      /\bsecurity\s+interest\b/i,
-      /\bconstruction\s+lien\s+law\b/i,
-      /\bletter\s+of\s+protection\b.*\blien\b/i,
-      /\blien\b\s+upon\s+(any\s+and\s+all\s+)?proceeds?/i,
-    ];
-    // Primero, patrones estrictos con límites de palabra (evita "client")
-    for (const re of patterns) {
-      if (re.test(t)) return true;
-    }
-    // Como último recurso, si hay muchas ocurrencias de "\blien\b" y "proceeds", también considerarlo
-    const lienCount = (t.match(/\blien\b/gi) || []).length;
-    const proceedsCount = (t.match(/\bproceeds?\b/gi) || []).length;
-    if (lienCount >= 2 && proceedsCount >= 1) return true;
-    return false;
-  }
-
-  /**
-   * Recalcula campos *_match de forma determinística usando variables de contexto
-   */
-  private recalculateMatches(
-    answer: string,
-    fieldNames: string[],
-    variables: Record<string, string>
-  ): string | null {
-    if (!answer) return null;
-    const parts = answer.split(';');
-    if (parts.length !== fieldNames.length) return null;
-
-    // Helpers de normalización
-    const norm = (s?: string) => (s || '')
-      .toString()
-      .normalize('NFKD')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-    const normAlnum = (s?: string) => norm(s).replace(/[^a-z0-9]/g, '');
-    const normDigits = (s?: string) => (s || '').toString().replace(/\D+/g, '');
-
-    // Construir mapa campo->indice
-    const indexOf = (name: string) => fieldNames.findIndex(f => f === name);
-
-    // Valores extraídos base
-    const streetVal = parts[indexOf('onb_street1')] || '';
-    const zipVal = parts[indexOf('onb_zip1')] || '';
-    const cityVal = parts[indexOf('onb_city1')] || '';
-    const stateVal = parts[indexOf('state1')] || '';
-    const dolVal = parts[indexOf('onb_date_of_loss1')] || '';
-    const policyVal = parts[indexOf('onb_policy_number1')] || '';
-    const claimVal = parts[indexOf('onb_claim_number1')] || '';
-
-    // Variables de referencia
-    const vStreet = variables['insured_street'] || variables['insured_address'];
-    const vZip = variables['insured_zip'];
-    const vCity = variables['insured_city'];
-    const vAddress = variables['insured_address'];
-    const vDol = variables['date_of_loss'];
-    const vPolicy = variables['policy_number'];
-    const vClaim = variables['claim_number'];
-
-    // Reglas de comparación
-    const eq = (a: string, b: string) => normAlnum(a) === normAlnum(b);
-    const eqDigits = (a: string, b: string) => normDigits(a) === normDigits(b);
-    const eqLoose = (a: string, b: string) => {
-      const A = norm(a);
-      const B = norm(b);
-      if (!A || !B) return false;
-      if (A === B) return true;
-      // contener recíproco ayuda para abreviaturas menores
-      return A.includes(B) || B.includes(A);
-    };
-
-    const setIfExists = (field: string, value: 'YES' | 'NO') => {
-      const idx = indexOf(field);
-      if (idx >= 0) parts[idx] = value;
-    };
-
-    // onb_street_match
-    if (indexOf('onb_street_match') >= 0 && (streetVal || vStreet)) {
-      setIfExists('onb_street_match', eqLoose(streetVal, vStreet) ? 'YES' : 'NO');
-    }
-    // onb_zip_match
-    if (indexOf('onb_zip_match') >= 0 && (zipVal || vZip)) {
-      setIfExists('onb_zip_match', eqDigits(zipVal, vZip) ? 'YES' : 'NO');
-    }
-    // onb_city_match
-    if (indexOf('onb_city_match') >= 0 && (cityVal || vCity)) {
-      setIfExists('onb_city_match', eqLoose(cityVal, vCity) ? 'YES' : 'NO');
-    }
-    // onb_address_match: comparar dirección completa con normalización específica
-    // Mantener state1 tal cual (p.ej. "FL Florida") en la respuesta, pero para VALIDACIÓN usar solo la abreviatura de 2 letras.
-    if (indexOf('onb_address_match') >= 0 && vAddress) {
-      // Extrae abreviatura de estado a partir de state1 (p.ej., "FL Florida" -> "FL")
-      const stateAbbrevFrom = (s: string) => {
-        const m = (s || '').toString().trim().match(/^([A-Za-z]{2})\b/);
-        return m ? m[1].toUpperCase() : '';
-      };
-
-      // Comparación específica para direcciones: remover puntuación y espacios, comparar por inclusión/equivalencia
-      const eqAddress = (a: string, b: string) => {
-        const A = normAlnum(a);
-        const B = normAlnum(b);
-        return A === B || A.includes(B) || B.includes(A);
-      };
-
-      // Construir dirección extraída usando solo la abreviatura de estado para la comparación
-      const extractedStateAbbrev = stateAbbrevFrom(stateVal) || stateVal;
-      const extractedAddressForMatch = [
-        streetVal,
-        cityVal,
-        extractedStateAbbrev,
-        normDigits(zipVal)
-      ].filter(Boolean).join(' ');
-
-      setIfExists('onb_address_match', eqAddress(extractedAddressForMatch, vAddress) ? 'YES' : 'NO');
-    }
-    // onb_date_of_loss_match
-    if (indexOf('onb_date_of_loss_match') >= 0 && (dolVal || vDol)) {
-      setIfExists('onb_date_of_loss_match', eqDigits(dolVal, vDol) ? 'YES' : 'NO');
-    }
-    // onb_policy_number_match
-    if (indexOf('onb_policy_number_match') >= 0 && (policyVal || vPolicy)) {
-      setIfExists('onb_policy_number_match', eq(policyVal, vPolicy) ? 'YES' : 'NO');
-    }
-    // onb_claim_number_match
-    if (indexOf('onb_claim_number_match') >= 0 && (claimVal || vClaim)) {
-      setIfExists('onb_claim_number_match', eq(claimVal, vClaim) ? 'YES' : 'NO');
-    }
-
-    return parts.join(';');
-  }
+  // REMOVED: detectMechanicsLien() and recalculateMatches() functions
+  // These contained hardcoded business logic that should be in database prompts instead
+  // The AI responses should be trusted as-is from the database-driven prompts
 
 
   private parseConsolidatedResponse(responseText: string, fieldNames: string[]): string[] {
@@ -1020,298 +835,21 @@ export class UnderwritingService {
   }
 
   /**
-   * Determina si usar chunking o consolidado basado en el documento y complejidad
+   * Determina si usar chunking o consolidado - ALWAYS use consolidated strategy
+   * The database prompts are designed as single consolidated queries
    */
   private shouldUseChunkingStrategy(documentName: string, fieldCount: number): boolean {
-    const docType = documentName.toUpperCase().replace('.pdf', '');
-    
-    // CRITICAL FIX: Force ALL documents to use CONSOLIDATED strategy
-    // This matches the working pattern of WEATHER.pdf (46;74) 
-    // The consolidated prompts from the database are designed to work as single API calls
-    
-    this.logger.log(`🎯 Strategy decision for ${docType}: forcing CONSOLIDATED (fields: ${fieldCount})`);
+    // ALWAYS use consolidated strategy - database prompts are the source of truth
+    this.logger.log(`🎯 Strategy decision: CONSOLIDATED (fields: ${fieldCount}) - database prompts control processing`);
     return false; // Always use consolidated strategy - let the database prompts do the work
-    
-    // OLD LOGIC - was causing chunking to lose specific database prompts:
-    // if (complexDocuments.includes(docType) && fieldCount > 5) {
-    //   return true; // This was the problem - chunking lost database prompts
-    // }
   }
 
-  /**
-   * Procesa documentos complejos dividiéndolos en chunks lógicos
-   */
-  private async processWithChunking(
-    recordId: string,
-    documentName: string,
-    documentPrompt: ConsolidatedPrompt,
-    pdfContent: string,
-    variables: Record<string, string>,
-    isExtremeLargeFile: boolean
-  ): Promise<any[]> {
-    const results: any[] = [];
-    const processStartTime = Date.now();
-    
-    try {
-      // Crear chunks lógicos de campos
-      // FIXED: Pass the original consolidated prompt to use real prompts from database
-      const chunks = this.createLogicalChunks(documentName, documentPrompt.fieldNames, documentPrompt.question);
-      this.logger.log(`🧩 Created ${chunks.length} logical chunks for ${documentName}`);
-      
-      // Preparar documento una vez
-      const documentNeeds = { needsVisual: true, needsText: true };
-      const truncationLimit = documentName.toUpperCase().includes('LOP') || 
-                              documentName.toUpperCase().includes('ROOF') ? 100 : 50;
-      
-      const preparedDocument = isExtremeLargeFile 
-        ? await this.prepareDocumentWithTruncation(pdfContent, documentNeeds, truncationLimit)
-        : await this.prepareDocument(pdfContent, documentNeeds, documentName);
-      
-      // Procesar cada chunk
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        this.logger.log(`🔍 Processing chunk ${i + 1}/${chunks.length}: ${chunk.description} (${chunk.fields.length} fields)`);
-        
-        const chunkResults = await this.processChunk(
-          recordId,
-          documentName,
-          chunk,
-          preparedDocument,
-          variables,
-          processStartTime
-        );
-        
-        results.push(...chunkResults);
-      }
-      
-      return results;
-      
-    } catch (error) {
-      this.logger.error(`Error in chunking strategy for ${documentName}: ${error.message}`);
-      // Fallback consolidado a NOT_FOUND para todos los campos
-      const notFoundAnswers = Array(documentPrompt.fieldNames.length).fill('NOT_FOUND').join(';');
-      return [{
-        pmc_field: documentPrompt.pmcField,
-        question: documentPrompt.question,
-        answer: notFoundAnswers,
-        confidence: 0,
-        processing_time_ms: Date.now() - processStartTime,
-        error: error.message
-      }];
-    }
-  }
+  // REMOVED: processWithChunking() - chunking strategy is never used
+  // The system always uses consolidated prompts from the database
 
-  /**
-   * Crea chunks lógicos basados en el tipo de documento
-   */
-  private createLogicalChunks(documentName: string, fieldNames: string[], questionPrompt?: string): Array<{description: string, fields: string[], prompt: string}> {
-    const docType = documentName.toUpperCase().replace('.pdf', '');
-    
-    if (docType === 'LOP') {
-      return [
-        {
-          description: 'Signatures and dates',
-          fields: fieldNames.filter(f => f.includes('lop_date') || f.includes('signed') || f.includes('mechanics_lien')),
-          // FIXED: Use the ACTUAL consolidated prompt from database for better accuracy
-          // The consolidated prompt contains the specific instructions for each field
-          prompt: questionPrompt && questionPrompt.length > 100 ? 
-                  questionPrompt.substring(0, 800) : // Use first part of question prompt
-                  'Find signature dates in this Letter of Protection document. Look specifically for: 1) Handwritten dates next to signature lines, 2) Dates in MM-DD-YY format near signatures, 3) Any date when this document was signed by the homeowner or patient. Return dates in MM-DD-YY format. For lien information, look for any text about mechanics liens, liens, or lien waivers.'
-        },
-        {
-          description: 'Address information',
-          fields: fieldNames.filter(f => f.includes('onb_street') || f.includes('onb_zip') || f.includes('onb_city') || f.includes('state')),
-          prompt: 'Extract complete address details from this Letter of Protection. Find: 1) Full street address including house number and street name, 2) City name, 3) State abbreviation (like TX, CA, etc.), 4) ZIP code (5 digits). Look in patient/homeowner information sections, billing addresses, or contact information areas.'
-        },
-        {
-          description: 'Policy and claim data',
-          fields: fieldNames.filter(f => f.includes('policy_number') || f.includes('claim_number') || f.includes('date_of_loss')),
-          prompt: 'Locate insurance-related information in this Letter of Protection: 1) Policy numbers (alphanumeric codes like ABC123456), 2) Claim numbers (reference numbers for insurance claims), 3) Date of loss (when the incident/damage occurred) in MM-DD-YY format. Look for sections mentioning insurance, coverage, or claim details.'
-        },
-        {
-          description: 'Comparison validations',
-          fields: fieldNames.filter(f => f.includes('_match')),
-          prompt: 'Compare the extracted information with the reference data provided and validate matches for addresses, dates, policy numbers, and claim numbers.'
-        }
-      ].filter(chunk => chunk.fields.length > 0);
-    }
-    
-    if (docType === 'POLICY') {
-      return [
-        {
-          description: 'Policy dates and coverage period',
-          fields: fieldNames.filter(f => f.includes('valid_from') || f.includes('valid_to') || f.includes('coverage_check')),
-          prompt: 'Find policy dates in this insurance document: 1) Policy effective date (valid_from) in MM-DD-YY format, 2) Policy expiration date (valid_to) in MM-DD-YY format, 3) Verify if coverage is active for the specified date of loss. Look for "Policy Period", "Coverage Period", or "Effective Date" sections.'
-        },
-        {
-          description: 'Insured information and company matching',
-          fields: fieldNames.filter(f => f.includes('matching_insured') || f.includes('matching_company')),
-          prompt: 'Extract names from this insurance policy: 1) Find the insured person/entity name (policy holder), 2) Find the insurance company name (carrier/issuer), 3) Compare these names with provided reference information and indicate YES/NO matches. Look in policy declarations, headers, or named insured sections.'
-        },
-        {
-          description: 'Coverage and exclusions analysis',
-          fields: fieldNames.filter(f => f.includes('covers_type_job') || f.includes('exclusion') || f.includes('covers_dol') || f.includes('wind')),
-          prompt: 'Analyze policy coverage and exclusions: 1) Check if the policy covers the specific type of job/work being performed, 2) Look for wind-related exclusions or limitations, 3) Verify if coverage applies to the date of loss, 4) Return YES/NO for coverage questions. Look in coverage sections, exclusions, and policy conditions.'
-        }
-      ].filter(chunk => chunk.fields.length > 0);
-    }
-    
-    // Default chunking para otros documentos
-    const chunkSize = 4;
-    const chunks = [];
-    for (let i = 0; i < fieldNames.length; i += chunkSize) {
-      chunks.push({
-        description: `Fields ${i + 1}-${Math.min(i + chunkSize, fieldNames.length)}`,
-        fields: fieldNames.slice(i, i + chunkSize),
-        prompt: `Extract the following information from this ${documentName} document.`
-      });
-    }
-    
-    return chunks;
-  }
-
-  /**
-   * Procesa un chunk específico de campos
-   */
-  private async processChunk(
-    recordId: string,
-    documentName: string,
-    chunk: {description: string, fields: string[], prompt: string},
-    preparedDocument: any,
-    variables: Record<string, string>,
-    processStartTime: number
-  ): Promise<any[]> {
-    try {
-      // Reemplazar variables en el prompt del chunk
-      let processedPrompt = chunk.prompt;
-      Object.entries(variables).forEach(([key, value]) => {
-        const placeholder = `%${key}%`;
-        const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        processedPrompt = processedPrompt.replace(new RegExp(escapedPlaceholder, 'g'), value);
-      });
-
-      // FIXED: Build a meaningful prompt that combines chunk instructions with field requirements
-      const fullPrompt = `${processedPrompt}\n\nSpecifically extract:\n${chunk.fields.map(field => `- ${field}`).join('\n')}\n\nReturn exactly ${chunk.fields.length} values separated by semicolons in the order listed above. Use NOT_FOUND for any field where information cannot be found.`;
-
-      // Calcular tamaño del archivo para estrategia
-      const fileSizeEstimate = 1; // Simplificado para chunks
-
-      // Determinar estrategia de procesamiento
-      const strategy = await this.adaptiveStrategy.determineStrategy(
-        'chunk_prompt',
-        fullPrompt,
-        ResponseType.TEXT,
-        preparedDocument.images && preparedDocument.images.size > 0
-      );
-
-      // FORZAR análisis visual solo para documentos que realmente lo necesitan
-      // TEMP FIX: Removiendo LOP, CERTIFICATE y POLICY para usar análisis de texto
-      const forceVisualDocuments = ['ROOF'];
-      const shouldForceVisual = forceVisualDocuments.some(doc => 
-        documentName.toUpperCase().includes(doc)
-      );
-
-      let useVisualAnalysis = strategy.useVisualAnalysis || shouldForceVisual;
-
-      this.logger.log(`🎯 Chunk strategy for ${chunk.description}: Visual=${useVisualAnalysis}`);
-
-      let aiResponse: any;
-      if (useVisualAnalysis && preparedDocument.images && preparedDocument.images.size > 0) {
-        // Usar análisis visual para el chunk
-        this.logger.log(`🔍 Using VISUAL ANALYSIS for chunk: ${chunk.description}`);
-        
-        const analysisResult = await this.largePdfVision.processLargePdfWithVision(
-          [{
-            pmc_field: `chunk_${chunk.description}`,
-            question: fullPrompt,
-            expected_type: ResponseType.TEXT
-          }],
-          Array.from(preparedDocument.images.values()).map(img => Buffer.from(img as string, 'base64')),
-          preparedDocument.text || '',
-          fileSizeEstimate
-        );
-        
-        if (analysisResult && analysisResult.length > 0 && analysisResult[0]?.answer) {
-          aiResponse = { response: analysisResult[0].answer };
-          this.logger.log(`✅ Visual chunk analysis: "${analysisResult[0].answer.substring(0, 100)}..."`);
-        } else {
-          this.logger.warn(`⚠️ No response from visual analysis for chunk: ${chunk.description}`);
-          aiResponse = { response: chunk.fields.map(() => 'NOT_FOUND').join(';') };
-        }
-      } else {
-        // Usar análisis de texto para el chunk
-        this.logger.log(`📝 Using TEXT ANALYSIS for chunk: ${chunk.description}`);
-        
-        const textPrompt = `${fullPrompt}\n\nDocument content:\n${preparedDocument.text || 'No text extracted'}`;
-        const openAiResult = await this.openAiService.evaluateWithValidation(
-          preparedDocument.text || '',
-          fullPrompt,
-          ResponseType.TEXT,
-          undefined,
-          `chunk_${chunk.description}`
-        );
-        aiResponse = { response: openAiResult.response };
-      }
-
-      // Parsear respuesta del chunk
-      const responseText = aiResponse.response || '';
-      const fieldValues = this.parseConsolidatedResponse(responseText, chunk.fields);
-      
-      this.logger.log(`📋 Chunk results for ${chunk.description}: ${fieldValues.filter(v => v !== 'NOT_FOUND').length}/${chunk.fields.length} found`);
-
-      // Crear resultados para cada campo del chunk
-      const processingTime = Date.now() - processStartTime;
-      const chunkResults = [];
-      
-      for (let i = 0; i < chunk.fields.length; i++) {
-        const fieldName = chunk.fields[i];
-        const fieldValue = fieldValues[i] || 'NOT_FOUND';
-        
-        chunkResults.push({
-          pmc_field: fieldName,
-          question: chunk.prompt,
-          answer: fieldValue,
-          confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-          processing_time_ms: processingTime,
-          error: null
-        });
-
-        // Guardar evaluación en BD - DESHABILITADO temporalmente por incompatibilidad de FK
-        /*
-        try {
-          await this.claimEvaluationRepository.save({
-            claimReference: recordId,
-            documentName: documentName,
-            promptId: null,
-            question: `Chunking field: ${fieldName}`,
-            response: fieldValue,
-            confidence: fieldValue === 'NOT_FOUND' ? 0 : 0.8,
-            processingTimeMs: processingTime,
-            errorMessage: null
-          });
-        } catch (saveError) {
-          this.logger.error(`Failed to save evaluation for ${fieldName}: ${saveError.message}`);
-        }
-        */
-      }
-
-      return chunkResults;
-
-    } catch (error) {
-      this.logger.error(`Error processing chunk ${chunk.description}: ${error.message}`);
-      
-      // Devolver errores para todos los campos del chunk
-      const processingTime = Date.now() - processStartTime;
-      return chunk.fields.map(fieldName => ({
-        pmc_field: fieldName,
-        question: chunk.prompt,
-        answer: 'NOT_FOUND',
-        confidence: 0,
-        processing_time_ms: processingTime,
-        error: error.message
-      }));
-    }
-  }
+  // REMOVED: createLogicalChunks() and processChunk() functions
+  // These contained hardcoded document-specific logic that should be in database prompts instead
+  // The system now uses only consolidated prompts from the database
 
   // Stub methods for controller compatibility
   async getDocumentPrompts(documentName?: string) {

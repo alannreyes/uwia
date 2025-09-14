@@ -75,12 +75,14 @@ El sistema procesa 7 tipos de documentos con prompts de preguntas:
 | Documento | Campos | Función |
 |-----------|--------|---------|
 | **LOP.pdf** | 18 | Mechanics lien, firmas, direcciones, comparaciones |
-| **POLICY.pdf** | 9 | Fechas de póliza, cobertura, exclusiones |
+| **POLICY.pdf** | 7 | Fechas de póliza, cobertura, exclusiones |
 | **ESTIMATE.pdf** | 1 | Firma de aprobación de monto |
 | **MOLD.pdf** | 1 | Condiciones de moho (Positive/Negative) |
 | **WEATHER.pdf** | 2 | Velocidad viento y ráfagas |
 | **CERTIFICATE.pdf** | 1 | Fecha de completación |
 | **ROOF.pdf** | 1 | Área total del techo en pies² |
+
+**Total**: 31 campos unificados
 
 ## ✅ SISTEMA DE VALIDACIÓN COMPLEMENTARIA
 
@@ -186,7 +188,7 @@ Content-Type: application/json
 }
 ```
 
-### Ejemplo POLICY.pdf (9 campos consolidados):
+### Ejemplo POLICY.pdf (7 campos consolidados):
 ```json
 {
   "record_id": "175568",
@@ -195,8 +197,8 @@ Content-Type: application/json
     "POLICY.pdf": [
       {
         "pmc_field": "policy_responses",
-        "question": "Extract the following 9 data points from this insurance policy document...",
-        "answer": "08-12-24;08-12-25;YES;YES;YES;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND",
+        "question": "Extract the following 7 data points from this insurance policy document...",
+        "answer": "08-12-24;08-12-25;YES;YES;YES;NOT_FOUND;YES",
         "confidence": 0.8,
         "processing_time_ms": 34385,
         "error": null
@@ -240,14 +242,16 @@ Cada respuesta consolidada contiene valores separados por semicolons (`;`) que c
 ... (14 campos más)
 ```
 
-#### POLICY.pdf - 9 campos:
+#### POLICY.pdf - 7 campos:
 ```
-"08-12-24;08-12-25;YES;YES;..." corresponde a:
+"08-12-24;08-12-25;YES;YES;YES;NOT_FOUND;YES" corresponde a:
 1. policy_valid_from1 = "08-12-24"
 2. policy_valid_to1 = "08-12-25"
 3. matching_insured_name = "YES"
 4. matching_insured_company = "YES"
-... (5 campos más)
+5. policy_covers_type_job = "YES"
+6. policy_exclusion = "NOT_FOUND"
+7. policy_covers_dol = "YES"
 ```
 
 ### 📈 **Beneficios del Formato Consolidado**
@@ -353,8 +357,36 @@ npm run build && pm2 restart uwia
 
 *Última actualización: Septiembre 2025*
 *Sistema: GPT-4o + Gemini 2.5 Pro*
-## 🧠 Post-procesamiento Determinístico
+## 🏗️ **Arquitectura Database-First**
 
-- **Recalculo `*_match`**: Tras recibir la respuesta consolidada, el sistema recalcula determinísticamente campos de comparación (street, zip, city, address, DOL, policy number, claim number) con normalización (minusculado, limpieza de puntuación y dígitos).
-- **`onb_address_match`**: La salida de `state1` se mantiene en el formato requerido (ej. `FL Florida`). Para la validación de dirección completa se usa solo la abreviatura (`FL`) y se normaliza la cadena para evitar falsos negativos por formato.
-- **`mechanics_lien` (LOP)**: Si el modelo devuelve `NO/NOT_FOUND` pero el texto del PDF contiene evidencia fuerte (por ejemplo, “mechanic(s) lien”, “construction lien law”, “lien upon … proceeds”, “security interest”), el sistema ajusta el valor a `YES`.
+### ✅ **Principio Fundamental**
+El sistema es 100% **agnóstico** - toda la lógica de procesamiento está definida en la base de datos `document_consolidado`. **NO existe lógica hardcodeada** en el código.
+
+### 📋 **Tabla document_consolidado (Fuente de Verdad)**
+```sql
+CREATE TABLE document_consolidado (
+  id INT PRIMARY KEY,
+  document_name VARCHAR(255),        -- 'LOP.pdf', 'POLICY.pdf', etc.
+  question TEXT,                     -- Prompt completo con instrucciones
+  expected_type VARCHAR(50),         -- 'text', 'boolean', 'date'
+  prompt_order INT,                  -- Orden de procesamiento
+  field_names JSON,                  -- Array de nombres de campos esperados
+  expected_fields_count INT,         -- Número de campos que debe retornar
+  active BOOLEAN,                    -- Si está activo o no
+  pmc_field VARCHAR(255)            -- Nombre del campo de respuesta
+);
+```
+
+### 🔧 **Funcionamiento Database-First**
+1. **AI recibe solo el prompt de la base de datos** - sin lógica adicional
+2. **AI retorna respuesta** según las instrucciones del prompt
+3. **Sistema acepta la respuesta tal como viene** - sin post-processing
+4. **NO hay recálculos, validaciones, o overrides** programáticos
+
+### ⚠️ **Eliminado: Post-procesamiento Hardcodeado**
+- ❌ **recalculateMatches()** - eliminado completamente
+- ❌ **detectMechanicsLien()** - eliminado completamente
+- ❌ **Chunking por tipo de documento** - eliminado completamente
+- ❌ **Reglas de fusión específicas por campo** - simplificado
+
+Si las respuestas son incorrectas, el **prompt en la base de datos** debe mejorarse, no el código.
