@@ -15,8 +15,15 @@ import { IntelligentPageSelectorService } from './services/intelligent-page-sele
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { GeminiService } from './services/gemini.service';
 import { RateLimiterService } from './services/rate-limiter.service';
+import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
+import { ModernRagService } from './services/modern-rag.service';
+import { VectorStorageService } from './services/vector-storage.service';
+import { SemanticChunkingService } from './services/semantic-chunking.service';
+import { OpenAIEmbeddingsService } from './services/openai-embeddings.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
+import { DocumentEmbedding } from './chunking/entities/document-embedding.entity';
+import { VectorQuery } from './chunking/entities/vector-query.entity';
 import { ConfigService } from '@nestjs/config';
 
 import { ChunkingModule } from './chunking/chunking.module';
@@ -26,6 +33,8 @@ import { ChunkingModule } from './chunking/chunking.module';
     TypeOrmModule.forFeature([
       DocumentPrompt,
       ClaimEvaluation,
+      DocumentEmbedding,
+      VectorQuery,
     ]),
     ChunkingModule,
   ],
@@ -45,6 +54,11 @@ import { ChunkingModule } from './chunking/chunking.module';
     LargePdfVisionService,
     GeminiService,
     RateLimiterService,
+    EnhancedPdfProcessorService,
+    ModernRagService,
+    VectorStorageService,
+    SemanticChunkingService,
+    OpenAIEmbeddingsService,
     ConfigService,
   ],
   exports: [UnderwritingService],
