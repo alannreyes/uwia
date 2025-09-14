@@ -1454,21 +1454,39 @@ export class UnderwritingService {
 
     while (Date.now() - startTime < maxWaitTime) {
       try {
-        // TODO: Migrar lógica de chunkStorageService.getSession a vectorStorageService o equivalente moderno
-        // const session = await this.vectorStorageService.getSession(sessionId);
-        // if (!session) throw new Error(`Session ${sessionId} not found`);
-        // if (session.status === 'ready') return;
-        // if (session.status === 'error') throw new Error(`Session ${sessionId} processing failed`);
-        return; // Placeholder para evitar error
-        // TODO: Migrar manejo de expiración y reintentos a vectorStorageService/moderno
+        // RACE CONDITION FIX: Verificar que los chunks realmente existan antes de continuar
+        this.logger.log(`[SESSION-WAIT] Checking if chunks are available for session ${sessionId}...`);
+        const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(sessionId);
+
+        if (processedChunks && processedChunks.length > 0) {
+          this.logger.log(`[SESSION-WAIT] ✅ Session ${sessionId} is ready with ${processedChunks.length} chunks`);
+          return; // Session is ready with chunks
+        }
+
+        this.logger.log(`[SESSION-WAIT] ⏳ Session ${sessionId} not ready yet (${processedChunks?.length || 0} chunks), waiting ${checkInterval}ms...`);
+        await this.sleep(checkInterval);
 
       } catch (error) {
         this.logger.error(`[SESSION-WAIT] Error checking session ${sessionId}: ${error.message}`);
-        throw error;
+        // Don't throw immediately, keep retrying unless it's a critical error
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          throw error; // Critical error, stop waiting
+        }
+
+        this.logger.warn(`[SESSION-WAIT] Retrying in ${checkInterval}ms...`);
+        await this.sleep(checkInterval);
       }
     }
 
     throw new Error(`Timeout waiting for session ${sessionId} to be ready after ${maxWaitTime}ms`);
+  }
+
+  /**
+   * Utility method to sleep for a specified amount of time
+   * @param ms Milliseconds to sleep
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
 }

@@ -101,26 +101,33 @@ const needsVision = requiresVisualAnalysis(query);
 
 ---
 
-### **🔧 FASE 1: Fix Race Condition Básico** 🔄 **PENDIENTE**
-**Tiempo estimado: 1 hora**  
-**Estado: Esperando diagnóstico para confirmar estrategia**
+### **🔧 FASE 1: Fix Race Condition Básico** ✅ **COMPLETADO**
+**Tiempo real: 45 minutos**
+**Estado: Implementado y listo para deploy**
 
-#### **Estrategias Identificadas:**
-1. **Polling Approach**: Verificar chunks cada X segundos
-2. **Event-Driven**: Usar eventos para notificar cuando chunks están listos
-3. **Synchronous Wait**: Esperar confirmación real de chunks
+#### **Estrategia Implementada:**
+✅ **Polling Approach**: Verificar chunks cada 2 segundos hasta que estén disponibles
 
-#### **Target Fix:**
+#### **Fix Implementado:**
 ```typescript
-// En lugar de asumir que chunks están listos
-await this.waitForSessionReady(session.id);
+// BEFORE: Placeholder que siempre hacía return inmediatamente
+return; // Placeholder para evitar error
 
-// Verificar realmente que chunks existen antes de RAG
-const chunksReady = await this.verifyChunksAvailable(session.id);
-if (chunksReady) {
-  // Proceder con RAG
+// AFTER: Verificación real de chunks disponibles
+const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(sessionId);
+if (processedChunks && processedChunks.length > 0) {
+  this.logger.log(`✅ Session ${sessionId} is ready with ${processedChunks.length} chunks`);
+  return; // Session is ready with chunks
 }
+await this.sleep(checkInterval); // Wait 2s and retry
 ```
+
+#### **Cambios Realizados:**
+1. ✅ **waitForSessionReady()**: Ahora verifica chunks reales antes de continuar
+2. ✅ **Polling Loop**: Chequea cada 2s hasta encontrar chunks o timeout (5min)
+3. ✅ **Error Handling**: Distingue errores críticos de temporales
+4. ✅ **Logging Mejorado**: Visibilidad completa del proceso de espera
+5. ✅ **Build Exitoso**: Sin errores TypeScript
 
 ---
 
