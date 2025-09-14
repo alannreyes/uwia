@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnderwritingController } from './underwriting.controller';
+import { RagDebugController } from './controllers/rag-debug.controller';
 import { UnderwritingService } from './underwriting.service';
 import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
@@ -35,7 +36,7 @@ import { ChunkingModule } from './chunking/chunking.module';
     ]),
     ChunkingModule,
   ],
-  controllers: [UnderwritingController],
+  controllers: [UnderwritingController, RagDebugController],
   providers: [
     UnderwritingService,
     // Services not provided by ChunkingModule

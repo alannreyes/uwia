@@ -214,9 +214,26 @@ export class ModernRagService {
   }
 
   /**
-   * Main RAG pipeline - orchestrates all steps
+   * Detecta si la consulta requiere análisis visual (firmas, sellos, etc.)
    */
-  async executeRAGPipeline(query: string, sessionId?: string): Promise<{ answer: string, sources: any[] }> {
+  private requiresVisualAnalysis(query: string): boolean {
+    const visualKeywords = [
+      'signature', 'signed', 'firma', 'firmado',
+      'seal', 'stamp', 'sello', 'watermark',
+      'checkbox', 'checked', 'marcado',
+      'handwriting', 'manuscript', 'escrito a mano',
+      'initial', 'iniciales'
+    ];
+    
+    const queryLower = query.toLowerCase();
+    return visualKeywords.some(keyword => queryLower.includes(keyword));
+  }
+
+  /**
+   * Pipeline híbrido RAG + Vision para Sept 2025
+   * Combina búsqueda semántica con análisis visual cuando es necesario
+   */
+  async executeRAGPipeline(query: string, sessionId?: string, imageBase64?: string): Promise<{ answer: string, sources: any[], method: string }> {
     this.logger.log('🚀 [RAG] ========== STARTING RAG PIPELINE ==========');
     this.logger.log(`📋 [RAG] Processing query: "${query.substring(0, 100)}..."`);
     if (sessionId) {
@@ -226,6 +243,20 @@ export class ModernRagService {
     }
     
     try {
+      // Detectar si necesita análisis visual
+      const needsVision = this.requiresVisualAnalysis(query);
+      this.logger.log(`👁️ [RAG] Visual analysis required: ${needsVision ? 'YES' : 'NO'}`);
+      
+      if (needsVision && imageBase64) {
+        this.logger.log(`📸 [RAG] Using HYBRID approach (RAG + Vision)`);
+        return await this.executeHybridRAGVision(query, sessionId, imageBase64);
+      } else if (needsVision && !imageBase64) {
+        this.logger.warn(`⚠️ [RAG] Visual analysis needed but no image provided, using RAG-only`);
+      }
+      
+      // Pipeline RAG estándar
+      this.logger.log(`📚 [RAG] Using RAG-ONLY approach`);
+      
       // Step 1: Generate query embedding
       const queryEmbedding = await this.generateQueryEmbedding(query);
       
@@ -248,11 +279,109 @@ export class ModernRagService {
       this.logger.log('✅ [RAG] ========== RAG PIPELINE COMPLETED ==========');
       this.logger.log(`📊 [RAG] Final answer length: ${result.answer.length} chars`);
       
-      return result;
+      return { ...result, method: 'RAG_ONLY' };
       
     } catch (error) {
       this.logger.error(`❌ [RAG] Pipeline failed: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Pipeline híbrido RAG + Vision (Mejores prácticas Sept 2025)
+   * Combina contexto semántico con análisis visual
+   */
+  private async executeHybridRAGVision(query: string, sessionId: string, imageBase64: string): Promise<{ answer: string, sources: any[], method: string }> {
+    this.logger.log('🔗 [HYBRID] ========== STARTING RAG + VISION PIPELINE ==========');
+    
+    try {
+      // 1. Obtener contexto RAG (conocimiento documental)
+      const queryEmbedding = await this.generateQueryEmbedding(query);
+      const keywords = this.extractKeywords(query);
+      const retrievedResults = await this.multiModalRetrieve(queryEmbedding, keywords, { sessionId });
+      const rerankedResults = await this.rerankAndScore(retrievedResults);
+      const ragContext = await this.assembleContext(rerankedResults);
+      
+      this.logger.log(`📚 [HYBRID] RAG context assembled: ${ragContext.length} chars`);
+      
+      // 2. Crear prompt híbrido que combine RAG + Vision
+      const hybridPrompt = `
+        You are analyzing a document that requires both textual context and visual inspection.
+        
+        DOCUMENT CONTEXT FROM RAG SEARCH:
+        ${ragContext}
+        
+        VISUAL ANALYSIS TASK:
+        ${query}
+        
+        INSTRUCTIONS FOR HYBRID ANALYSIS:
+        1. Use the RAG context to understand the document structure and content
+        2. Use visual inspection to verify signatures, stamps, checkboxes, or visual elements
+        3. Cross-reference both sources for maximum accuracy
+        4. If RAG context mentions signatures/visual elements, verify them visually
+        5. If visual analysis contradicts RAG context, prioritize visual evidence
+        6. Be specific about what you can see vs. what the text context indicates
+        
+        CRITICAL FOR SIGNATURES:
+        - Look for handwritten signatures, not just printed names
+        - Check signature fields, signature lines, and signature blocks
+        - Verify dates associated with signatures
+        - Note if signature areas are blank vs. signed
+        
+        Answer the question using both textual and visual evidence.
+      `;
+      
+      this.logger.log(`🔍 [HYBRID] Sending hybrid prompt to Vision API`);
+      
+      // 3. Procesar con Vision API usando contexto híbrido
+      const visionResponse = await this.openAiService.evaluateWithVision(
+        imageBase64,
+        hybridPrompt,
+        ResponseType.TEXT,
+        'hybrid_rag_vision',
+        1
+      );
+      
+      this.logger.log(`✅ [HYBRID] Hybrid analysis completed`);
+      this.logger.log(`📝 [HYBRID] Answer: "${visionResponse.response?.substring(0, 100)}..."`);
+      
+      return {
+        answer: visionResponse.response || 'HYBRID_ANALYSIS_FAILED',
+        sources: rerankedResults.map(r => ({ 
+          chunkId: r.chunk.id, 
+          score: r.score,
+          type: 'RAG_CONTEXT' 
+        })).concat([{
+          chunkId: 'visual_analysis',
+          score: 1.0,
+          type: 'VISION_ANALYSIS'
+        }]),
+        method: 'RAG_PLUS_VISION'
+      };
+      
+    } catch (error) {
+      this.logger.error(`❌ [HYBRID] Hybrid pipeline failed: ${error.message}`);
+      
+      // Fallback a Vision-only si RAG falla
+      this.logger.log(`🔄 [HYBRID] Falling back to Vision-only analysis`);
+      try {
+        const fallbackResponse = await this.openAiService.evaluateWithVision(
+          imageBase64,
+          query,
+          ResponseType.TEXT,
+          'vision_fallback',
+          1
+        );
+        
+        return {
+          answer: fallbackResponse.response || 'VISION_FALLBACK_FAILED',
+          sources: [{ chunkId: 'vision_fallback', score: 1.0, type: 'VISION_ONLY' }],
+          method: 'VISION_FALLBACK'
+        };
+      } catch (fallbackError) {
+        this.logger.error(`❌ [HYBRID] Vision fallback also failed: ${fallbackError.message}`);
+        throw error;
+      }
     }
   }
 
