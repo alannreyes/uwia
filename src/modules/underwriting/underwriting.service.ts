@@ -103,17 +103,22 @@ export class UnderwritingService {
     let replacedPrompt = prompt;
     let replacements = 0;
     for (const key in variables) {
-      if (variables[key] && prompt.includes(key)) {
-        replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
+      // Always replace occurrences, even if value is empty string, to avoid leaking placeholders
+      const value = variables[key] ?? '';
+      if (prompt.includes(key)) {
+        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Use the same standard as elsewhere: /[.*+?^${}()|[\]\\]/g in TS string → /[.*+?^${}()|[\]\\]/
+        // But actually we want: /[.*+?^${}()|[\]\\]/g becomes the JS regex /[.*+?^${}()|[\]\\]/g
+        // Simplify by rebuilding with literal once: 
+        const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        replacedPrompt = replacedPrompt.replace(new RegExp(escaped, 'g'), value);
         replacements++;
-        // Only log important variable replacements
-        if (variables[key].length > 0) {
-          this.logger.log(`✅ [VAR-REPLACE] ${key} → "${variables[key]}"`);
+        if (value) {
+          this.logger.log(`✅ [VAR-REPLACE] ${key} → "${value}"`);
         }
       }
     }
 
-    // Only log summary if replacements were made
     if (replacements === 0) {
       this.logger.warn(`⚠️ [VAR-REPLACE] No variable replacements made`);
     }
@@ -243,9 +248,19 @@ export class UnderwritingService {
       const hasEmptyVariables = Object.values(variableMapping).some(value => value === '');
 
       if (hasEmptyVariables) {
-        this.logger.log(`⚠️ [VAR-EXTRACT] Some variables are empty, but extraction method is not implemented yet`);
-        // TODO: Implement extractBasicVariablesFromDocument method
-        // For now, continue with empty variables
+        this.logger.log(`⚠️ [VAR-EXTRACT] Some variables are empty; attempting auto-extraction from document`);
+        try {
+          const extracted = await this.extractBasicVariablesFromDocument(session.id);
+          // Merge: fill only missing keys
+          for (const k of Object.keys(variableMapping)) {
+            if (!variableMapping[k] && extracted[k]) {
+              variableMapping[k] = extracted[k];
+            }
+          }
+          this.logger.log(`✅ [VAR-EXTRACT] Filled missing variables from document where available`);
+        } catch (exErr) {
+          this.logger.warn(`⚠️ [VAR-EXTRACT] Auto-extraction failed: ${exErr.message}`);
+        }
       }
 
       const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
