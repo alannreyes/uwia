@@ -41,12 +41,16 @@ export class PdfToolkitService {
       const workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
       this.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-      this.logger.log('✅ PDF.js initialized with unified worker');
+      // Configure standard fonts to avoid warnings
+      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
+
+      this.logger.log('✅ PDF.js initialized with unified worker and standard fonts');
     } catch (error) {
       this.logger.error('Failed to initialize PDF.js:', error);
       // Fallback to CDN if local worker fails
       this.pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
     }
   }
 
@@ -186,10 +190,18 @@ export class PdfToolkitService {
             const canvas = createCanvas(viewport.width, viewport.height);
             const context = canvas.getContext('2d');
 
-            // Render PDF page to canvas
+            // Render PDF page to canvas with font fallback options
             await page.render({
               canvasContext: context,
-              viewport: viewport
+              viewport: viewport,
+              intent: 'display',
+              // Disable font warnings and use fallback rendering
+              continueCallback: function(data) {
+                // Skip font errors silently
+                if (data.renderingState === 'finished') {
+                  return;
+                }
+              }
             }).promise;
 
             // Convert canvas to buffer
