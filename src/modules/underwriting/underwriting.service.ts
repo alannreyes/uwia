@@ -70,8 +70,12 @@ export class UnderwritingService {
 
   private getVariableMapping(dto: any, contextData: any): Record<string, string> {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
-    this.logger.log(`📝 [VAR-DEBUG] DTO data: ${JSON.stringify(dto, null, 2)}`);
-    this.logger.log(`📝 [VAR-DEBUG] Context data: ${JSON.stringify(contextData, null, 2)}`);
+
+    // Log only relevant fields, exclude file_data and other large objects
+    const cleanDto = { ...dto };
+    delete cleanDto.file_data;
+    this.logger.log(`📝 [VAR-DEBUG] DTO: ${JSON.stringify(cleanDto)}`);
+    this.logger.log(`📝 [VAR-DEBUG] Context: ${JSON.stringify(contextData)}`);
 
     const mapping = {
       '%insured_name%': dto.insured_name || contextData?.insured_name || '',
@@ -87,25 +91,24 @@ export class UnderwritingService {
       '%cause_of_loss%': dto.cause_of_loss || contextData?.cause_of_loss || '',
     };
 
-    this.logger.log(`🔄 [VAR-DEBUG] Variable mapping created: ${JSON.stringify(mapping, null, 2)}`);
+    this.logger.log(`🔄 [VAR-DEBUG] Variables: ${JSON.stringify(mapping)}`);
     return mapping;
   }
 
   private replaceVariablesInPrompt(prompt: string, variables: Record<string, string>): string {
-    this.logger.log(`🔄 [VAR-DEBUG] Starting variable replacement...`);
-    this.logger.log(`📝 [VAR-DEBUG] Original prompt: "${prompt}"`);
-    this.logger.log(`🔧 [VAR-DEBUG] Variables to replace: ${JSON.stringify(variables, null, 2)}`);
+    this.logger.log(`🔄 [VAR-DEBUG] Replacing variables in prompt...`);
 
     let replacedPrompt = prompt;
+    let replacements = 0;
     for (const key in variables) {
-      const oldPrompt = replacedPrompt;
-      replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
-      if (oldPrompt !== replacedPrompt) {
-        this.logger.log(`✅ [VAR-DEBUG] Replaced "${key}" with "${variables[key]}"`);
+      if (variables[key] && prompt.includes(key)) {
+        replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
+        replacements++;
+        this.logger.log(`✅ [VAR-DEBUG] ${key} → "${variables[key]}"`);
       }
     }
 
-    this.logger.log(`✅ [VAR-DEBUG] Final replaced prompt: "${replacedPrompt}"`);
+    this.logger.log(`✅ [VAR-DEBUG] Applied ${replacements} variable replacements`);
     return replacedPrompt;
   }
 
@@ -273,9 +276,8 @@ export class UnderwritingService {
       }
 
       // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
-      this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
-      this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
-      this.logger.log(`🔍 [VAR-DEBUG] Full question being sent to RAG: "${question}"`);
+      this.logger.log(`🚀 [RAG-INTEGRATION] Executing RAG pipeline...`);
+      this.logger.log(`🔍 [VAR-DEBUG] Question: "${question.substring(0, 150)}..."`);
 
       const ragResult = await this.modernRagService.executeRAGPipeline(question, session.id);
   
