@@ -12,6 +12,8 @@ import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
+import { PdfToolkitService } from './services/pdf-toolkit.service';
+import { PdfImageServiceV2 } from './services/pdf-image-v2.service';
 import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
 import { ResponseType } from './entities/uw-evaluation.entity';
 import { openaiConfig } from '../../config/openai.config';
@@ -54,7 +56,9 @@ export class UnderwritingService {
     private pdfFormExtractor: PdfFormExtractorService,
     private pdfHybridAnalyzer: PdfHybridAnalyzerService,
     private pdfStreamProcessor: PdfStreamProcessorService,
-    private pdfImageService: PdfImageService,
+    private pdfToolkit: PdfToolkitService,           // NEW: Unified PDF toolkit
+    private pdfImageServiceV2: PdfImageServiceV2,    // NEW: Enhanced image service
+    private pdfImageService: PdfImageService,        // Keep for backward compatibility
     private adaptiveStrategy: AdaptiveProcessingStrategyService,
     private pageSelector: IntelligentPageSelectorService,
     private largePdfVision: LargePdfVisionService,
@@ -543,13 +547,7 @@ export class UnderwritingService {
       }
 
       // Determinar estrategia de procesamiento según documento
-      const shouldUseChunking = this.shouldUseChunkingStrategy(documentName, documentPrompt.expectedFieldsCount);
-      
-      if (shouldUseChunking) {
-        this.logger.log(`🧩 Using CHUNKING strategy for ${documentName} (${documentPrompt.expectedFieldsCount} fields)`);
-        return await this.processWithChunking(recordId, documentName, documentPrompt, pdfContent, variables, isExtremeLargeFile);
-      }
-
+      // Always use consolidated strategy - database-first approach
       this.logger.log(`📦 Using CONSOLIDATED strategy for ${documentName} (${documentPrompt.expectedFieldsCount} fields)`);
 
       // Preparar documento para análisis
@@ -905,24 +903,33 @@ export class UnderwritingService {
     const result = { text: null as string | null, images: null as Map<number, string> | null };
 
     try {
-      // Extraer texto si se necesita
+      const buffer = Buffer.from(pdfContent, 'base64');
+
+      // Usar nuevo PdfToolkit para extracción de texto
       if (documentNeeds.needsText) {
-        const buffer = Buffer.from(pdfContent, 'base64');
-        result.text = await this.pdfParserService.extractText(buffer);
+        const extraction = await this.pdfToolkit.extractText(buffer);
+        result.text = extraction.text;
         this.logger.log(`📄 Text extracted: ${result.text?.length || 0} characters`);
+
+        // Log adicional si detecta firmas
+        if (extraction.hasSignatures) {
+          this.logger.log(`✍️ Signature fields detected in ${documentName}`);
+        }
       }
 
-      // Extraer imágenes si se necesita
+      // Usar nuevo PdfImageServiceV2 para imágenes
       if (documentNeeds.needsVisual) {
         try {
-          // Convertir páginas a imágenes (máximo 10 páginas para documentos normales)
-          const pagesToConvert = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-          result.images = await this.pdfImageService.convertPages(pdfContent, pagesToConvert, { 
-            documentName: documentName 
-          });
+          const pagesToConvert = [1, 2, 3, 4, 5];
+          result.images = await this.pdfImageServiceV2.convertPages(
+            pdfContent,
+            pagesToConvert,
+            { documentName }
+          );
           this.logger.log(`🖼️ Images extracted: ${result.images?.size || 0} pages`);
         } catch (imageError) {
           this.logger.warn(`⚠️ Image extraction failed: ${imageError.message}`);
+          // No throw - continuar con solo texto
           result.images = new Map();
         }
       }
@@ -930,7 +937,8 @@ export class UnderwritingService {
       return result;
     } catch (error) {
       this.logger.error(`❌ Error preparing document: ${error.message}`);
-      return { text: null, images: null };
+      // Retornar parcial si es posible
+      return result;
     }
   }
 

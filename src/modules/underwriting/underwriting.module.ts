@@ -7,6 +7,8 @@ import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
 import { PdfImageService } from './services/pdf-image.service';
+import { PdfToolkitService } from './services/pdf-toolkit.service';
+import { PdfImageServiceV2 } from './services/pdf-image-v2.service';
 import { VisualClassifierService } from './services/visual-classifier.service';
 import { JudgeValidatorService } from './services/judge-validator.service';
 import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
@@ -43,7 +45,9 @@ import { ChunkingModule } from './chunking/chunking.module';
     PdfFormExtractorService,
     PdfHybridAnalyzerService,
     PdfStreamProcessorService,
-    PdfImageService,
+    PdfToolkitService,        // NEW: Unified PDF toolkit
+    PdfImageServiceV2,        // NEW: Enhanced image service
+    PdfImageService,          // Keep for backward compatibility
     VisualClassifierService,
     JudgeValidatorService,
     AdaptiveProcessingStrategyService,
