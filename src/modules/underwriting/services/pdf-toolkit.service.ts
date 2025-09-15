@@ -9,7 +9,15 @@ console.warn = (...args) => {
   if (message.includes('Cannot polyfill') ||
       message.includes('DOMMatrix') ||
       message.includes('Path2D') ||
-      message.includes('canvas')) {
+      message.includes('canvas') ||
+      message.includes('fetchStandardFontData') ||
+      message.includes('LiberationSans') ||
+      message.includes('Helvetica_path') ||
+      message.includes('getPathGenerator') ||
+      message.includes('UnknownErrorException') ||
+      message.includes('standardFontDataUrl') ||
+      message.includes('standard font') ||
+      message.includes('baseUrl')) {
     return;
   }
   originalWarn.apply(console, args);
@@ -59,16 +67,24 @@ export class PdfToolkitService {
       const workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
       this.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-      // Configure standard fonts to avoid warnings
-      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
+      // DISABLE font loading completely to prevent warnings
+      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = null;
+      this.pdfjsLib.GlobalWorkerOptions.disableFontFace = true;
+      this.pdfjsLib.GlobalWorkerOptions.useSystemFonts = false;
 
-      this.logger.log('✅ PDF.js initialized with unified worker and standard fonts');
+      // Disable font warnings at the global level
+      if (this.pdfjsLib.Util) {
+        this.pdfjsLib.Util.warn = () => {}; // Suppress all PDF.js warnings
+      }
+
+      this.logger.log('✅ PDF.js initialized with fonts disabled (warning-free mode)');
     } catch (error) {
       this.logger.error('Failed to initialize PDF.js:', error);
-      // Fallback to CDN if local worker fails
+      // Fallback with same font-disabled configuration
       this.pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
+      this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = null;
+      this.pdfjsLib.GlobalWorkerOptions.disableFontFace = true;
     }
   }
 

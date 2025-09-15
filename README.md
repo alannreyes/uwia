@@ -1,17 +1,20 @@
 # UWIA - Underwriting Inteligente con IA
 
-Sistema backend enterprise en NestJS para procesamiento inteligente de documentos de underwriting utilizando **GPT-4o + Gemini 2.5 Pro**.
+Sistema backend enterprise en NestJS para procesamiento inteligente de documentos de underwriting utilizando **GPT-4o + Gemini 2.5 Pro** con **RAG (Retrieval Augmented Generation)**.
 
 ## 🚀 Características Principales
 
 - **🤖 Dual AI Processing**: GPT-4o como motor principal + Gemini 2.5 Pro para validación complementaria
+- **🧠 RAG Comprehensive**: Sistema de recuperación inteligente que usa 100% de chunks del documento para máxima precisión
 - **📄 Análisis Visual Inteligente**: Procesamiento de PDFs con OCR + Vision API para documentos complejos
 - **⚡ Respuestas Consolidadas**: Un documento = una respuesta con múltiples valores separados por semicolons
-- **🎯 Estrategia Adaptativa**: Selección automática de procesamiento (visual vs texto) basada en contenido
-- **🔄 Validación Complementaria**: Ambos modelos procesan independientemente, el mejor resultado gana
-- **📊 Enterprise Logging**: Trazabilidad completa para auditoría y debugging en producción
+- **🎯 Fusion Logic**: Algoritmo inteligente que combina resultados de visión y texto para campos críticos
+- **🔄 Validación Complementaria**: Múltiples fuentes procesan independientemente, el mejor resultado gana
+- **📊 Enterprise Logging**: Logs limpios y profesionales sin spam de contenido
 - **🛡️ Rate Limiting Inteligente**: Manejo automático de límites de API con fallbacks robustos
-- **⚙️ Performance Optimizado**: Chunking inteligente para documentos grandes (50MB+)
+- **⚙️ Performance Optimizado**: Chunking inteligente con progreso agrupado para documentos grandes (50MB+)
+- **🎯 Vector Storage**: Sistema de embeddings con OpenAI text-embedding-3-large (3072 dimensiones)
+- **🔧 PDF Toolkit Unificado**: Arquitectura robusta que combina pdf-parse, pdf-lib y pdfjs-dist
 
 ## 🧠 Post-proceso Determinístico
 
@@ -156,7 +159,142 @@ src/
     └── underwriting/
         ├── dto/     # Data Transfer Objects
         ├── entities/# Entidades de base de datos
-        └── services/# Lógica de negocio
+        ├── chunking/# Vector embeddings & storage
+        └── services/# Servicios principales (ver detalle abajo)
+            ├── underwriting.service.ts      # 🎯 Orquestador principal
+            ├── pdf-toolkit.service.ts       # 📄 Procesamiento PDF unificado
+            ├── pdf-parser.service.ts        # 📋 Parsing y extracción
+            ├── semantic-chunking.service.ts # 🧩 División inteligente
+            ├── vector-storage.service.ts    # 🗄️ Almacenamiento vectorial
+            ├── modern-rag.service.ts        # 🧠 RAG comprehensive
+            ├── openai.service.ts           # 🤖 GPT-4o integration
+            ├── gemini.service.ts           # 🔮 Gemini 2.5 Pro integration
+            └── large-pdf-vision.service.ts # 👁️ Análisis visual avanzado
+```
+
+## 🏗️ Arquitectura Técnica
+
+### Stack de Tecnologías Core
+
+```
+┌─ NestJS Framework ─────────────────────────────┐
+│  ├── TypeScript + Decorators                  │
+│  ├── Dependency Injection                     │
+│  ├── MySQL + TypeORM                          │
+│  └── Modular Architecture                     │
+├─ AI Processing Layer ─────────────────────────┤
+│  ├── OpenAI GPT-4o (text-davinci-003+)       │
+│  ├── Google Gemini 2.5 Pro (vision + text)   │
+│  ├── OpenAI Embeddings (text-embedding-3-large) │
+│  └── Dual AI Fusion Logic                    │
+├─ PDF Processing Stack ────────────────────────┤
+│  ├── pdf-parse (fast text extraction)        │
+│  ├── pdf-lib (forms + metadata)              │
+│  ├── pdfjs-dist (advanced rendering)         │
+│  ├── canvas (image conversion)               │
+│  └── pdf-to-png-converter (fallback)         │
+├─ Vector Storage & RAG ────────────────────────┤
+│  ├── MySQL JSON columns (embeddings)         │
+│  ├── Cosine similarity search                │
+│  ├── Semantic chunking (8KB optimized)       │
+│  └── Comprehensive chunk retrieval           │
+└─ Performance & Reliability ───────────────────┤
+   ├── Rate limiting (OpenAI: 30 RPM, Gemini: 80 RPM)
+   ├── Automatic fallbacks & retries         │
+   ├── Progress tracking & grouped logging    │
+   └── Memory optimization for 100MB+ files  │
+```
+
+## 🔄 Flujo de Procesamiento
+
+### Arquitectura del Sistema
+
+```
+📄 DOCUMENTO PDF → 📋 ANÁLISIS → 🤖 IA DUAL → 🎯 FUSION → ✅ RESPUESTA
+```
+
+### Flujo Detallado Paso a Paso
+
+#### 1. **Recepción del Documento** 📥
+```
+POST /api/underwriting/evaluate-claim-multipart
+├── Validación de archivo (tamaño, formato)
+├── Extracción de contexto (record_id, document_name)
+├── Carga de configuración desde DB (document_consolidado)
+└── Inicio de sesión de procesamiento
+```
+
+#### 2. **Procesamiento PDF** 📄
+```
+PDF Toolkit Service
+├── 📝 Extracción de texto (pdf-parse, pdfjs-dist)
+├── 🖼️ Conversión a imágenes (canvas + PDF.js)
+├── 📋 Detección de formularios (pdf-lib)
+├── ✍️ Identificación de firmas
+└── 🔍 Análisis OCR si es necesario
+```
+
+#### 3. **Chunking Semántico** 🧩
+```
+Semantic Chunking Service
+├── División en chunks de 8KB optimizados
+├── Generación de embeddings (OpenAI text-embedding-3-large)
+├── Metadata enriquecido (fechas, nombres, números)
+├── Almacenamiento en vector database
+└── Indexado por sessionId para recuperación
+```
+
+#### 4. **Análisis RAG Comprehensive** 🧠
+```
+Modern RAG Service
+├── Recuperación del 100% de chunks (getAllChunksForSession)
+├── Ensamblaje de contexto completo
+├── Sustitución de variables (%insured_name%, %date_of_loss%)
+├── Preparación de prompt consolidado
+└── Contextualización inteligente
+```
+
+#### 5. **Procesamiento IA Dual** 🤖
+```
+Procesamiento Paralelo:
+┌─ GPT-4o (Texto) ────────────┐
+│  ├── Análisis de contexto   │
+│  ├── Extracción de campos   │  ➤ Respuesta Principal
+│  └── Validación lógica      │
+└─ Gemini 2.5 Pro (Visión) ──┘
+   ├── Análisis visual OCR
+   ├── Detección de elementos
+   └── Validación complementaria ➤ Respuesta Secundaria
+```
+
+#### 6. **Fusion Logic** 🎯
+```
+Algoritmo de Fusión Inteligente:
+├── Campo por campo: GPT vs Gemini
+├── Selección por confianza y especificidad
+├── Prioridad a respuestas más detalladas
+├── Validación cruzada de fechas/números
+└── Consolidación final sin duplicados
+```
+
+#### 7. **Post-procesamiento Determinístico** ⚙️
+```
+Validación Automática:
+├── Recálculo de campos *_match (street, zip, city, address)
+├── Normalización de direcciones y estados
+├── Validación de LOP mechanics_lien con evidencia textual
+├── Verificación de formato de respuestas
+└── Aplicación de reglas de negocio
+```
+
+#### 8. **Respuesta Consolidada** ✅
+```
+Formato Final:
+├── Un documento = una respuesta (18 campos para LOP)
+├── Valores separados por semicolons (;)
+├── Campos ordenados según field_names en DB
+├── Confidence score y tiempo de procesamiento
+└── Metadata de sesión para trazabilidad
 ```
 
 ## 🛠️ API Endpoints
@@ -300,7 +438,17 @@ Este proyecto está bajo licencia MIT.
 
 ## 🆘 Troubleshooting
 
-### Errores Comunes:
+### Errores Comunes Resueltos ✅
+
+| Error | Causa | Solución Implementada | Estado |
+|-------|-------|----------------------|---------|
+| **Duplicación de Campos** | Double parseConsolidatedResponse en fusion logic | Eliminada llamada redundante en underwriting.service.ts | ✅ **SOLUCIONADO** |
+| **Base64 Log Spam** | Logging completo de file_data | Limpieza en 7 archivos - solo field names | ✅ **SOLUCIONADO** |
+| **RAG Selectivo** | Solo 10 chunks de 49 disponibles | Implementado getAllChunksForSession (100%) | ✅ **SOLUCIONADO** |
+| **Sample Data Contamination** | Datos de prueba contaminando análisis real | Deshabilitado loadSampleDocuments automático | ✅ **SOLUCIONADO** |
+| **Variable Substitution Bug** | Prompt templates mal procesados | Corregido question variable en RAG service | ✅ **SOLUCIONADO** |
+
+### Errores Actuales:
 
 | Error | Causa | Solución |
 |-------|-------|----------|
@@ -309,6 +457,17 @@ Este proyecto está bajo licencia MIT.
 | `RATE_LIMIT` | Demasiadas requests | Esperar o ajustar RPM límites |
 | `NOT_FOUND` | Documento no configurado | Verificar tabla `document_consolidado` |
 | `CONSOLIDATED_MISMATCH` | Respuesta no coincide con campos | Verificar prompt en DB |
+| ⚠️ **Font Warnings** | PDF.js canvas font loading | Warnings suprimidos - no afectan funcionalidad |
+
+### Optimizaciones Aplicadas 🚀
+
+- **Logging Agrupado**: Chunks procesados cada 10 (10/88, 20/88, etc.)
+- **Base64 Cleanup**: Solo nombres de campos en logs
+- **RAG Comprehensive**: 100% de chunks utilizados
+- **Fusion Logic**: Campo por campo sin duplicaciones
+- **Canvas Warnings**: Interceptados y suprimidos
+- **Vector Storage**: Cache + DB híbrido
+- **Progress Tracking**: Mejor visibilidad de procesamiento
 
 ### Comandos Útiles:
 
@@ -321,6 +480,22 @@ curl http://localhost:5035/api/underwriting/health
 
 # Verificar configuración de documento
 SELECT * FROM document_consolidado WHERE document_name = 'LOP.pdf';
+
+# Verificar chunks en vector storage
+SELECT COUNT(*) FROM document_embeddings WHERE sessionId = 'your-session-id';
+
+# Monitorear memoria y performance
+pm2 monit uwia
+```
+
+### Debug de Fusion Logic 🔍
+
+Para verificar decisiones campo por campo:
+
+```bash
+# Los logs muestran:
+🎯 [FUSION] Field mechanics_lien: GPT='NO' vs Gemini='YES' → Selected: YES (higher confidence)
+🎯 [FUSION] Field lop_date1: GPT='07-18-25' vs Gemini='07-18-25' → Selected: 07-18-25 (consensus)
 ```
 
 ## 📞 Soporte
