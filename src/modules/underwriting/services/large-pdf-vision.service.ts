@@ -1418,8 +1418,9 @@ ${extractedText.substring(0, 2000)}...`;
     temporalValues: Array<{index: number, value: string, confidence: number, source: string}>,
     expectedFields: string[]
   ): {answer: string, confidence: number} {
-    
+
     this.logger.log(`🎯 Progressive combining ${results.length} results + ${temporalValues.length} temporal values`);
+    this.logger.log(`🔧 [DEPLOY-TEST] New algorithm active: confidence threshold logic enabled`);
     
     const fieldCount = expectedFields.length;
     const finalValues = new Array(fieldCount).fill('NOT_FOUND');

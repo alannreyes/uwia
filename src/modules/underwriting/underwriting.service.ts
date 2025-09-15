@@ -70,6 +70,7 @@ export class UnderwritingService {
 
   private getVariableMapping(dto: any, contextData: any): Record<string, string> {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
+    this.logger.log(`🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs`);
 
     // Log only relevant fields, exclude file_data and other large objects
     const cleanDto = { ...dto };
