@@ -68,7 +68,7 @@ export class UnderwritingService {
   private semanticChunkingService: SemanticChunkingService,
   ) {}
 
-  private getVariableMapping(dto: any, contextData: any): Record<string, string> {
+  public getVariableMapping(dto: any, contextData: any): Record<string, string> {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
     this.logger.log(`🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs`);
 
@@ -105,11 +105,7 @@ export class UnderwritingService {
     for (const key in variables) {
       // Always replace occurrences, even if value is empty string, to avoid leaking placeholders
       const value = variables[key] ?? '';
-      if (prompt.includes(key)) {
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Use the same standard as elsewhere: /[.*+?^${}()|[\]\\]/g in TS string → /[.*+?^${}()|[\]\\]/
-        // But actually we want: /[.*+?^${}()|[\]\\]/g becomes the JS regex /[.*+?^${}()|[\]\\]/g
-        // Simplify by rebuilding with literal once: 
+      if (replacedPrompt.includes(key)) {
         const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         replacedPrompt = replacedPrompt.replace(new RegExp(escaped, 'g'), value);
         replacements++;
@@ -122,6 +118,14 @@ export class UnderwritingService {
     if (replacements === 0) {
       this.logger.warn(`⚠️ [VAR-REPLACE] No variable replacements made`);
     }
+    // Alert if any placeholders remain like %insured_name%
+    try {
+      const leftover = replacedPrompt.match(/%[a-z_]+%/gi) || [];
+      const uniqueLeftover = Array.from(new Set(leftover));
+      if (uniqueLeftover.length > 0) {
+        this.logger.warn(`⚠️ [VAR-REPLACE] Unresolved placeholders detected: ${uniqueLeftover.join(', ')}`);
+      }
+    } catch {}
     return replacedPrompt;
   }
 
@@ -212,7 +216,16 @@ export class UnderwritingService {
     file: Express.Multer.File,
     body: any,
   ): Promise<EvaluateClaimResponseDto> {
-    const { record_id, document_name, context } = body;
+    const { record_id, document_name } = body;
+    let context = body.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+        this.logger.log(`🧩 [SYNC-LARGE] Parsed context JSON for variable mapping`);
+      } catch (e) {
+        this.logger.warn(`⚠️ [SYNC-LARGE] Failed to parse context JSON; using raw value`);
+      }
+    }
 
     // 🚨 CRITICAL DEBUG LOGGING
     this.logger.log(`🚨 [SYNC-LARGE-ENTRY] ========== PROCESSING LARGE FILE ==========`);
@@ -241,10 +254,10 @@ export class UnderwritingService {
       if (documentPrompts.length === 0) {
         throw new Error(`No active prompts found for document: ${document_name}.pdf`);
       }
-      const prompt = documentPrompts[0];
+  const prompt = documentPrompts[0];
 
       // Verificar si necesitamos extraer variables del documento (cuando body/context están vacíos)
-      let variableMapping = this.getVariableMapping(body, context);
+  let variableMapping = this.getVariableMapping(body, context);
       const hasEmptyVariables = Object.values(variableMapping).some(value => value === '');
 
       if (hasEmptyVariables) {
@@ -263,11 +276,65 @@ export class UnderwritingService {
         }
       }
 
-      const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
+  // Build question later as variables may be enriched after chunks are ready
+  let question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
 
       // 3. Esperar a que la sesión esté lista para consultas
       this.logger.log(`[SYNC-LARGE] Waiting for session ${session.id} to be ready...`);
-      await this.waitForSessionReady(session.id);
+      try {
+        await this.waitForSessionReady(session.id);
+      } catch (waitErr) {
+        this.logger.error(`[SYNC-LARGE] Wait for session failed: ${waitErr.message}`);
+        this.logger.warn(`[SYNC-LARGE] Falling back to DIRECT TEXT processing (no RAG chunks)`);
+
+        // Fallback: extract text directly and answer without RAG
+        let directText = '';
+        try {
+          const extraction = await this.pdfToolkit.extractText(file.buffer);
+          directText = extraction.text || '';
+          this.logger.log(`[SYNC-LARGE] Direct text extracted: ${directText.length} chars`);
+        } catch (texErr) {
+          this.logger.warn(`[SYNC-LARGE] Direct text extraction failed: ${texErr.message}`);
+        }
+
+        try {
+          const textEval = await this.openAiService.evaluateWithValidation(
+            directText,
+            question,
+            ResponseType.TEXT,
+            undefined,
+            prompt.pmcField
+          );
+
+          const pmcResult: PMCFieldResultDto = {
+            pmc_field: prompt.pmcField,
+            question: question,
+            answer: textEval.response,
+            confidence: textEval.final_confidence || textEval.confidence || 0.5,
+            expected_type: 'text',
+          };
+
+          const results = { [`${document_name}.pdf`]: [pmcResult] };
+          return {
+            record_id: record_id,
+            status: 'partial',
+            results,
+            summary: {
+              total_documents: 1,
+              processed_documents: 1,
+              total_fields: 1,
+              answered_fields: 1,
+            },
+            processed_at: new Date(),
+          };
+        } catch (fallbackErr) {
+          this.logger.error(`[SYNC-LARGE] Fallback text evaluation failed: ${fallbackErr.message}`);
+          throw new HttpException(
+            `Failed to process large file synchronously (fallback also failed): ${fallbackErr.message}`,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
+      }
       this.logger.log(`[SYNC-LARGE] Session ${session.id} is ready. Processing chunks for RAG system...`);
 
       // 3.5. Ahora que la sesión está lista, procesar chunks para RAG
@@ -295,6 +362,31 @@ export class UnderwritingService {
       } catch (error) {
         this.logger.error(`❌ [RAG-INTEGRATION] Failed to process chunks for RAG: ${error.message}`);
         // Continue processing - RAG integration failure shouldn't stop document processing
+      }
+
+      // Optional: Re-extract variables now that chunks/embeddings are ready
+      try {
+        const stillEmpty = Object.values(variableMapping).some(v => v === '');
+        if (stillEmpty) {
+          this.logger.log(`🔁 [VAR-EXTRACT] Retrying variable extraction with ready chunks...`);
+          const extracted2 = await this.extractBasicVariablesFromDocument(session.id);
+          let filled = 0;
+          for (const k of Object.keys(variableMapping)) {
+            if (!variableMapping[k] && extracted2[k]) {
+              variableMapping[k] = extracted2[k];
+              filled++;
+            }
+          }
+          if (filled > 0) {
+            this.logger.log(`✅ [VAR-EXTRACT] Filled ${filled} variables after chunks ready`);
+          } else {
+            this.logger.warn(`⚠️ [VAR-EXTRACT] No additional variables found after retry`);
+          }
+          // Recompute question with enriched variables
+          question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
+        }
+      } catch (rexErr) {
+        this.logger.warn(`⚠️ [VAR-EXTRACT] Retry extraction failed: ${rexErr.message}`);
       }
 
       // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
@@ -365,7 +457,7 @@ export class UnderwritingService {
       }
       
       // Usar función centralizada para mapeo consistente de variables
-      const variables = this.getVariableMapping(dto, contextData);
+      const variables = (dto as any)._variables || this.getVariableMapping(dto, contextData);
 
       // MODIFICACIÓN: Procesar SOLO el documento específico enviado
       let documentToProcess: string;
@@ -1153,7 +1245,7 @@ export class UnderwritingService {
    * @param maxWaitTime Maximum time to wait in milliseconds (default: 5 minutes)
    * @param checkInterval Interval between checks in milliseconds (default: 2 seconds)
    */
-  private async waitForSessionReady(sessionId: string, maxWaitTime: number = 300000, checkInterval: number = 2000): Promise<void> {
+  private async waitForSessionReady(sessionId: string, maxWaitTime: number = Number(process.env.RAG_WAIT_TIMEOUT_MS || 180000), checkInterval: number = Number(process.env.RAG_WAIT_INTERVAL_MS || 2000)): Promise<void> {
     const startTime = Date.now();
     this.logger.log(`[SESSION-WAIT] Starting to wait for session ${sessionId} to be ready...`);
 
@@ -1168,7 +1260,7 @@ export class UnderwritingService {
           return; // Session is ready with chunks
         }
 
-        this.logger.log(`[SESSION-WAIT] ⏳ Session ${sessionId} not ready yet (${processedChunks?.length || 0} chunks), waiting ${checkInterval}ms...`);
+  this.logger.log(`[SESSION-WAIT] ⏳ Session ${sessionId} not ready yet (${processedChunks?.length || 0} chunks), waiting ${checkInterval}ms... (elapsed: ${Math.floor((Date.now()-startTime)/1000)}s)`);
         await this.sleep(checkInterval);
 
       } catch (error) {

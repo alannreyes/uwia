@@ -41,8 +41,13 @@ export class UnderwritingController {
 
     // Basic validation only - file data debugging removed to clean logs
     
-    // Cast to DTO for validation
-    const dto = body as EvaluateClaimRequestDto;
+    // Pre-compute variables at ingress
+    let preContext = body.context;
+    if (typeof preContext === 'string') {
+      try { preContext = JSON.parse(preContext); } catch {}
+    }
+    const _variables = this.underwritingService.getVariableMapping(body, preContext);
+    const dto = { ...(body as EvaluateClaimRequestDto), _variables } as any;
     return this.underwritingService.evaluateClaim(dto);
   }
 
@@ -173,7 +178,9 @@ export class UnderwritingController {
       has_file_data: !!dto.file_data
     });
 
-    return this.underwritingService.evaluateClaim(dto);
+    // Pre-compute variables at ingress for multipart too
+    const _variables = this.underwritingService.getVariableMapping(dto, dto.context);
+    return this.underwritingService.evaluateClaim({ ...dto, _variables } as any);
   }
 
   // Nuevo endpoint batch para procesar múltiples documentos de una vez
