@@ -204,7 +204,7 @@ export class VectorStorageService {
           });
           
           // Log cache matches agrupados
-          if (results.length % 5 === 1 || similarity >= minScore) {
+          if (results.length % 5 === 1) {
             this.logger.log(`   📍 ${results.length} cache matches`);
           }
         }

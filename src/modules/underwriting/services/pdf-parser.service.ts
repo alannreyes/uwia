@@ -172,15 +172,15 @@ export class PdfParserService {
    * Extrae texto de cada página de un PDF.
    */
   async extractTextByPages(buffer: Buffer): Promise<{page: number, content: string}[]> {
+    this.logger.log(`🔍 [PDF-EXTRACT] ${(buffer.length / 1024 / 1024).toFixed(1)}MB file`);
+
     if (!pdfjs) {
-      this.logger.warn('pdfjs-dist not available, cannot extract by pages.');
-      // Fallback a procesar el documento completo y dividirlo artificialmente.
       const fullText = await this.extractText(buffer);
+      this.logger.log(`⚠️ [PDF-EXTRACT] PDF.js unavailable, fallback: ${fullText.length} chars`);
       return [{ page: 1, content: fullText }];
     }
 
     try {
-      // Convert Buffer to Uint8Array for pdf.js compatibility
       const uint8Array = new Uint8Array(buffer);
       const loadingTask = pdfjs.getDocument({
         data: uint8Array,
@@ -190,6 +190,7 @@ export class PdfParserService {
       });
 
       const pdf = await loadingTask.promise;
+      this.logger.log(`✅ [PDF-EXTRACT] ${pdf.numPages} pages loaded`);
       const pages = [];
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -199,20 +200,29 @@ export class PdfParserService {
           const pageText = textContent.items
             .map((item: any) => item.str)
             .join(' ');
-          
+
           if (pageText.trim()) {
             pages.push({ page: pageNum, content: pageText });
           }
           page.cleanup();
         } catch (pageError) {
-          this.logger.warn(`⚠️ Error en página ${pageNum}: ${pageError.message}`);
           continue;
         }
       }
       pdf.destroy();
+
+      this.logger.log(`✅ [PDF-EXTRACT] ${pages.length} pages extracted`);
       return pages;
     } catch (error) {
-      throw new Error(`pdfjs-dist page extraction failed: ${error.message}`);
+      this.logger.error(`❌ [PDF-EXTRACT] PDF.js failed: ${error.message}`);
+
+      try {
+        const fullText = await this.extractText(buffer);
+        this.logger.log(`🔄 [PDF-EXTRACT] Fallback success: ${fullText.length} chars`);
+        return [{ page: 1, content: fullText }];
+      } catch (fallbackError) {
+        throw new Error(`All PDF extraction methods failed: ${error.message}`);
+      }
     }
   }
 
