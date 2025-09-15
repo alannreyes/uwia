@@ -205,29 +205,12 @@ export class VectorStorageService {
       }
     }
     
-    // 3. Si no hay resultados, cargar samples para demo
+    // 3. DISABLED: Sample data loading disabled in production to prevent interference
+    // Sample data was causing field duplication issues (e.g., claim_number showing wrong values)
     if (results.length === 0) {
-      this.logger.warn(`⚠️ [VECTOR-STORAGE] No embeddings found, loading samples...`);
-      await this.loadSampleDocuments();
-      
-      // Intentar de nuevo con samples
-      for (const [key, value] of this.embeddingCache.entries()) {
-        if (sessionId && !key.startsWith(sessionId)) {
-          continue;
-        }
-        
-        const similarity = this.embeddingsService.calculateCosineSimilarity(
-          queryEmbedding,
-          value.embedding
-        );
-        
-        if (similarity >= minScore) {
-          results.push({
-            chunk: value.chunk,
-            score: similarity
-          });
-        }
-      }
+      this.logger.warn(`⚠️ [VECTOR-STORAGE] No embeddings found for session ${sessionId || 'unspecified'}`);
+      this.logger.warn(`📊 [VECTOR-STORAGE] This may indicate documents are still being processed or session ID mismatch`);
+      // Sample loading disabled - returns empty results instead of fake data
     }
     
     // 4. Ordenar por score descendente
