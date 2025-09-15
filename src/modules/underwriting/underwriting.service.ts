@@ -243,22 +243,9 @@ export class UnderwritingService {
       const hasEmptyVariables = Object.values(variableMapping).some(value => value === '');
 
       if (hasEmptyVariables) {
-        this.logger.log(`🔍 [VAR-EXTRACT] Some variables are empty, extracting from document...`);
-        const extractedVariables = await this.extractBasicVariablesFromDocument(session.id);
-
-        // Merge extracted variables with existing ones (body/context take priority)
-        variableMapping = {
-          ...extractedVariables,
-          ...this.getVariableMapping(body, context) // body/context override extracted
-        };
-
-        // Only log if there are issues with variable extraction
-        const emptyVars = Object.values(variableMapping).filter(v => v === '').length;
-        if (emptyVars > 0) {
-          this.logger.warn(`⚠️ [VAR-EXTRACT] ${emptyVars} variables are empty`);
-        } else {
-          this.logger.log(`✅ [VAR-EXTRACT] All variables extracted successfully`);
-        }
+        this.logger.log(`⚠️ [VAR-EXTRACT] Some variables are empty, but extraction method is not implemented yet`);
+        // TODO: Implement extractBasicVariablesFromDocument method
+        // For now, continue with empty variables
       }
 
       const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
