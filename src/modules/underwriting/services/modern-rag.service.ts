@@ -41,7 +41,9 @@ export class ModernRagService {
     filters?: any
   ): Promise<any[]> {
     this.logger.log('🔍 [RAG] STEP 2: Executing multi-modal retrieval...');
-    this.logger.log(`📌 [RAG] Keywords for search: ${keywords.join(', ')}`);
+    // Only log first 5 keywords to avoid spam
+    const keywordPreview = keywords.slice(0, 5).join(', ');
+    this.logger.log(`📌 [RAG] Keywords: ${keywordPreview}... (${keywords.length} total)`);
 
     try {
       // Estrategia agnóstica: usar TODOS los chunks para máxima precisión

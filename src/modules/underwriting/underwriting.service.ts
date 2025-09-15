@@ -72,14 +72,10 @@ export class UnderwritingService {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
     this.logger.log(`🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs`);
 
-    // Log only relevant fields, exclude all base64 content
-    const cleanDto = { ...dto };
-    delete cleanDto.file_data;
-    delete cleanDto.lop_pdf;
-    delete cleanDto.policy_pdf;
-    delete cleanDto.documents; // For batch requests
-    this.logger.log(`📝 [VAR-DEBUG] DTO fields: ${Object.keys(cleanDto).join(', ')}`);
-    this.logger.log(`📝 [VAR-DEBUG] Context: ${JSON.stringify(contextData)}`);
+    // Compact logging - only log if context is empty
+    if (!contextData || Object.keys(contextData).length === 0) {
+      this.logger.warn(`⚠️ [VAR-DEBUG] Empty context detected`);
+    }
 
     const mapping = {
       '%insured_name%': contextData?.insured_name || dto.insured_name || '',
@@ -95,24 +91,32 @@ export class UnderwritingService {
       '%cause_of_loss%': contextData?.cause_of_loss || dto.cause_of_loss || '',
     };
 
-    this.logger.log(`🔄 [VAR-DEBUG] Variables: ${JSON.stringify(mapping)}`);
+    // Only log variables if debugging is needed
+    const hasEmptyVars = Object.values(mapping).some(v => v === '');
+    if (hasEmptyVars) {
+      this.logger.warn(`⚠️ [VAR-DEBUG] Some variables are empty`);
+    }
     return mapping;
   }
 
   private replaceVariablesInPrompt(prompt: string, variables: Record<string, string>): string {
-    this.logger.log(`🔄 [VAR-DEBUG] Replacing variables in prompt...`);
-
     let replacedPrompt = prompt;
     let replacements = 0;
     for (const key in variables) {
       if (variables[key] && prompt.includes(key)) {
         replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
         replacements++;
-        this.logger.log(`✅ [VAR-DEBUG] ${key} → "${variables[key]}"`);
+        // Only log important variable replacements
+        if (variables[key].length > 0) {
+          this.logger.log(`✅ [VAR-REPLACE] ${key} → "${variables[key]}"`);
+        }
       }
     }
 
-    this.logger.log(`✅ [VAR-DEBUG] Applied ${replacements} variable replacements`);
+    // Only log summary if replacements were made
+    if (replacements === 0) {
+      this.logger.warn(`⚠️ [VAR-REPLACE] No variable replacements made`);
+    }
     return replacedPrompt;
   }
 
@@ -242,7 +246,13 @@ export class UnderwritingService {
           ...this.getVariableMapping(body, context) // body/context override extracted
         };
 
-        this.logger.log(`✅ [VAR-EXTRACT] Enhanced variable mapping: ${JSON.stringify(variableMapping, null, 2)}`);
+        // Only log if there are issues with variable extraction
+        const emptyVars = Object.values(variableMapping).filter(v => v === '').length;
+        if (emptyVars > 0) {
+          this.logger.warn(`⚠️ [VAR-EXTRACT] ${emptyVars} variables are empty`);
+        } else {
+          this.logger.log(`✅ [VAR-EXTRACT] All variables extracted successfully`);
+        }
       }
 
       const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
@@ -805,12 +815,9 @@ export class UnderwritingService {
 
         let chosen = 'NOT_FOUND';
 
-        // CRITICAL DEBUG: Log the fusion process for claim/policy numbers
-        if (fieldName.includes('claim_number') || fieldName.includes('policy_number')) {
-          this.logger.log(`🔍 [FUSION-DEBUG] Field [${i}] ${fieldName}:`);
-          this.logger.log(`   - Vision: "${v}"`);
-          this.logger.log(`   - Text: "${t}"`);
-        }
+        // Only debug critical fields if there's a conflict
+        const isCriticalField = fieldName.includes('claim_number') || fieldName.includes('policy_number');
+        const hasConflict = v !== t && v !== 'NOT_FOUND' && t !== 'NOT_FOUND';
 
         // Simple fusion logic without hardcoded field knowledge
         if (t !== 'NOT_FOUND' && v === 'NOT_FOUND') chosen = t;
@@ -827,9 +834,9 @@ export class UnderwritingService {
           chosen = 'NOT_FOUND';
         }
 
-        // CRITICAL DEBUG: Log the final choice for claim/policy numbers
-        if (fieldName.includes('claim_number') || fieldName.includes('policy_number')) {
-          this.logger.log(`   - CHOSEN: "${chosen}" (reason: ${t !== 'NOT_FOUND' && v !== 'NOT_FOUND' ? `length ${v.length} vs ${t.length}` : 'single source'})`);
+        // Log only important fusion decisions
+        if (isCriticalField && hasConflict) {
+          this.logger.log(`🔍 [FUSION] ${fieldName}: Vision="${v}" Text="${t}" → "${chosen}"`);
         }
 
         combinedValues.push((chosen || '').toString().trim());
