@@ -24,30 +24,15 @@ export class UnderwritingController {
     @Body() body: any,
     @Req() req: any
   ): Promise<EvaluateClaimResponseDto> {
-    this.logger.log('🔍 Raw request body received:');
-    this.logger.log(JSON.stringify(body, null, 2));
-    
-    this.logger.log('🔍 Type of each field:');
-    Object.keys(body || {}).forEach(key => {
-      this.logger.log(`${key}: ${typeof body[key]} = ${body[key]}`);
-    });
+    this.logger.log('🔍 Request received with fields:');
+    const cleanBody = { ...body };
+    // Remove large base64 fields from logging
+    if (cleanBody.file_data) cleanBody.file_data = '[BASE64_REMOVED]';
+    if (cleanBody.lop_pdf) cleanBody.lop_pdf = '[BASE64_REMOVED]';
+    if (cleanBody.policy_pdf) cleanBody.policy_pdf = '[BASE64_REMOVED]';
+    this.logger.log(JSON.stringify(cleanBody, null, 2));
 
-    // File data debugging
-    console.log('🔍 File data debug:');
-    console.log('File data length:', req.body?.file_data?.length || body.file_data?.length);
-    console.log('File data type:', typeof (req.body?.file_data || body.file_data));
-    console.log('File data starts with:', (req.body?.file_data || body.file_data)?.substring(0, 50));
-    console.log('Is valid base64?', /^[A-Za-z0-9+/=]+$/.test((req.body?.file_data || body.file_data) || ''));
-
-    // PDF files debugging
-    console.log('🔍 PDF files debug:');
-    console.log('LOP PDF length:', (body.lop_pdf || req.body?.lop_pdf)?.length);
-    console.log('LOP PDF type:', typeof (body.lop_pdf || req.body?.lop_pdf));
-    console.log('LOP PDF starts with:', (body.lop_pdf || req.body?.lop_pdf)?.substring(0, 50));
-    
-    console.log('POLICY PDF length:', (body.policy_pdf || req.body?.policy_pdf)?.length);
-    console.log('POLICY PDF type:', typeof (body.policy_pdf || req.body?.policy_pdf));
-    console.log('POLICY PDF starts with:', (body.policy_pdf || req.body?.policy_pdf)?.substring(0, 50));
+    // Basic validation only - file data debugging removed to clean logs
     
     // Cast to DTO for validation
     const dto = body as EvaluateClaimRequestDto;
@@ -124,7 +109,7 @@ export class UnderwritingController {
         }
         
         fileBase64 = uploadedFile.buffer.toString('base64');
-        this.logger.log(`File converted to base64: ${fileBase64.length} characters`);
+        this.logger.log(`File converted to base64 successfully`);
         
         // Si no hay document_name en el body, extraerlo del nombre del archivo
         if (!document_name && uploadedFile.originalname) {
@@ -166,11 +151,11 @@ export class UnderwritingController {
     };
 
     this.logger.log('DTO created:', {
-      ...dto,
-      lop_pdf: dto.lop_pdf ? `[BASE64 - ${dto.lop_pdf.length} chars]` : undefined,
-      policy_pdf: dto.policy_pdf ? `[BASE64 - ${dto.policy_pdf.length} chars]` : undefined,
-      file_data: dto.file_data ? `[BASE64 - ${dto.file_data.length} chars]` : undefined,
-      context: typeof dto.context
+      carpeta_id: dto.carpeta_id,
+      record_id: dto.record_id,
+      document_name: dto.document_name,
+      context: typeof dto.context,
+      has_file_data: !!dto.file_data
     });
 
     return this.underwritingService.evaluateClaim(dto);
@@ -190,7 +175,7 @@ export class UnderwritingController {
     
     // Log documentos recibidos
     batchDto.documents?.forEach((doc, index) => {
-      this.logger.log(`Document ${index + 1}: ${doc.document_name} (${doc.file_data?.length || 0} chars)`);
+      this.logger.log(`Document ${index + 1}: ${doc.document_name} (has file: ${!!doc.file_data})`);
     });
 
     // Crear DTOs individuales para cada documento y procesarlos todos juntos
