@@ -72,10 +72,13 @@ export class UnderwritingService {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
     this.logger.log(`🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs`);
 
-    // Log only relevant fields, exclude file_data and other large objects
+    // Log only relevant fields, exclude all base64 content
     const cleanDto = { ...dto };
     delete cleanDto.file_data;
-    this.logger.log(`📝 [VAR-DEBUG] DTO: ${JSON.stringify(cleanDto)}`);
+    delete cleanDto.lop_pdf;
+    delete cleanDto.policy_pdf;
+    delete cleanDto.documents; // For batch requests
+    this.logger.log(`📝 [VAR-DEBUG] DTO fields: ${Object.keys(cleanDto).join(', ')}`);
     this.logger.log(`📝 [VAR-DEBUG] Context: ${JSON.stringify(contextData)}`);
 
     const mapping = {

@@ -26,11 +26,18 @@ export class UnderwritingController {
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('🔍 Request received with fields:');
     const cleanBody = { ...body };
-    // Remove large base64 fields from logging
+    // Remove ALL large content fields from logging
     if (cleanBody.file_data) cleanBody.file_data = '[BASE64_REMOVED]';
     if (cleanBody.lop_pdf) cleanBody.lop_pdf = '[BASE64_REMOVED]';
     if (cleanBody.policy_pdf) cleanBody.policy_pdf = '[BASE64_REMOVED]';
-    this.logger.log(JSON.stringify(cleanBody, null, 2));
+    if (cleanBody.documents) cleanBody.documents = '[BATCH_DOCS_REMOVED]';
+    if (cleanBody.context && typeof cleanBody.context === 'object' && JSON.stringify(cleanBody.context).length > 500) {
+      cleanBody.context = '[LARGE_CONTEXT_REMOVED]';
+    }
+    // Only log field names, not content
+    this.logger.log(`📋 Fields: ${Object.keys(cleanBody).join(', ')}`);
+    this.logger.log(`📄 Document: ${cleanBody.document_name || 'unknown'}`);
+    this.logger.log(`🆔 Record: ${cleanBody.record_id || 'unknown'}`);
 
     // Basic validation only - file data debugging removed to clean logs
     
@@ -67,7 +74,7 @@ export class UnderwritingController {
     @Body() body: any,
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('📥 Received multipart/form-data request');
-    this.logger.log('Body fields:', body);
+    this.logger.log(`📋 Body fields: ${Object.keys(body).join(', ')}`);
     this.logger.log('Files received:', files?.length || 0);
 
     // Log cada archivo recibido
