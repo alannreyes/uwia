@@ -37,11 +37,16 @@ export class EnhancedPdfProcessorService {
     this.logger.log(`Applying chunking strategy: size=${config.chunkSize}, parallel=${config.maxParallel}`);
 
     // Start processing asynchronously but don't block
+    this.logger.log(`🎯 [ENHANCED-PDF] About to start setImmediate for session ${session.id}`);
+    this.logger.log(`🎯 [ENHANCED-PDF] Buffer size: ${buffer.length} bytes, Session: ${session.id}`);
+
     setImmediate(async () => {
+      this.logger.log(`🔥 [ENHANCED-PDF] setImmediate callback executing for session ${session.id}`);
       try {
         await this.processInBatches(buffer, session.id, config.chunkSize, config.maxParallel);
       } catch (err) {
-        this.logger.error(`Error during async batch processing for session ${session.id}: ${err.message}`);
+        this.logger.error(`❌ [ENHANCED-PDF] Error during async batch processing for session ${session.id}: ${err.message}`);
+        this.logger.error(`❌ [ENHANCED-PDF] Error stack: ${err.stack}`);
         await this.chunkStorageService.updateSessionStatus(session.id, 'error');
       }
     });
