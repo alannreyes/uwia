@@ -3,25 +3,15 @@ import { PdfFormExtractorService } from './pdf-form-extractor.service';
 import { largePdfConfig } from '../../../config/large-pdf.config';
 const pdfParse = require('pdf-parse');
 
-// Importar pdfjs-dist de forma segura (versión 3.x con CommonJS)
+// Import pdfjs-dist legacy build (3.x) and avoid external worker usage
 let pdfjs: any = null;
-
-// Silent loading of pdfjs-dist
 try {
-  pdfjs = require('pdfjs-dist/build/pdf');
-
-  // Configure worker path
+  pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
   if (pdfjs && pdfjs.GlobalWorkerOptions) {
-    try {
-      const workerPath = require.resolve('pdfjs-dist/build/pdf.worker');
-      pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
-    } catch (workerError) {
-      // Fallback to CDN
-      pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '3.11.174'}/pdf.worker.min.js`;
-    }
+    // Disable worker to prevent version mismatch issues
+    pdfjs.GlobalWorkerOptions.workerSrc = undefined;
   }
 } catch (error) {
-  // Silent fallback - only log critical errors
   if (process.env.NODE_ENV === 'development') {
     console.warn('⚠️ pdfjs-dist not available, using pdf-parse fallback');
   }
@@ -186,7 +176,8 @@ export class PdfParserService {
         data: uint8Array,
         useSystemFonts: true,
         disableFontFace: false,
-        verbosity: 0
+        verbosity: 0,
+        disableWorker: true
       });
 
       const pdf = await loadingTask.promise;
@@ -197,9 +188,43 @@ export class PdfParserService {
         try {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          const pageText = textContent.items
+          let pageText = textContent.items
             .map((item: any) => item.str)
             .join(' ');
+
+          // Try to enrich with annotation values (form fields)
+          try {
+            const annotations = await page.getAnnotations();
+            if (annotations && annotations.length > 0) {
+              let annotationText = '';
+              for (const annotation of annotations) {
+                if (annotation.subtype === 'Widget' || annotation.fieldType) {
+                  const fieldName = annotation.fieldName || annotation.title || 'unnamed_field';
+                  let fieldValue = '';
+                  if (annotation.fieldValue !== undefined && annotation.fieldValue !== null) {
+                    fieldValue = String(annotation.fieldValue);
+                  } else if (annotation.buttonValue) {
+                    fieldValue = annotation.buttonValue;
+                  } else if (annotation.value) {
+                    fieldValue = annotation.value;
+                  } else if (annotation.defaultAppearance) {
+                    const match = annotation.defaultAppearance.match(/\((.*?)\)/);
+                    if (match && match[1]) {
+                      fieldValue = match[1];
+                    }
+                  }
+                  if (fieldValue && String(fieldValue).trim() !== '') {
+                    annotationText += `${fieldName}: ${fieldValue}\n`;
+                  }
+                }
+              }
+              if (annotationText.trim()) {
+                pageText = `${pageText}\n${annotationText}`.trim();
+              }
+            }
+          } catch (annotErr) {
+            // Ignore annotation extraction errors per page
+          }
 
           if (pageText.trim()) {
             pages.push({ page: pageNum, content: pageText });
@@ -210,6 +235,18 @@ export class PdfParserService {
         }
       }
       pdf.destroy();
+
+      if (pages.length === 0) {
+        this.logger.warn('⚠️ [PDF-EXTRACT] 0 pages with text found via PDF.js, falling back to full-text extraction');
+        try {
+          const fullText = await this.extractText(buffer);
+          this.logger.log(`🔄 [PDF-EXTRACT] Fallback success: ${fullText.length} chars`);
+          return [{ page: 1, content: fullText }];
+        } catch (fallbackErr) {
+          this.logger.error(`❌ [PDF-EXTRACT] Fallback after 0-page result failed: ${fallbackErr.message}`);
+          return [];
+        }
+      }
 
       this.logger.log(`✅ [PDF-EXTRACT] ${pages.length} pages extracted`);
       return pages;
@@ -334,7 +371,8 @@ export class PdfParserService {
         data: uint8Array,
         useSystemFonts: true,
         disableFontFace: false,
-        verbosity: 0
+        verbosity: 0,
+        disableWorker: true
       });
 
       const pdf = await loadingTask.promise;

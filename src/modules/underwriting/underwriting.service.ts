@@ -129,6 +129,32 @@ export class UnderwritingService {
     return replacedPrompt;
   }
 
+  // Construye una pregunta genérica para RAG-ONLY cuando no hay prompts consolidados
+  private buildDefaultRagQuestion(docName: string, variables: Record<string, string>): string {
+    const name = (docName || 'document').toUpperCase();
+    const v = (k: string) => variables[k] || '';
+    // Incluir solo variables con valor para no ensuciar el prompt
+    const contextParts: string[] = [];
+    if (v('%insured_name%')) contextParts.push(`Insured: ${v('%insured_name%')}`);
+    if (v('%insurance_company%')) contextParts.push(`Insurer: ${v('%insurance_company%')}`);
+    if (v('%insured_address%')) contextParts.push(`Address: ${v('%insured_address%')}`);
+    if (v('%date_of_loss%')) contextParts.push(`Date of Loss: ${v('%date_of_loss%')}`);
+    if (v('%policy_number%')) contextParts.push(`Policy #: ${v('%policy_number%')}`);
+    if (v('%claim_number%')) contextParts.push(`Claim #: ${v('%claim_number%')}`);
+    if (v('%type_of_job%')) contextParts.push(`Job Type: ${v('%type_of_job%')}`);
+    if (v('%cause_of_loss%')) contextParts.push(`Cause of Loss: ${v('%cause_of_loss%')}`);
+
+    const contextLine = contextParts.length ? `Context: ${contextParts.join(' | ')}` : '';
+
+    return [
+      `Analyze the ${name} document using only the RAG knowledge base.`,
+      contextLine,
+      `Provide a concise, factual summary of the key information present in the document that would be most useful for underwriting.`,
+      `If specific fields are commonly extracted for this document type, identify them with their values when possible.`,
+      `Answer in plain text; avoid JSON unless necessary.`
+    ].filter(Boolean).join('\n');
+  }
+
   /**
    * Extrae variables básicas del documento usando RAG cuando no están disponibles en body/context
    */
@@ -251,10 +277,18 @@ export class UnderwritingService {
         order: { promptOrder: 'ASC' },
       });
 
+      let prompt: { pmcField: string; question: string };
       if (documentPrompts.length === 0) {
-        throw new Error(`No active prompts found for document: ${document_name}.pdf`);
+        this.logger.warn(`⚠️ [SYNC-LARGE] No active prompts found for document: ${document_name}.pdf — switching to RAG-ONLY fallback`);
+        // Fallback: construir un prompt genérico para RAG-ONLY
+        const defaultPmcField = `${String(document_name || 'document').toLowerCase()}_responses`;
+        // Preparar mapping preliminar (puede rellenarse luego)
+        const prelimVars = this.getVariableMapping(body, context);
+        const defaultQuestion = this.buildDefaultRagQuestion(String(document_name || 'document'), prelimVars);
+        prompt = { pmcField: defaultPmcField, question: defaultQuestion };
+      } else {
+        prompt = documentPrompts[0];
       }
-  const prompt = documentPrompts[0];
 
       // Verificar si necesitamos extraer variables del documento (cuando body/context están vacíos)
   let variableMapping = this.getVariableMapping(body, context);
@@ -1254,10 +1288,18 @@ export class UnderwritingService {
         // RACE CONDITION FIX: Verificar que los chunks realmente existan antes de continuar
         this.logger.log(`[SESSION-WAIT] Checking if chunks are available for session ${sessionId}...`);
         const processedChunks = await this.enhancedPdfProcessorService.getProcessedChunks(sessionId);
+        // Consultar el estado de la sesión para detectar casos "ready" sin chunks
+        const sessionMeta = await (this.enhancedPdfProcessorService as any).chunkStorageService?.getSession(sessionId).catch?.(() => null) || null;
 
         if (processedChunks && processedChunks.length > 0) {
           this.logger.log(`[SESSION-WAIT] ✅ Session ${sessionId} is ready with ${processedChunks.length} chunks`);
           return; // Session is ready with chunks
+        }
+
+        // Si la sesión está marcada como ready pero no hay chunks, salir temprano para forzar fallback
+        if (sessionMeta && sessionMeta.status === 'ready' && (!processedChunks || processedChunks.length === 0)) {
+          this.logger.warn(`[SESSION-WAIT] ⚠️ Session ${sessionId} is READY but has 0 chunks. Triggering direct-text fallback.`);
+          throw new Error('READY_WITHOUT_CHUNKS');
         }
 
   this.logger.log(`[SESSION-WAIT] ⏳ Session ${sessionId} not ready yet (${processedChunks?.length || 0} chunks), waiting ${checkInterval}ms... (elapsed: ${Math.floor((Date.now()-startTime)/1000)}s)`);

@@ -40,6 +40,36 @@ export class UnderwritingController {
     this.logger.log(`🆔 Record: ${cleanBody.record_id || 'unknown'}`);
 
     // Basic validation only - file data debugging removed to clean logs
+
+    // If JSON route carries base64 and it's large, route to large-file flow
+    try {
+      const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES') || 10485760; // 10MB default
+      const documentName = body.document_name || 'DOCUMENT';
+      const base64 = body.file_data || body.lop_pdf || body.policy_pdf;
+      if (typeof base64 === 'string' && base64.length > 0) {
+        const padding = (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
+        const estimatedBytes = Math.floor(base64.length * 3 / 4) - padding;
+        this.logger.log(`🔍 [JSON-FILE-DEBUG] Estimated base64 size: ${estimatedBytes} bytes (${(estimatedBytes/1024/1024).toFixed(2)} MB)`);
+        this.logger.log(`🔍 [JSON-FILE-DEBUG] Threshold: ${largeFileThreshold} bytes (${(largeFileThreshold/1024/1024).toFixed(2)} MB)`);
+        if (estimatedBytes > largeFileThreshold) {
+          this.logger.log(`🐘 [LARGE-FILE-ROUTE:JSON] Routing to processLargeFileSynchronously (base64)`);
+          const buffer = Buffer.from(base64, 'base64');
+          const pseudoFile: any = {
+            originalname: `${documentName}.pdf`,
+            size: estimatedBytes,
+            buffer,
+            mimetype: 'application/pdf'
+          };
+          // Ensure context is parsed for the service
+          let preCtx = body.context;
+          if (typeof preCtx === 'string') { try { preCtx = JSON.parse(preCtx); } catch {} }
+          const passthroughBody = { ...body, document_name: documentName, context: preCtx };
+          return await this.underwritingService.processLargeFileSynchronously(pseudoFile, passthroughBody);
+        }
+      }
+    } catch (jsonRouteErr) {
+      this.logger.warn(`⚠️ [JSON-FILE-ROUTE] Large-file routing check failed: ${jsonRouteErr.message}`);
+    }
     
     // Pre-compute variables at ingress
     let preContext = body.context;
@@ -97,7 +127,7 @@ export class UnderwritingController {
     let document_name = body.document_name;
 
     if (uploadedFile) {
-      const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES');
+  const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES') || 10485760;
 
       // 🚨 CRITICAL DEBUG LOGGING
       this.logger.log(`🔍 [FILE-DEBUG] File: ${uploadedFile.originalname}`);

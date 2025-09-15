@@ -63,6 +63,21 @@ export class EnhancedPdfProcessorService {
     const stream = Readable.from(buffer);
     const textPages = await this.pdfParserService.extractTextByPages(buffer);
     this.logger.log(`📄 [BATCH-PROCESSING] Extracted ${textPages.length} pages from PDF`);
+    if (textPages.length === 0) {
+      this.logger.warn(`⚠️ [BATCH-PROCESSING] 0 pages extracted; using full-text fallback as single chunk`);
+      try {
+        const fullText = await this.pdfParserService.extractText(buffer);
+        await this.chunkStorageService.storeChunk(sessionId, 0, fullText, 1, 1);
+        await this.chunkStorageService.updateSession(sessionId, { totalChunks: 1, processedChunks: 1 });
+        await this.chunkStorageService.updateSessionStatus(sessionId, 'ready');
+        this.logger.log(`[${sessionId}] Fallback single-chunk stored; session marked ready.`);
+        return;
+      } catch (fallbackErr) {
+        this.logger.error(`❌ [BATCH-PROCESSING] Fallback full-text extraction failed: ${fallbackErr.message}`);
+        await this.chunkStorageService.updateSessionStatus(sessionId, 'error');
+        return;
+      }
+    }
     
     let totalChunks = 0;
     let processedChunks = 0;
