@@ -777,17 +777,32 @@ export class UnderwritingService {
       }
       await Promise.allSettled(promises);
 
-      // Asegurar respuestas en el tamaño correcto
-      const visionArr = visionAnswer ? this.parseConsolidatedResponse(visionAnswer, documentPrompt.fieldNames) : null;
-      const textArr = textAnswer ? this.parseConsolidatedResponse(textAnswer, documentPrompt.fieldNames) : null;
+      // Use responses directly - they are already in correct semicolon-separated format
+      const visionArr = visionAnswer ? visionAnswer.split(';') : null;
+      const textArr = textAnswer ? textAnswer.split(';') : null;
+
+      this.logger.log(`🔍 [FUSION-DEBUG] Input arrays:`);
+      this.logger.log(`   - Vision array: ${visionArr ? visionArr.length : 0} items`);
+      this.logger.log(`   - Text array: ${textArr ? textArr.length : 0} items`);
+      this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
+      if (visionArr) this.logger.log(`   - Vision raw: "${visionAnswer}"`);
+      if (textArr) this.logger.log(`   - Text raw: "${textAnswer}"`);
 
       // Simple fusion: prefer non-NOT_FOUND answers, prefer longer answers for data fields
       const combinedValues: string[] = [];
       for (let i = 0; i < documentPrompt.fieldNames.length; i++) {
         const v = visionArr ? (visionArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
         const t = textArr ? (textArr[i] || 'NOT_FOUND') : 'NOT_FOUND';
+        const fieldName = documentPrompt.fieldNames[i];
 
         let chosen = 'NOT_FOUND';
+
+        // CRITICAL DEBUG: Log the fusion process for claim/policy numbers
+        if (fieldName.includes('claim_number') || fieldName.includes('policy_number')) {
+          this.logger.log(`🔍 [FUSION-DEBUG] Field [${i}] ${fieldName}:`);
+          this.logger.log(`   - Vision: "${v}"`);
+          this.logger.log(`   - Text: "${t}"`);
+        }
 
         // Simple fusion logic without hardcoded field knowledge
         if (t !== 'NOT_FOUND' && v === 'NOT_FOUND') chosen = t;
@@ -803,6 +818,12 @@ export class UnderwritingService {
         } else {
           chosen = 'NOT_FOUND';
         }
+
+        // CRITICAL DEBUG: Log the final choice for claim/policy numbers
+        if (fieldName.includes('claim_number') || fieldName.includes('policy_number')) {
+          this.logger.log(`   - CHOSEN: "${chosen}" (reason: ${t !== 'NOT_FOUND' && v !== 'NOT_FOUND' ? `length ${v.length} vs ${t.length}` : 'single source'})`);
+        }
+
         combinedValues.push((chosen || '').toString().trim());
       }
 
