@@ -687,9 +687,14 @@ export class UnderwritingService {
       // Reemplazar variables dinámicas en el prompt consolidado
       let processedPrompt = documentPrompt.question;
       Object.entries(variables).forEach(([key, value]) => {
-        const placeholder = `%${key}%`;
-        const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Key already includes % symbols (e.g., '%insured_name%'), so use it directly
+        const escapedPlaceholder = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         processedPrompt = processedPrompt.replace(new RegExp(escapedPlaceholder, 'g'), value);
+
+        // Log successful replacements for debugging
+        if (documentPrompt.question.includes(key) && value) {
+          this.logger.log(`✅ [VAR-REPLACE] ${key} → "${value}"`);
+        }
       });
 
       this.logger.log(`🤖 Processing ${documentName} with consolidated prompt (expecting ${documentPrompt.expectedFieldsCount} fields)`);
