@@ -6,48 +6,25 @@ const pdfParse = require('pdf-parse');
 // Importar pdfjs-dist de forma segura (versión 3.x con CommonJS)
 let pdfjs: any = null;
 
-// Logging detallado para diagnóstico
-console.log('🔍 Attempting to load pdfjs-dist...');
-console.log('📁 Node version:', process.version);
-console.log('🐧 Platform:', process.platform);
-console.log('📦 NODE_ENV:', process.env.NODE_ENV);
-
+// Silent loading of pdfjs-dist
 try {
-  // Verificar si el módulo existe
-  console.log('📂 Checking module path...');
-  const modulePath = require.resolve('pdfjs-dist/package.json');
-  console.log('✅ pdfjs-dist package found at:', modulePath);
-  
-  // Intentar cargar el módulo principal
-  console.log('📥 Loading main module...');
   pdfjs = require('pdfjs-dist/build/pdf');
-  console.log('✅ Main module loaded successfully');
-  console.log('🔧 Module type:', typeof pdfjs);
-  console.log('🔍 Available methods:', Object.keys(pdfjs).slice(0, 5));
-  
-  // Configurar worker path local
+
+  // Configure worker path
   if (pdfjs && pdfjs.GlobalWorkerOptions) {
-    console.log('⚙️ Configuring worker...');
     try {
       const workerPath = require.resolve('pdfjs-dist/build/pdf.worker');
       pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
-      console.log(`🔧 Using local PDF worker: ${workerPath}`);
     } catch (workerError) {
-      console.log('⚠️ Local worker not found, using CDN fallback');
-      // Fallback a CDN
+      // Fallback to CDN
       pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '3.11.174'}/pdf.worker.min.js`;
-      console.log(`🌐 Using CDN PDF worker (version: ${pdfjs.version})`);
     }
-  } else {
-    console.log('❌ GlobalWorkerOptions not available');
   }
-  console.log(`✅ pdfjs-dist loaded successfully (version: ${pdfjs.version})`);
 } catch (error) {
-  console.error('❌ pdfjs-dist loading failed:');
-  console.error('   Error name:', error.name);
-  console.error('   Error message:', error.message);
-  console.error('   Error stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
-  console.warn('⚠️ pdfjs-dist not available, fallback to pdf-parse only');
+  // Silent fallback - only log critical errors
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('⚠️ pdfjs-dist not available, using pdf-parse fallback');
+  }
 }
 
 @Injectable()

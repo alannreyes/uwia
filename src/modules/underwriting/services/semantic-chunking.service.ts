@@ -282,8 +282,8 @@ export class SemanticChunkingService {
         };
         
         semanticChunks.push(semanticChunk);
-        
-        this.logger.log(`   ✅ Converted chunk ${i + 1}/${pdfChunks.length}: ${pdfChunk.content.substring(0, 50)}...`);
+
+        // Removed verbose per-chunk logging to clean up logs
         
       } catch (error) {
         this.logger.error(`   ❌ Failed to convert chunk ${i}: ${error.message}`);

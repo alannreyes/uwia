@@ -66,7 +66,7 @@ export class ModernRagService {
       
       if (semanticResults.length > 0) {
         this.logger.log(`🎯 [RAG] Top result score: ${semanticResults[0]?.score?.toFixed(3)}`);
-        this.logger.log(`📄 [RAG] Top chunk preview: "${semanticResults[0]?.chunk?.content?.substring(0, 100)}..."`);
+        this.logger.log(`📄 [RAG] Retrieved ${semanticResults.length} chunks`);
       }
       
       return semanticResults;

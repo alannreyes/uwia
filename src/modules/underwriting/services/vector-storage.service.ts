@@ -52,7 +52,7 @@ export class VectorStorageService {
           embedding: chunk.embedding
         });
         
-        this.logger.log(`💾 [VECTOR-STORAGE] Cached embedding for chunk ${chunk.id}`);
+        // Removed verbose per-chunk caching log
         
         // Guardar en base de datos MySQL (mejores prácticas 2025)
         try {
@@ -81,7 +81,7 @@ export class VectorStorageService {
           });
           
           await this.documentEmbeddingRepository.save(entity);
-          this.logger.log(`✅ [VECTOR-STORAGE] Saved embedding to database for chunk ${chunk.id}`);
+          // Removed verbose per-chunk save log
           
         } catch (dbError) {
           this.logger.error(`❌ [VECTOR-STORAGE] Failed to save to database: ${dbError.message}`);
@@ -222,8 +222,7 @@ export class VectorStorageService {
     this.logger.log(`✅ [VECTOR-STORAGE] Found ${topResults.length} relevant chunks (from ${results.length} matches)`);
     
     if (topResults.length > 0) {
-      this.logger.log(`🥇 [VECTOR-STORAGE] Best match score: ${topResults[0].score.toFixed(3)}`);
-      this.logger.log(`📄 [VECTOR-STORAGE] Best match preview: "${topResults[0].chunk.content.substring(0, 100)}..."`);
+      this.logger.log(`🥇 [VECTOR-STORAGE] Best match found (score: ${topResults[0].score.toFixed(3)})`);
     }
     
     return topResults;
