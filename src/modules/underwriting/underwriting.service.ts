@@ -676,12 +676,15 @@ export class UnderwritingService {
     const processStartTime = Date.now();
 
     try {
+      // Reemplazar variables dinámicas al inicio para tener siempre el prompt procesado
+      let processedPrompt = this.replaceVariablesInPrompt(documentPrompt.question, variables);
+
       if (!pdfContent) {
         this.logger.warn(`No PDF content provided for ${documentName}`);
         const notFoundAnswers = Array(documentPrompt.fieldNames.length).fill('NOT_FOUND').join(';');
         return [{
           pmc_field: documentPrompt.pmcField,
-          question: documentPrompt.question,
+          question: processedPrompt,
           answer: notFoundAnswers,
           confidence: 0,
           processing_time_ms: 0,
@@ -705,18 +708,7 @@ export class UnderwritingService {
       
       this.logger.log(`📑 Document preparation for ${documentName}: truncation=${isExtremeLargeFile}, limit=${truncationLimit}`);
 
-      // Reemplazar variables dinámicas en el prompt consolidado
-      let processedPrompt = documentPrompt.question;
-      Object.entries(variables).forEach(([key, value]) => {
-        // Key already includes % symbols (e.g., '%insured_name%'), so use it directly
-        const escapedPlaceholder = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        processedPrompt = processedPrompt.replace(new RegExp(escapedPlaceholder, 'g'), value);
-
-        // Log successful replacements for debugging
-        if (documentPrompt.question.includes(key) && value) {
-          this.logger.log(`✅ [VAR-REPLACE] ${key} → "${value}"`);
-        }
-      });
+      // processedPrompt ya está con variables reemplazadas; logs de reemplazo se manejan en helper
 
       this.logger.log(`🤖 Processing ${documentName} with consolidated prompt (expecting ${documentPrompt.expectedFieldsCount} fields)`);
 
