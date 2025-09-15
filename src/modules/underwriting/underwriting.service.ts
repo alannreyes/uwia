@@ -807,26 +807,26 @@ export class UnderwritingService {
       }
 
       const responseText = combinedValues.join(';');
-      
-      // LOGGING: Respuesta recibida
-      this.logger.log(`📊 Response received for ${documentName}:`);
+
+      // LOGGING: Combined result BEFORE any additional parsing
+      this.logger.log(`🎯 [FINAL-FIX] Combined result for ${documentName}:`);
       this.logger.log(`   - Response length: ${responseText ? responseText.length : 0} chars`);
-      this.logger.log(`   - First 200 chars: ${responseText ? responseText.substring(0, 200) : 'NO RESPONSE'}`);
-      this.logger.log(`   - Response type: ${typeof responseText}`);
+      this.logger.log(`   - Full response: "${responseText}"`);
+      this.logger.log(`   - Split count: ${responseText.split(';').length}`);
       
       // Para respuestas consolidadas, la respuesta ya debería venir en formato correcto
       let finalAnswer: string;
       let finalConfidence: number;
       let actualProcessingTime: number;
       
-      // Calcular métricas y confianza del resultado combinado
-      const fieldValues = this.parseConsolidatedResponse(responseText, documentPrompt.fieldNames);
-      this.logger.log(`📋 Parsed values for ${documentName}:`);
+      // Use the already correctly formatted responseText from combined values
+      // No need to re-parse as combinedValues was already processed correctly above
+      finalAnswer = responseText;
+      const fieldValues = responseText.split(';');
+      this.logger.log(`📋 Using combined values for ${documentName}:`);
       this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
-      this.logger.log(`   - Parsed values: ${fieldValues.length}`);
+      this.logger.log(`   - Final values: ${fieldValues.length}`);
       this.logger.log(`   - Values with content: ${fieldValues.filter(v => v && v !== 'NOT_FOUND').length}`);
-
-      finalAnswer = fieldValues.join(';');
       const foundFields = fieldValues.filter(value => value !== 'NOT_FOUND').length;
       // Confianza: combinar aportes de texto y visión si existen; si no, proporción encontrada
       const baseConf = Math.max(textConf, visionConf);
@@ -852,7 +852,8 @@ export class UnderwritingService {
       this.logger.log(`   - answer length: ${finalAnswer.length} chars`);
       this.logger.log(`   - answer split: ${finalAnswer.split(';').length} values`);
       this.logger.log(`   - confidence: ${finalConfidence}`);
-      this.logger.log(`   - First 100 chars of answer: "${finalAnswer.substring(0, 100)}..."`);
+      this.logger.log(`🎯 [FINAL-FIX] COMPLETE FINAL ANSWER: "${finalAnswer}"`);
+      this.logger.log(`   - Matches combined result: ${finalAnswer === responseText ? 'YES' : 'NO'}`);
       
       // Verificación final - CRITICAL VALIDATION
       const answerParts = finalAnswer.split(';');
