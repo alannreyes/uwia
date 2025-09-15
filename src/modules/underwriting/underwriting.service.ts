@@ -167,7 +167,7 @@ export class UnderwritingService {
       // 4. Formatear la respuesta para que coincida con la estructura esperada
       const pmcResult: PMCFieldResultDto = {
         pmc_field: prompt.pmcField,
-        question: prompt.question,
+        question: question, // Usar la pregunta con variables sustituidas, no prompt.question
         answer: ragResult.answer,
         confidence: 1, // TODO: Ajustar según modernRagService
         expected_type: 'text',
