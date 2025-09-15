@@ -1474,6 +1474,23 @@ ${extractedText.substring(0, 2000)}...`;
           }
         } else if (value !== 'NOT_FOUND' && result.confidence > fieldConfidences[i]) {
           const oldValue = finalValues[i];
+          const fieldName = expectedFields[i] || '';
+
+          // ALGORITMO MEJORADO: Solo sobrescribir si la diferencia de confianza es significativa
+          const confidenceDiff = result.confidence - fieldConfidences[i];
+          const oldValueIsValid = oldValue && oldValue !== 'NOT_FOUND' && oldValue.length > 2;
+          const minConfidenceDiff = oldValueIsValid ? 0.15 : 0.05; // Requiere mayor diferencia para valores válidos
+
+          if (oldValueIsValid && confidenceDiff < minConfidenceDiff) {
+            this.logger.warn(`🛡️ [STABILITY] Field [${i} ${fieldName}] KEPT: "${oldValue}" (conf diff ${confidenceDiff.toFixed(3)} < ${minConfidenceDiff})`);
+            continue; // Skip overwrite if confidence improvement is minimal
+          }
+
+          // Log para cambios importantes
+          if (oldValueIsValid) {
+            this.logger.warn(`⚠️ [SIGNIFICANT] Field [${i} ${fieldName}] OVERWRITE: "${oldValue}" → "${value}" (conf diff: +${confidenceDiff.toFixed(3)})`);
+          }
+
           finalValues[i] = value;
           fieldConfidences[i] = result.confidence;
           if (oldValue !== value) {
