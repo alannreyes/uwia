@@ -69,7 +69,11 @@ export class UnderwritingService {
   ) {}
 
   private getVariableMapping(dto: any, contextData: any): Record<string, string> {
-    return {
+    this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
+    this.logger.log(`📝 [VAR-DEBUG] DTO data: ${JSON.stringify(dto, null, 2)}`);
+    this.logger.log(`📝 [VAR-DEBUG] Context data: ${JSON.stringify(contextData, null, 2)}`);
+
+    const mapping = {
       '%insured_name%': dto.insured_name || contextData?.insured_name || '',
       '%insurance_company%': dto.insurance_company || contextData?.insurance_company || '',
       '%insured_address%': dto.insured_address || contextData?.insured_address || '',
@@ -82,14 +86,110 @@ export class UnderwritingService {
       '%type_of_job%': dto.type_of_job || contextData?.type_of_job || '',
       '%cause_of_loss%': dto.cause_of_loss || contextData?.cause_of_loss || '',
     };
+
+    this.logger.log(`🔄 [VAR-DEBUG] Variable mapping created: ${JSON.stringify(mapping, null, 2)}`);
+    return mapping;
   }
 
   private replaceVariablesInPrompt(prompt: string, variables: Record<string, string>): string {
+    this.logger.log(`🔄 [VAR-DEBUG] Starting variable replacement...`);
+    this.logger.log(`📝 [VAR-DEBUG] Original prompt: "${prompt}"`);
+    this.logger.log(`🔧 [VAR-DEBUG] Variables to replace: ${JSON.stringify(variables, null, 2)}`);
+
     let replacedPrompt = prompt;
     for (const key in variables) {
+      const oldPrompt = replacedPrompt;
       replacedPrompt = replacedPrompt.replace(new RegExp(key, 'g'), variables[key]);
+      if (oldPrompt !== replacedPrompt) {
+        this.logger.log(`✅ [VAR-DEBUG] Replaced "${key}" with "${variables[key]}"`);
+      }
     }
+
+    this.logger.log(`✅ [VAR-DEBUG] Final replaced prompt: "${replacedPrompt}"`);
     return replacedPrompt;
+  }
+
+  /**
+   * Extrae variables básicas del documento usando RAG cuando no están disponibles en body/context
+   */
+  private async extractBasicVariablesFromDocument(sessionId: string): Promise<Record<string, string>> {
+    this.logger.log(`🔍 [VAR-EXTRACT] Extracting basic variables from document...`);
+
+    try {
+      // Prompt simple para extraer variables básicas sin usar placeholders
+      const extractionPrompt = `
+        Please extract the following information from this document and return it in JSON format:
+        {
+          "insured_name": "name of the insured person/company",
+          "insurance_company": "name of the insurance company",
+          "date_of_loss": "date when the loss occurred",
+          "policy_number": "policy or certificate number",
+          "claim_number": "claim number if available",
+          "insured_address": "full address of insured",
+          "insured_street": "street address",
+          "insured_city": "city",
+          "insured_zip": "zip code",
+          "type_of_job": "type of work/job",
+          "cause_of_loss": "cause of the loss/damage"
+        }
+
+        Return only the JSON object. If a field is not found, use "".
+      `;
+
+      const ragResult = await this.modernRagService.executeRAGPipeline(extractionPrompt, sessionId);
+
+      // Parse JSON response
+      let extractedData: any = {};
+      try {
+        // Try to extract JSON from the response
+        const jsonMatch = ragResult.answer.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          extractedData = JSON.parse(jsonMatch[0]);
+        }
+      } catch (parseError) {
+        this.logger.warn(`⚠️ [VAR-EXTRACT] Failed to parse JSON response: ${parseError.message}`);
+      }
+
+      // Convert to variable format with % symbols
+      const variables: Record<string, string> = {};
+      const fieldMapping = {
+        'insured_name': '%insured_name%',
+        'insurance_company': '%insurance_company%',
+        'date_of_loss': '%date_of_loss%',
+        'policy_number': '%policy_number%',
+        'claim_number': '%claim_number%',
+        'insured_address': '%insured_address%',
+        'insured_street': '%insured_street%',
+        'insured_city': '%insured_city%',
+        'insured_zip': '%insured_zip%',
+        'type_of_job': '%type_of_job%',
+        'cause_of_loss': '%cause_of_loss%'
+      };
+
+      for (const [sourceField, targetField] of Object.entries(fieldMapping)) {
+        variables[targetField] = extractedData[sourceField] || '';
+      }
+
+      this.logger.log(`✅ [VAR-EXTRACT] Extracted variables: ${JSON.stringify(variables, null, 2)}`);
+      return variables;
+
+    } catch (error) {
+      this.logger.error(`❌ [VAR-EXTRACT] Failed to extract variables: ${error.message}`);
+      // Return empty variables as fallback
+      return {
+        '%insured_name%': '',
+        '%insurance_company%': '',
+        '%insured_address%': '',
+        '%insured_street%': '',
+        '%insured_city%': '',
+        '%insured_zip%': '',
+        '%date_of_loss%': '',
+        '%policy_number%': '',
+        '%claim_number%': '',
+        '%type_of_job%': '',
+        '%cause_of_loss%': '',
+      };
+    }
   }
 
   async processLargeFileSynchronously(
@@ -120,7 +220,25 @@ export class UnderwritingService {
         throw new Error(`No active prompts found for document: ${document_name}.pdf`);
       }
       const prompt = documentPrompts[0];
-      const question = this.replaceVariablesInPrompt(prompt.question, this.getVariableMapping(body, context));
+
+      // Verificar si necesitamos extraer variables del documento (cuando body/context están vacíos)
+      let variableMapping = this.getVariableMapping(body, context);
+      const hasEmptyVariables = Object.values(variableMapping).some(value => value === '');
+
+      if (hasEmptyVariables) {
+        this.logger.log(`🔍 [VAR-EXTRACT] Some variables are empty, extracting from document...`);
+        const extractedVariables = await this.extractBasicVariablesFromDocument(session.id);
+
+        // Merge extracted variables with existing ones (body/context take priority)
+        variableMapping = {
+          ...extractedVariables,
+          ...this.getVariableMapping(body, context) // body/context override extracted
+        };
+
+        this.logger.log(`✅ [VAR-EXTRACT] Enhanced variable mapping: ${JSON.stringify(variableMapping, null, 2)}`);
+      }
+
+      const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
 
       // 3. Esperar a que la sesión esté lista para consultas
       this.logger.log(`[SYNC-LARGE] Waiting for session ${session.id} to be ready...`);
@@ -157,7 +275,8 @@ export class UnderwritingService {
       // 4. Ejecutar la consulta RAG moderna y esperar la respuesta
       this.logger.log(`🚀 [RAG-INTEGRATION] Initiating RAG pipeline for question processing...`);
       this.logger.log(`📝 [RAG-INTEGRATION] Question: "${question.substring(0, 200)}..."`);
-      
+      this.logger.log(`🔍 [VAR-DEBUG] Full question being sent to RAG: "${question}"`);
+
       const ragResult = await this.modernRagService.executeRAGPipeline(question, session.id);
   
   this.logger.log(`✅ [RAG-INTEGRATION] RAG pipeline completed successfully`);
