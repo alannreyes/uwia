@@ -247,16 +247,89 @@ export class VectorStorageService {
   }
 
   /**
+   * Obtiene TODOS los chunks para una sesión específica (sin filtrado por similaridad)
+   * Útil para documentos como POLICY.pdf que requieren procesamiento completo
+   */
+  async getAllChunksForSession(sessionId: string): Promise<SimilarityResult[]> {
+    this.logger.log(`📚 [VECTOR-STORAGE] Retrieving ALL chunks for session: ${sessionId}`);
+
+    const results: SimilarityResult[] = [];
+
+    // 1. Buscar en base de datos
+    try {
+      const dbEmbeddings = await this.documentEmbeddingRepository.find({
+        where: { sessionId },
+        order: {
+          importance: 'DESC',
+          chunkIndex: 'ASC' // Mantener orden original de chunks
+        }
+      });
+
+      this.logger.log(`📊 [VECTOR-STORAGE] Found ${dbEmbeddings.length} chunks in database`);
+
+      // Convertir todos los chunks sin filtrado de score
+      for (const dbEmbedding of dbEmbeddings) {
+        const semanticChunk: SemanticChunk = {
+          id: dbEmbedding.chunkId,
+          sessionId: dbEmbedding.sessionId,
+          chunkIndex: dbEmbedding.chunkIndex,
+          content: dbEmbedding.content,
+          contentHash: dbEmbedding.contentHash,
+          tokenCount: dbEmbedding.tokenCount,
+          characterCount: dbEmbedding.characterCount,
+          metadata: {
+            positionStart: dbEmbedding.positionStart,
+            positionEnd: dbEmbedding.positionEnd,
+            semanticType: dbEmbedding.semanticType,
+            importance: dbEmbedding.importance,
+            hasNumbers: dbEmbedding.hasNumbers,
+            hasDates: dbEmbedding.hasDates,
+            hasNames: dbEmbedding.hasNames,
+            hasMonetaryValues: dbEmbedding.hasMonetaryValues,
+            keywords: dbEmbedding.keywords || []
+          },
+          embedding: dbEmbedding.embedding
+        };
+
+        results.push({
+          chunk: semanticChunk,
+          score: 1.0 // Score máximo para indicar que es un chunk completo
+        });
+      }
+    } catch (error) {
+      this.logger.error(`❌ [VECTOR-STORAGE] Database query failed: ${error.message}`);
+    }
+
+    // 2. Buscar en cache si no hay resultados en BD
+    if (results.length === 0) {
+      this.logger.log(`🔍 [VECTOR-STORAGE] Searching in cache for session: ${sessionId}`);
+
+      for (const [key, value] of this.embeddingCache.entries()) {
+        if (key.startsWith(sessionId) || value.chunk.sessionId === sessionId) {
+          results.push({
+            chunk: value.chunk,
+            score: 1.0
+          });
+        }
+      }
+    }
+
+    this.logger.log(`✅ [VECTOR-STORAGE] Retrieved ${results.length} chunks for session ${sessionId}`);
+
+    return results;
+  }
+
+  /**
    * Actualiza el caché de embeddings para una sesión.
    */
   async updateEmbeddingCache(sessionId: string): Promise<void> {
     this.logger.log(`🔄 [VECTOR-STORAGE] Updating cache for session ${sessionId}`);
-    
+
     // TODO: Cargar embeddings de la base de datos
     // const embeddings = await this.documentEmbeddingRepository.find({
     //   where: { documentId: sessionId }
     // });
-    
+
     this.logger.log(`✅ [VECTOR-STORAGE] Cache updated for session ${sessionId}`);
   }
 

@@ -1,4 +1,115 @@
-# Plan de Ajuste: Migración a GPT-5 + Gemini 2.5 Pro
+# 📋 Plan de Ajuste UWIA - Estado Actual y Pendientes
+
+## ✅ **PROBLEMAS CRÍTICOS RESUELTOS (READY FOR DEPLOYMENT)**
+
+### 1. ✅ Error PDF.js Version Mismatch (COMPLETADO)
+**Problema**: `"The API version '5.4.54' does not match the Worker version '3.11.174'"`
+**Solución**: Implementada arquitectura unificada PDF con PdfToolkitService
+**Estado**: ✅ **RESUELTO** - Ready for deployment
+**Archivos**:
+- `src/modules/underwriting/services/pdf-toolkit.service.ts` (NUEVO)
+- `src/modules/underwriting/services/pdf-image-v2.service.ts` (NUEVO)
+- `src/modules/underwriting/underwriting.module.ts` (ACTUALIZADO)
+- `src/modules/underwriting/underwriting.service.ts` (ACTUALIZADO)
+
+### 2. ✅ Lógica Hardcodeada Eliminada (COMPLETADO)
+**Problema**: Sistema no era database-driven, tenía lógica hardcodeada
+**Solución**: Removidas funciones `recalculateMatches()`, `detectMechanicsLien()`, chunking forzado
+**Estado**: ✅ **RESUELTO** - Database es única fuente de verdad
+**Impacto**: POLICY.pdf ahora responde según AI, no según código hardcodeado
+
+### 3. ✅ Estrategia de Fallback para Imágenes (COMPLETADO)
+**Problema**: Fallas de conversión de imagen detenían procesamiento completo
+**Solución**: PdfImageServiceV2 con múltiples fallbacks, no-blocking errors
+**Estado**: ✅ **RESUELTO** - Sistema continúa con texto si imagen falla
+
+## 🚀 **DEPLOYMENT - SIGUIENTE PASO INMEDIATO**
+
+### Estado del Sistema: ✅ **LISTO PARA DEPLOYMENT**
+**Acción**: Desplegar cambios críticos al ambiente de producción
+**Prioridad**: **ALTA** - Cambios listos para deployment
+**Validación**:
+- ✅ Build exitoso
+- ✅ Test básico funcionando
+- ✅ Servicios integrados correctamente
+
+## 🔄 **PENDIENTES POST-DEPLOYMENT**
+
+### 4. 📊 Aplicar Updates de Base de Datos (PENDIENTE)
+**Archivo**: `promptsv2.md` - Contiene SQL updates necesarios
+**Prioridad**: **MEDIA** - Aplicar después del deployment
+**Contenido**:
+- Correcciones para prompts de comparación LOP.pdf (fields 12-18)
+- Mejoras en detección de mechanics_lien
+- Compensación por lógica hardcodeada removida
+
+### 5. 🧪 Testing Post-Deployment (PENDIENTE)
+**Documentos críticos**: LOP.pdf, POLICY.pdf
+**Validaciones esperadas**:
+- ✅ No error de version mismatch en logs
+- ✅ LOP.pdf detecta firmas correctamente
+- ✅ POLICY.pdf procesa sin timeout
+- ✅ Campos match responden según AI (no hardcoded "NO")
+
+## 🎯 **MEJORAS OPCIONALES**
+
+### 6. 🖼️ Instalar Canvas para Mejor Calidad de Imagen (OPCIONAL)
+**Issue**: Canvas library no instalada por permisos de sistema
+**Impacto**: Sistema funciona con pdf-to-png-converter fallback
+**Acción**: `sudo apt-get install libcairo2-dev...` y `npm install canvas@2.11.2`
+**Prioridad**: **BAJA** - Sistema funciona sin esto
+
+### 7. 🔍 Implementar OCR con Tesseract.js (FUTURO)
+**Purpose**: Mejorar detección en documentos escaneados
+**Estado**: Preparado en PdfToolkitService, no implementado
+**Prioridad**: **BAJA** - Enhancement futuro
+
+### 8. 📈 Monitoreo de Performance (FUTURO)
+**Métricas**: Tiempo de procesamiento PDF, success rate de conversión
+**Tools**: Ya implementado ProductionLogger en servicios
+**Prioridad**: **BAJA** - Observabilidad
+
+## 🔍 **VALIDACIÓN POST-DEPLOYMENT**
+
+### Logs a Revisar:
+```
+✅ DEBE APARECER: "PDF.js initialized with unified worker"
+❌ NO DEBE APARECER: "API version does not match Worker version"
+✅ DEBE APARECER: "Signature fields detected in LOP.pdf"
+✅ DEBE APARECER: "Images extracted: X pages" (sin errores críticos)
+```
+
+### Respuestas Esperadas:
+- **POLICY.pdf**: Campos `onb_street_match`, `onb_zip_match` deben responder según AI analysis
+- **LOP.pdf**: Debe detectar firmas y procesar visualmente sin errors
+- **Sistema general**: Procesamiento continúa aunque imagen conversion falle
+
+## 📝 **RESUMEN EJECUTIVO**
+
+### ✅ **Completado (Ready for Deployment)**:
+1. Error crítico PDF.js version mismatch resuelto
+2. Arquitectura database-first implementada (no hardcoded logic)
+3. Sistema robusto con fallbacks implementado
+4. Build verificado y test básico exitoso
+
+### 🔄 **Siguiente Paso Inmediato**:
+**DEPLOYMENT** - Los cambios críticos están listos y resuelven los problemas bloqueantes
+
+### 🎯 **Post-Deployment**:
+1. Aplicar SQL updates de `promptsv2.md`
+2. Validar con documentos problemáticos (LOP.pdf, POLICY.pdf)
+3. Considerar mejoras opcionales según resultados
+
+---
+
+**Última actualización**: 2025-09-14 20:59 UTC
+**Estado del sistema**: ✅ **LISTO PARA DEPLOYMENT**
+**Confianza**: ⭐⭐⭐⭐⭐ (5/5) - Problemas críticos resueltos
+
+---
+
+# 📋 PLAN FUTURO: Migración a GPT-5 + Gemini 2.5 Pro (NO INMEDIATO)
+
 ## Sistema de Triple Validación de Clase Mundial con Gestión de Documentos Masivos
 
 ### Resumen Ejecutivo

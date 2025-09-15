@@ -36,21 +36,32 @@ export class ModernRagService {
    * 2. Multi-modal retrieval (semantic + keyword)
    */
   async multiModalRetrieve(
-    queryEmbedding: number[], 
-    keywords: string[], 
+    queryEmbedding: number[],
+    keywords: string[],
     filters?: any
   ): Promise<any[]> {
     this.logger.log('🔍 [RAG] STEP 2: Executing multi-modal retrieval...');
     this.logger.log(`📌 [RAG] Keywords for search: ${keywords.join(', ')}`);
-    
+
     try {
-      // Búsqueda semántica usando embeddings
-      const semanticResults = await this.vectorStorage.findSimilar(queryEmbedding, {
-        topK: 10,
-        minScore: 0.3,  // Reducido de 0.7 a 0.3 para ser menos restrictivo
-        ...filters
-      });
-      
+      // Estrategia agnóstica: usar TODOS los chunks para máxima precisión
+      const sessionId = filters?.sessionId;
+      let semanticResults;
+
+      if (sessionId && this.shouldUseAllChunks(sessionId)) {
+        this.logger.log(`📚 [RAG] COMPREHENSIVE MODE: Using ALL chunks for maximum data accuracy`);
+        semanticResults = await this.vectorStorage.getAllChunksForSession(sessionId);
+        this.logger.log(`📊 [RAG] Retrieved ALL ${semanticResults.length} chunks for comprehensive analysis`);
+      } else {
+        // Búsqueda semántica selectiva (modo legacy)
+        this.logger.log(`🔍 [RAG] SELECTIVE MODE: Using semantic search`);
+        semanticResults = await this.vectorStorage.findSimilar(queryEmbedding, {
+          topK: 10,
+          minScore: 0.3,
+          ...filters
+        });
+      }
+
       this.logger.log(`📊 [RAG] Semantic search found ${semanticResults.length} relevant chunks`);
       
       if (semanticResults.length > 0) {
@@ -416,7 +427,17 @@ export class ModernRagService {
       .replace(/[^a-z0-9\s]/g, '')
       .split(/\s+/)
       .filter(word => word.length > 2 && !stopWords.has(word));
-    
+
     return [...new Set(words)]; // Remove duplicates
+  }
+
+  /**
+   * Determina si se deben usar todos los chunks para extracción completa de datos
+   * Agnóstico - funciona para cualquier documento que requiera procesamiento completo
+   */
+  private shouldUseAllChunks(sessionId: string): boolean {
+    // Por defecto, usar TODOS los chunks para máxima precisión
+    // El asistente IA debe tener acceso al 100% de la información
+    return true;
   }
 }
