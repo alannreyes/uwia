@@ -93,16 +93,24 @@ export class UnderwritingController {
 
     if (uploadedFile) {
       const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES');
-      
+
+      // 🚨 CRITICAL DEBUG LOGGING
+      this.logger.log(`🔍 [FILE-DEBUG] File: ${uploadedFile.originalname}`);
+      this.logger.log(`🔍 [FILE-DEBUG] Size: ${uploadedFile.size} bytes (${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)`);
+      this.logger.log(`🔍 [FILE-DEBUG] Threshold: ${largeFileThreshold} bytes (${(largeFileThreshold / 1024 / 1024).toFixed(2)} MB)`);
+      this.logger.log(`🔍 [FILE-DEBUG] Is Large?: ${uploadedFile.size > largeFileThreshold}`);
+
       if (uploadedFile.size > largeFileThreshold) {
-        this.logger.log(`🐘 Large file detected: ${uploadedFile.originalname} (${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)`);
-        
+        this.logger.log(`🐘 [LARGE-FILE-ROUTE] Processing via processLargeFileSynchronously`);
+
         // Iniciar procesamiento síncrono para archivos grandes
         return this.underwritingService.processLargeFileSynchronously(
           uploadedFile,
           body,
         );
       }
+
+      this.logger.log(`📄 [NORMAL-FILE-ROUTE] Processing via normal evaluateClaim flow`);
 
       try {
         // Log del tamaño del archivo

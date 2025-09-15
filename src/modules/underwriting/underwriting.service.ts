@@ -209,7 +209,13 @@ export class UnderwritingService {
   ): Promise<EvaluateClaimResponseDto> {
     const { record_id, document_name, context } = body;
 
-    this.logger.log(`[SYNC-LARGE] Starting synchronous processing for ${file.originalname}`);
+    // 🚨 CRITICAL DEBUG LOGGING
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] ========== PROCESSING LARGE FILE ==========`);
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] File: ${file.originalname}`);
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] Size: ${file.size} bytes (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] Document: ${document_name}`);
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] Starting synchronous processing`);
+    this.logger.log(`🚨 [SYNC-LARGE-ENTRY] ================================================`);
 
     try {
       // 1. Procesar y almacenar el archivo en la base de datos
