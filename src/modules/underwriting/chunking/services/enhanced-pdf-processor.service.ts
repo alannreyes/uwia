@@ -35,20 +35,29 @@ export class EnhancedPdfProcessorService {
     }
 
     this.logger.log(`Applying chunking strategy: size=${config.chunkSize}, parallel=${config.maxParallel}`);
-    
-    // Process asynchronously
-    this.processInBatches(buffer, session.id, config.chunkSize, config.maxParallel)
-        .catch(err => {
-            this.logger.error(`Error during async batch processing for session ${session.id}: ${err.message}`);
-            this.chunkStorageService.updateSessionStatus(session.id, 'error');
-        });
+
+    // Start processing asynchronously but don't block
+    setImmediate(async () => {
+      try {
+        await this.processInBatches(buffer, session.id, config.chunkSize, config.maxParallel);
+      } catch (err) {
+        this.logger.error(`Error during async batch processing for session ${session.id}: ${err.message}`);
+        await this.chunkStorageService.updateSessionStatus(session.id, 'error');
+      }
+    });
 
     return session;
   }
 
   private async processInBatches(buffer: Buffer, sessionId: string, chunkSize: number, maxParallel: number): Promise<void> {
+    this.logger.log(`🚀 [BATCH-PROCESSING] Starting batch processing for session ${sessionId}`);
+    this.logger.log(`   - Chunk size: ${chunkSize} bytes`);
+    this.logger.log(`   - Max parallel: ${maxParallel}`);
+    this.logger.log(`   - Buffer size: ${buffer.length} bytes`);
+
     const stream = Readable.from(buffer);
     const textPages = await this.pdfParserService.extractTextByPages(buffer);
+    this.logger.log(`📄 [BATCH-PROCESSING] Extracted ${textPages.length} pages from PDF`);
     
     let totalChunks = 0;
     let processedChunks = 0;
