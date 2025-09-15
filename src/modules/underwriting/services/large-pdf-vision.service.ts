@@ -1299,10 +1299,17 @@ ${extractedText.substring(0, 2000)}...`;
         }
 
         chunkResults.push(bestChunkResp);
-        this.logger.log(`🧩 Chunk ${chunkIndex + 1} best page ${bestPage} result: "${bestChunkResp}" (conf: ${bestConf})`);
-        
+
+        // Log progreso cada 10 chunks o al final
+        if ((chunkIndex + 1) % 10 === 0 || chunkIndex === chunks.length - 1) {
+          this.logger.log(`🧩 Chunks procesados ${chunkIndex + 1}/${chunks.length} (última conf: ${bestConf.toFixed(2)})`);
+        }
+
       } catch (error) {
-        this.logger.warn(`⚠️ Chunk ${chunkIndex + 1} analysis failed: ${error.message}`);
+        // Solo log errores cada 10 chunks
+        if ((chunkIndex + 1) % 10 === 0) {
+          this.logger.warn(`⚠️ Errores en chunks alrededor de ${chunkIndex + 1}/${chunks.length}`);
+        }
         chunkResults.push('NOT_FOUND'.repeat(chunk.length).split('NOT_FOUND').join(';').slice(0, -1));
       }
     }

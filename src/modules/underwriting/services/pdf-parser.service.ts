@@ -873,7 +873,10 @@ export class PdfParserService {
       ]);
 
       const processingTime = Date.now() - startTime;
-      this.logger.debug(`✅ Chunk ${chunkIndex}/${totalChunks}: ${result?.length || 0} chars in ${processingTime}ms`);
+      // Log progreso cada 10 chunks
+      if (chunkIndex % 10 === 0 || chunkIndex === totalChunks) {
+        this.logger.log(`✅ Chunks procesados ${chunkIndex}/${totalChunks}`);
+      }
       
       return result || '';
 

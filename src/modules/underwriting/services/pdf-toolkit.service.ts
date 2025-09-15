@@ -2,6 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+// Suppress canvas warnings before importing anything
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  const message = args.join(' ');
+  if (message.includes('Cannot polyfill') ||
+      message.includes('DOMMatrix') ||
+      message.includes('Path2D') ||
+      message.includes('canvas')) {
+    return;
+  }
+  originalWarn.apply(console, args);
+};
+
 // Canvas is optional - will use pdf-to-png-converter as fallback if canvas not available
 let createCanvas: any = null;
 try {
@@ -27,6 +40,11 @@ export class PdfToolkitService {
 
   constructor() {
     this.initializePdfJs();
+    // Set up global functions if needed
+    if (typeof global !== 'undefined') {
+      global.btoa = global.btoa || ((str) => Buffer.from(str).toString('base64'));
+      global.atob = global.atob || ((str) => Buffer.from(str, 'base64').toString());
+    }
   }
 
   /**
@@ -195,13 +213,9 @@ export class PdfToolkitService {
               canvasContext: context,
               viewport: viewport,
               intent: 'display',
-              // Disable font warnings and use fallback rendering
-              continueCallback: function(data) {
-                // Skip font errors silently
-                if (data.renderingState === 'finished') {
-                  return;
-                }
-              }
+              // Suppress font warnings
+              enableWebGL: false,
+              renderInteractiveForms: false
             }).promise;
 
             // Convert canvas to buffer

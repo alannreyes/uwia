@@ -171,7 +171,10 @@ export class VectorStorageService {
             score: similarity
           });
           
-          this.logger.log(`   📍 DB match: ${dbEmbedding.chunkId} (score: ${similarity.toFixed(3)}, importance: ${dbEmbedding.importance})`);
+          // Log cada 10 matches
+          if (results.length % 10 === 0 || results.length === 1) {
+            this.logger.log(`   📍 ${results.length} matches encontrados`);
+          }
         }
       }
       
@@ -200,7 +203,10 @@ export class VectorStorageService {
             score: similarity
           });
           
-          this.logger.log(`   📍 Cache match: ${key} (score: ${similarity.toFixed(3)})`);
+          // Log cache matches agrupados
+          if (results.length % 5 === 1 || similarity >= minScore) {
+            this.logger.log(`   📍 ${results.length} cache matches`);
+          }
         }
       }
     }

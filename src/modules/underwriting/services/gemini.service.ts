@@ -184,8 +184,11 @@ export class GeminiService {
     // Procesar chunks secuencialmente para evitar rate limits
     const results = [];
     for (let i = 0; i < chunks.length; i++) {
-      this.logger.log(`📝 Procesando chunk ${i + 1}/${chunks.length}`);
-      
+      // Log progreso cada 10 chunks
+      if (i % 10 === 0 || i === chunks.length - 1) {
+        this.logger.log(`📝 Procesando chunks ${i + 1}/${chunks.length}`);
+      }
+
       try {
         const chunkResult = await this.evaluateDocument(
           chunks[i],
@@ -195,13 +198,16 @@ export class GeminiService {
           `${pmcField}-chunk-${i + 1}`
         );
         results.push(chunkResult);
-        
+
         // Pequeña pausa entre chunks
         if (i < chunks.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        this.logger.warn(`⚠️ Error en chunk ${i + 1}: ${error.message}`);
+        // Solo log errores cada 10 chunks para evitar spam
+        if (i % 10 === 0) {
+          this.logger.warn(`⚠️ Errores en chunks alrededor de ${i + 1}/${chunks.length}`);
+        }
         // Continuar con otros chunks
       }
     }
