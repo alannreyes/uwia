@@ -1245,11 +1245,10 @@ export class UnderwritingService {
       // Extraer texto truncado si se necesita
       if (documentNeeds.needsText) {
         const buffer = Buffer.from(pdfContent, 'base64');
-        result.text = await this.pdfParserService.extractTextTruncated(buffer, {
-          maxPages: truncationLimit,
-          firstPercentage: 0.6,
-          lastPercentage: 0.4
-        });
+        // Usar extractTextByPages y truncar manualmente si es necesario
+        const pages = await this.pdfParserService.extractTextByPages(buffer);
+        const limitedPages = pages.slice(0, truncationLimit);
+        result.text = limitedPages.map(p => p.content).join('\n');
         this.logger.log(`📄 Truncated text extracted: ${result.text?.length || 0} characters (max ${truncationLimit} pages)`);
       }
 

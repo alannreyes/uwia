@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as pdfParse from 'pdf-parse';
 import { PDFDocument } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.js';
 import { OcrService } from './ocr.service';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
