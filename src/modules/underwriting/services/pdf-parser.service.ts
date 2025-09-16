@@ -17,7 +17,7 @@ export class PdfParserService {
 
   private async initializePdfJs() {
     try {
-      const workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+      const workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
       pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
       
       const fontDir = path.join(path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts/');
