@@ -115,3 +115,7 @@ VISION_MAX_PAGES=5
 # Clave de API para Gemini (ya usada en el sistema)
 GEMINI_API_KEY=tu_api_key
 ```
+
+## Resumen de la mejora principal
+
+La nueva versión implementa un pipeline unificado y robusto para procesar cualquier PDF (nativo, escaneado, grande o pequeño), integrando extracción de texto avanzada, fallback automático a OCR, chunking inteligente y uso de Gemini/OpenAI Vision según el caso. Ahora, si el PDF supera el límite del método inline, el sistema utiliza automáticamente el método File API de Gemini para procesar archivos grandes. Si los modelos de IA fallan, retorna el texto extraído. La mejora esperada es máxima resiliencia: ningún PDF queda sin procesar, se minimizan errores, y se aprovechan al máximo las capacidades de IA y OCR, con logs claros y manejo automático de casos límite.

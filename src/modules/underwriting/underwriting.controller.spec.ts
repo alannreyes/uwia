@@ -38,7 +38,7 @@ describe('UnderwritingController - Large File Routing', () => {
 
   it('routes JSON base64 > threshold to processLargeFileSynchronously', async () => {
     // Arrange: set a tiny threshold so our small base64 exceeds it
-    configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_BYTES' ? 1 : undefined));
+  configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_MB' ? 1 : undefined));
 
     const body = {
       document_name: 'POLICY',
@@ -71,7 +71,7 @@ describe('UnderwritingController - Large File Routing', () => {
 
   it('uses normal evaluateClaim when JSON base64 <= threshold', async () => {
     // Arrange: set a big threshold so our base64 is under it
-    configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_BYTES' ? 10_000_000 : undefined));
+  configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_MB' ? 10 : undefined));
 
     const body = {
       document_name: 'LOP',
@@ -93,7 +93,7 @@ describe('UnderwritingController - Large File Routing', () => {
 
   it('routes multipart file > threshold to processLargeFileSynchronously', async () => {
     // Arrange: set threshold to 10 bytes
-    configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_BYTES' ? 10 : undefined));
+  configService.get.mockImplementation((key: string) => (key === 'LARGE_FILE_THRESHOLD_MB' ? 10 : undefined));
 
     const fileBuffer = Buffer.from('this is a big-ish file');
     const files: any[] = [

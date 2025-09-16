@@ -47,7 +47,8 @@ export class UnderwritingController {
 
     // If JSON route carries base64 and it's large, route to large-file flow
     try {
-      const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES') || 10485760; // 10MB default
+  const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 20; // 20MB default
+  const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
       const documentName = body.document_name || 'DOCUMENT';
       const base64 = body.file_data || body.lop_pdf || body.policy_pdf;
       if (typeof base64 === 'string' && base64.length > 0) {
@@ -131,7 +132,8 @@ export class UnderwritingController {
     let document_name = body.document_name;
 
     if (uploadedFile) {
-  const largeFileThreshold = this.configService.get<number>('LARGE_FILE_THRESHOLD_BYTES') || 10485760;
+  const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 20;
+  const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
 
       // 🚨 CRITICAL DEBUG LOGGING
       this.logger.log(`🔍 [FILE-DEBUG] File: ${uploadedFile.originalname}`);
