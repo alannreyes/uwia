@@ -37,7 +37,7 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdf-to-png-converter": "^3.7.1",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^5.4.149",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "sentence-splitter": "^5.0.0",
