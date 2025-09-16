@@ -25,6 +25,8 @@ import { ClaimEvaluation } from './entities/claim-evaluation.entity';
 import { DocumentEmbedding } from './chunking/entities/document-embedding.entity';
 import { VectorQuery } from './chunking/entities/vector-query.entity';
 import { ConfigService } from '@nestjs/config';
+import { ProcessingOrchestratorService } from './orchestration/processing-orchestrator.service';
+import { OcrService } from './services/ocr.service';
 
 import { ChunkingModule } from './chunking/chunking.module';
 
@@ -41,6 +43,8 @@ import { ChunkingModule } from './chunking/chunking.module';
   controllers: [UnderwritingController, RagDebugController],
   providers: [
     UnderwritingService,
+    ProcessingOrchestratorService,
+    OcrService,
     // Services not provided by ChunkingModule
     PdfFormExtractorService,
     PdfHybridAnalyzerService,

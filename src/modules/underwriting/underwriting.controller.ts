@@ -1,3 +1,4 @@
+
 import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus, Logger, Req, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
@@ -7,6 +8,8 @@ import { EvaluateClaimResponseDto } from './dto/evaluate-claim-response.dto';
 import { EvaluateClaimBatchRequestDto } from './dto/evaluate-claim-batch-request.dto';
 import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
 import { ConfigService } from '@nestjs/config';
+import { ProcessingOrchestratorService } from './orchestration/processing-orchestrator.service';
+
 
 @Controller('underwriting')
 export class UnderwritingController {
@@ -16,6 +19,7 @@ export class UnderwritingController {
     private readonly underwritingService: UnderwritingService,
     private readonly enhancedPdfProcessorService: EnhancedPdfProcessorService,
     private readonly configService: ConfigService,
+    private readonly processingOrchestratorService: ProcessingOrchestratorService,
   ) {}
 
   @Post('evaluate-claim')
@@ -212,6 +216,7 @@ export class UnderwritingController {
     const _variables = this.underwritingService.getVariableMapping(dto, dto.context);
     return this.underwritingService.evaluateClaim({ ...dto, _variables } as any);
   }
+
 
   // Nuevo endpoint batch para procesar múltiples documentos de una vez
   @Post('evaluate-claim-batch')
