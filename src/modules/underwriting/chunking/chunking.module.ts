@@ -16,6 +16,7 @@ import { OpenAiService } from '../services/openai.service';
 import { GeminiService } from '../services/gemini.service';
 import { RateLimiterService } from '../services/rate-limiter.service';
 import { JudgeValidatorService } from '../services/judge-validator.service';
+import { OcrService } from '../services/ocr.service';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { JudgeValidatorService } from '../services/judge-validator.service';
     GeminiService,
     RateLimiterService,
     JudgeValidatorService,
+    OcrService,
   ],
   exports: [
     EnhancedPdfProcessorService,
@@ -45,6 +47,7 @@ import { JudgeValidatorService } from '../services/judge-validator.service';
     MemoryManagerService,
     PdfParserService,
     OpenAiService,
+    OcrService,
   ],
 })
 export class ChunkingModule {}
