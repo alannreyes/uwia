@@ -74,10 +74,12 @@ export class ChunkStorageService {
   }
 
   async getChunks(sessionId: string): Promise<PdfChunk[]> {
-    return this.chunkRepository.find({
+    const chunks = await this.chunkRepository.find({
       where: { sessionId },
       order: { chunkIndex: 'ASC' },
     });
+    
+    return chunks;
   }
 
   async findChunksByKeywords(sessionId: string, keywords: string[]): Promise<PdfChunk[]> {

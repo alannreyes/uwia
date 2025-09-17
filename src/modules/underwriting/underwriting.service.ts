@@ -162,35 +162,41 @@ export class UnderwritingService {
     this.logger.log(`🔍 [VAR-EXTRACT] Extracting basic variables from document...`);
 
     try {
-      // Prompt simple para extraer variables básicas sin usar placeholders
+      // 🚀 IMPROVED: Better extraction prompt with more specific instructions
       const extractionPrompt = `
         Please extract the following information from this document and return it in JSON format:
         {
-          "insured_name": "name of the insured person/company",
-          "insurance_company": "name of the insurance company",
-          "date_of_loss": "date when the loss occurred",
-          "policy_number": "policy or certificate number",
-          "claim_number": "claim number if available",
-          "insured_address": "full address of insured",
-          "insured_street": "street address",
-          "insured_city": "city",
-          "insured_zip": "zip code",
-          "type_of_job": "type of work/job",
-          "cause_of_loss": "cause of the loss/damage"
+          "insured_name": "name of the insured person/company (look for policyholder, insured, client names)",
+          "insurance_company": "name of the insurance company (look for carrier, insurer, company providing coverage)",
+          "date_of_loss": "date when loss/damage occurred (MM-DD-YY format)",
+          "policy_number": "insurance policy number (look for Policy #, Policy No, etc.)",
+          "claim_number": "insurance claim number (look for Claim #, Claim No, etc.)",
+          "insured_address": "full address of insured property",
+          "insured_street": "street address only",
+          "insured_city": "city name only", 
+          "insured_zip": "ZIP code only",
+          "type_of_job": "type of work/job being performed",
+          "cause_of_loss": "cause of damage/loss (wind, hail, storm, etc.)"
         }
-
-        Return only the JSON object. If a field is not found, use "".
+        
+        For any field not found, use empty string "". 
+        Extract from text even if formatting varies.
+        Look carefully through ALL pages for this information.
+        Return ONLY the JSON object, no additional text.
       `;
 
       const ragResult = await this.modernRagService.executeRAGPipeline(extractionPrompt, sessionId);
 
-      // Parse JSON response
+      // 🚀 IMPROVED: Better JSON parsing with fallback
       let extractedData: any = {};
       try {
         // Try to extract JSON from the response
         const jsonMatch = ragResult.answer.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           extractedData = JSON.parse(jsonMatch[0]);
+        } else {
+          // Fallback: try parsing the entire response
+          extractedData = JSON.parse(ragResult.answer);
         }
       } catch (parseError) {
         this.logger.warn(`⚠️ [VAR-EXTRACT] Failed to parse JSON response: ${parseError.message}`);

@@ -132,25 +132,43 @@ export class EnhancedPdfProcessorService {
   }
 
   private createChunksFromPages(pages: {page: number, content: string}[], chunkSize: number): {content: string, pageStart: number, pageEnd: number}[] {
+    this.logger.log(`🔄 [ENHANCED-PDF] Creating chunks from ${pages.length} pages with max size ${chunkSize}`);
+    
     const chunks = [];
     let currentChunk = '';
     let pageStart = pages.length > 0 ? pages[0].page : 0;
     let pageEnd = pageStart;
 
     for (const page of pages) {
+        this.logger.log(`📄 [ENHANCED-PDF] Processing page ${page.page} with ${page.content.length} chars`);
+        
         if (currentChunk.length + page.content.length > chunkSize) {
-            chunks.push({ content: currentChunk, pageStart, pageEnd });
+            // Save current chunk if it has content
+            if (currentChunk.trim().length > 0) {
+                chunks.push({ content: currentChunk.trim(), pageStart, pageEnd });
+                this.logger.log(`✅ [ENHANCED-PDF] Created chunk ${chunks.length} with ${currentChunk.trim().length} chars`);
+            }
             currentChunk = page.content;
             pageStart = page.page;
             pageEnd = page.page;
         } else {
-            currentChunk += '\n' + page.content;
+            // 🚀 FIX: Better concatenation logic
+            if (currentChunk.length === 0) {
+                currentChunk = page.content;
+            } else {
+                currentChunk += '\n' + page.content;
+            }
             pageEnd = page.page;
         }
     }
-    if (currentChunk) {
-        chunks.push({ content: currentChunk, pageStart, pageEnd });
+    
+    // Don't forget the last chunk
+    if (currentChunk.trim().length > 0) {
+        chunks.push({ content: currentChunk.trim(), pageStart, pageEnd });
+        this.logger.log(`✅ [ENHANCED-PDF] Created final chunk ${chunks.length} with ${currentChunk.trim().length} chars`);
     }
+    
+    this.logger.log(`🎯 [ENHANCED-PDF] Total chunks created: ${chunks.length}`);
     return chunks;
   }
 
