@@ -167,6 +167,7 @@ export class PdfParserService {
           const context = canvas.getContext('2d');
 
           await page.render({
+            canvas: canvas,
             canvasContext: context,
             viewport: viewport,
           }).promise;
