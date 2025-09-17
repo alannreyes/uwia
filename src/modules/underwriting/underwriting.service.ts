@@ -1419,7 +1419,6 @@ export class UnderwritingService {
     // Procesar con Gemini File API
     const result = await this.geminiFileApiService.processPdfDocument(
       file.buffer,
-      file.originalname,
       question,
       ResponseType.TEXT
     );

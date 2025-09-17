@@ -79,4 +79,7 @@ logs
 .eslintcache
 
 # Webpack bundle analyzer
-bundle-analyzer-report.html 
+bundle-analyzer-report.html # Archivos de configuración local con credenciales reales
+.env.local
+development.env.backup
+*.env.local
