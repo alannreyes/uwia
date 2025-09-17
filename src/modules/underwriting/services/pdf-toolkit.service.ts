@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 // Suppress canvas warnings before importing anything
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -64,7 +64,7 @@ export class PdfToolkitService {
       this.pdfjsLib = pdfjsLib;
 
       // Set worker to avoid version mismatch
-      const workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
+  const workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.mjs');
       this.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
       // DISABLE font loading completely to prevent warnings

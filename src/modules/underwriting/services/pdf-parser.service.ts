@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as pdfParse from 'pdf-parse';
 import { PDFDocument } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { OcrService } from './ocr.service';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
@@ -17,7 +17,7 @@ export class PdfParserService {
 
   private async initializePdfJs() {
     try {
-      const workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+  const workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
       pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
       
       const fontDir = path.join(path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts/');
