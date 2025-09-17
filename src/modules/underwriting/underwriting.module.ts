@@ -15,6 +15,7 @@ import { AdaptiveProcessingStrategyService } from './services/adaptive-processin
 import { IntelligentPageSelectorService } from './services/intelligent-page-selector.service';
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { GeminiService } from './services/gemini.service';
+import { GeminiFileApiService } from './services/gemini-file-api.service';
 import { RateLimiterService } from './services/rate-limiter.service';
 import { ModernRagService } from './services/modern-rag.service';
 import { VectorStorageService } from './services/vector-storage.service';
@@ -58,6 +59,7 @@ import { ChunkingModule } from './chunking/chunking.module';
     IntelligentPageSelectorService,
     LargePdfVisionService,
     GeminiService,
+    GeminiFileApiService,
     RateLimiterService,
     ModernRagService,
     VectorStorageService,

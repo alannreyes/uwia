@@ -25,6 +25,7 @@ import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-pr
 import { ModernRagService } from './services/modern-rag.service';
 import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
+import { GeminiFileApiService } from './services/gemini-file-api.service';
 import { Express } from 'express';
 
 // Interface para prompts consolidados de la tabla document_consolidado
@@ -66,6 +67,7 @@ export class UnderwritingService {
   private modernRagService: ModernRagService,
   private vectorStorageService: VectorStorageService,
   private semanticChunkingService: SemanticChunkingService,
+  private geminiFileApiService: GeminiFileApiService,
   ) {}
 
   public getVariableMapping(dto: any, contextData: any): Record<string, string> {
@@ -276,6 +278,20 @@ export class UnderwritingService {
       });
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
+
+      // 🔍 DETECTION: Check if this is an image-based PDF that needs Gemini File API
+      const fileSizeMB = file.size / (1024 * 1024);
+      const shouldUseGeminiFileApi = await this.shouldUseGeminiFileApi(file.buffer, fileSizeMB);
+      
+      if (shouldUseGeminiFileApi && this.geminiFileApiService.isAvailable()) {
+        this.logger.log(`🚀 [GEMINI-FILE-API] Detected image-based PDF - using Gemini File API for better OCR`);
+        try {
+          return await this.processWithGeminiFileApi(file, body, context);
+        } catch (geminiError) {
+          this.logger.warn(`⚠️ [GEMINI-FILE-API] Failed, falling back to standard processing: ${geminiError.message}`);
+          // Continue with standard processing below
+        }
+      }
 
       // 2. Obtener el prompt para este documento
       const documentPrompts = await this.documentPromptRepository.find({
@@ -1346,8 +1362,113 @@ export class UnderwritingService {
         await this.sleep(checkInterval);
       }
     }
+  }
 
-    throw new Error(`Timeout waiting for session ${sessionId} to be ready after ${maxWaitTime}ms`);
+  /**
+   * Detecta si un PDF debe usar Gemini File API (imagen-based, poco texto extraído)
+   */
+  private async shouldUseGeminiFileApi(buffer: Buffer, fileSizeMB: number): Promise<boolean> {
+    try {
+      // Quick text extraction to check if it's image-based
+      const quickExtraction = await this.pdfParserService.extractText(buffer);
+      const textLength = quickExtraction.length;
+      const charsPerMB = textLength / fileSizeMB;
+      
+      // Criterios para usar Gemini File API:
+      // 1. Archivo grande (> 10MB) con poco texto extraído (< 200 chars/MB)
+      // 2. O archivo con muy poco texto en general (< 500 chars total)
+      const isImageBased = (fileSizeMB > 10 && charsPerMB < 200) || textLength < 500;
+      
+      this.logger.log(`📊 [DETECTION] PDF Analysis: ${fileSizeMB.toFixed(2)}MB, ${textLength} chars, ${charsPerMB.toFixed(1)} chars/MB`);
+      this.logger.log(`🔍 [DETECTION] Image-based PDF: ${isImageBased ? 'YES' : 'NO'}`);
+      
+      return isImageBased;
+    } catch (error) {
+      this.logger.warn(`⚠️ [DETECTION] Could not analyze PDF, defaulting to standard processing: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Procesa un archivo usando Gemini File API
+   */
+  private async processWithGeminiFileApi(
+    file: Express.Multer.File,
+    body: any,
+    context: any
+  ): Promise<EvaluateClaimResponseDto> {
+    this.logger.log(`🚀 [GEMINI-FILE-API] Starting processing for ${file.originalname}`);
+    
+    // Obtener variable mapping
+    const variableMapping = this.getVariableMapping(body, context);
+    
+    // Obtener el prompt para este documento
+    const { document_name } = body;
+    const documentPrompts = await this.documentPromptRepository.find({
+      where: { documentName: `${document_name}.pdf`, active: true },
+      order: { promptOrder: 'ASC' },
+    });
+
+    if (documentPrompts.length === 0) {
+      throw new Error(`No active prompts found for document: ${document_name}.pdf`);
+    }
+
+    const prompt = documentPrompts[0];
+    const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
+    
+    // Procesar con Gemini File API
+    const result = await this.geminiFileApiService.processPdfDocument(
+      file.buffer,
+      file.originalname,
+      question,
+      ResponseType.TEXT
+    );
+    
+    this.logger.log(`✅ [GEMINI-FILE-API] Processing completed in ${result.processingTime}ms using ${result.method}`);
+    
+    // Construir respuesta en formato estándar
+    const pmcFieldResult: PMCFieldResultDto = {
+      pmc_field: prompt.pmcField,
+      question: question,
+      answer: result.response,
+      confidence: result.confidence,
+      expected_type: 'text',
+      processing_time: result.processingTime
+    };
+    
+    const response: EvaluateClaimResponseDto = {
+      record_id: body.record_id || 'gemini-file-api',
+      status: 'success',
+      results: {
+        [`${document_name}.pdf`]: [pmcFieldResult]
+      },
+      summary: {
+        total_documents: 1,
+        processed_documents: 1,
+        total_fields: 1,
+        answered_fields: 1
+      },
+      processed_at: new Date()
+    };
+
+    // Guardar evaluación en la base de datos
+    try {
+      const evaluation = this.claimEvaluationRepository.create({
+        claimReference: body.claim_number || 'unknown',
+        documentName: `${document_name}.pdf`,
+        promptId: prompt.id,
+        question: question,
+        response: result.response,
+        confidence: result.confidence,
+        processingTimeMs: result.processingTime
+      });
+      await this.claimEvaluationRepository.save(evaluation);
+      this.logger.log(`💾 [GEMINI-FILE-API] Evaluation saved to database`);
+    } catch (dbError) {
+      this.logger.warn(`⚠️ [GEMINI-FILE-API] Could not save to database: ${dbError.message}`);
+    }
+
+    return response;
   }
 
   /**
@@ -1357,5 +1478,4 @@ export class UnderwritingService {
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-
 }

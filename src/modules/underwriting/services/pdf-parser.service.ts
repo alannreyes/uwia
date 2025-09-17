@@ -95,21 +95,36 @@ export class PdfParserService {
       const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
       const pages = [];
+      let totalCharsExtracted = 0;
 
       for (let i = 1; i <= numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item: any) => item.str).join(' ');
         pages.push({ page: i, content: pageText });
+        totalCharsExtracted += pageText.length;
         page.cleanup(); // Clean up page resources
       }
-      this.logger.log(`Extracted ${pages.length} pages.`);
+      
+      this.logger.log(`Extracted ${pages.length} pages with total ${totalCharsExtracted} characters.`);
+      
+      // 🚀 FIX: If pdfjs-dist extracted very little text, use pdf-parse fallback immediately
+      if (totalCharsExtracted < 100) {
+        this.logger.warn(`⚠️ pdfjs-dist extracted only ${totalCharsExtracted} chars, using pdf-parse fallback...`);
+        const fullText = await this.extractText(buffer);
+        if (fullText && fullText.length > totalCharsExtracted) {
+          this.logger.log(`✅ pdf-parse fallback extracted ${fullText.length} chars (better than ${totalCharsExtracted})`);
+          return [{ page: 1, content: fullText }];
+        }
+      }
+      
       return pages;
     } catch (error) {
       this.logger.error(`Failed to extract text by pages: ${error.message}`);
       // Fallback to single-page extraction
       const fullText = await this.extractText(buffer);
       if (fullText) {
+        this.logger.log(`✅ Fallback extracted ${fullText.length} characters`);
         return [{ page: 1, content: fullText }];
       }
       return [];

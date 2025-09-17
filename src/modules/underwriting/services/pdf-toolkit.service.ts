@@ -204,9 +204,22 @@ export class PdfToolkitService {
           return results;
         }
         
-        // Convert PDF to images for OCR (limit pages for performance)
-        const maxOcrPages = parseInt(process.env.MAX_OCR_PAGES || '3');
+        // Convert PDF to images for OCR
         const pageCount = await this.getPageCount(buffer);
+        
+        // 🚀 SMART OCR LOGIC: For image-based PDFs, process more pages
+        let maxOcrPages = parseInt(process.env.MAX_OCR_PAGES || '3');
+        
+        // If this looks like a scanned document (large file, no text), process more pages
+        const fileSizeMB = buffer.length / (1024 * 1024);
+        const isLikelyScannedDoc = fileSizeMB > 10 && textLength < 200 && pageCount > 10;
+        
+        if (isLikelyScannedDoc) {
+          maxOcrPages = Math.min(pageCount, parseInt(process.env.MAX_OCR_PAGES_SCANNED || '20'));
+          this.logger.log(`📄 Detected large scanned document (${fileSizeMB.toFixed(1)}MB, ${pageCount} pages, ${textLength} chars)`);
+          this.logger.log(`🔧 Increasing OCR processing to ${maxOcrPages} pages for better extraction`);
+        }
+        
         const pagesToProcess = Math.min(pageCount, maxOcrPages);
         
         this.logger.log(`🖼️ Converting ${pagesToProcess}/${pageCount} pages to images for OCR...`);
