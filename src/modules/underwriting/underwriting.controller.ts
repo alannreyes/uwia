@@ -23,14 +23,15 @@ export class UnderwritingController {
   ) {}
 
   @Post('evaluate-claim')
+  @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.OK)
   async evaluateClaim(
+    @UploadedFile() file: Express.Multer.File,
     @Body() body: any,
     @Req() req: any
   ): Promise<EvaluateClaimResponseDto> {
     this.logger.log('🔍 Request received with fields:');
     const cleanBody = { ...body };
-    // Remove ALL large content fields from logging
     if (cleanBody.file_data) cleanBody.file_data = '[BASE64_REMOVED]';
     if (cleanBody.lop_pdf) cleanBody.lop_pdf = '[BASE64_REMOVED]';
     if (cleanBody.policy_pdf) cleanBody.policy_pdf = '[BASE64_REMOVED]';
@@ -38,17 +39,46 @@ export class UnderwritingController {
     if (cleanBody.context && typeof cleanBody.context === 'object' && JSON.stringify(cleanBody.context).length > 500) {
       cleanBody.context = '[LARGE_CONTEXT_REMOVED]';
     }
-    // Only log field names, not content
     this.logger.log(`📋 Fields: ${Object.keys(cleanBody).join(', ')}`);
     this.logger.log(`📄 Document: ${cleanBody.document_name || 'unknown'}`);
     this.logger.log(`🆔 Record: ${cleanBody.record_id || 'unknown'}`);
 
-    // Basic validation only - file data debugging removed to clean logs
+    // Si viene archivo (multipart), procesar igual que en evaluateClaimMultipart
+    if (file) {
+      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 20;
+      const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
+      this.logger.log(`📥 [MULTIPART] Archivo recibido: ${file.originalname} (${file.size} bytes)`);
+      this.logger.log(`🔍 [FILE-DEBUG] Threshold: ${largeFileThreshold} bytes (${(largeFileThreshold/1024/1024).toFixed(2)} MB)`);
+      if (file.size > largeFileThreshold) {
+        this.logger.log(`🐘 [LARGE-FILE-ROUTE] Processing via processLargeFileSynchronously`);
+        return this.underwritingService.processLargeFileSynchronously(file, body);
+      }
+      // Convertir a base64 para compatibilidad con el pipeline
+      const fileBase64 = file.buffer.toString('base64');
+      let document_name = body.document_name;
+      if (!document_name && file.originalname) {
+        document_name = file.originalname.replace(/\.pdf$/i, '');
+        this.logger.log(`Document name extracted from file: ${document_name}`);
+      }
+      // Pre-compute variables at ingress
+      let preContext = body.context;
+      if (typeof preContext === 'string') {
+        try { preContext = JSON.parse(preContext); } catch {}
+      }
+      const _variables = this.underwritingService.getVariableMapping(body, preContext);
+      const dto = {
+        ...(body as EvaluateClaimRequestDto),
+        file_data: fileBase64,
+        document_name,
+        _variables,
+      } as any;
+      return this.underwritingService.evaluateClaim(dto);
+    }
 
-    // If JSON route carries base64 and it's large, route to large-file flow
+    // Si no viene archivo, mantener compatibilidad con JSON puro
     try {
-  const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 20; // 20MB default
-  const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
+      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 20; // 20MB default
+      const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
       const documentName = body.document_name || 'DOCUMENT';
       const base64 = body.file_data || body.lop_pdf || body.policy_pdf;
       if (typeof base64 === 'string' && base64.length > 0) {
@@ -65,7 +95,6 @@ export class UnderwritingController {
             buffer,
             mimetype: 'application/pdf'
           };
-          // Ensure context is parsed for the service
           let preCtx = body.context;
           if (typeof preCtx === 'string') { try { preCtx = JSON.parse(preCtx); } catch {} }
           const passthroughBody = { ...body, document_name: documentName, context: preCtx };
@@ -75,7 +104,7 @@ export class UnderwritingController {
     } catch (jsonRouteErr) {
       this.logger.warn(`⚠️ [JSON-FILE-ROUTE] Large-file routing check failed: ${jsonRouteErr.message}`);
     }
-    
+
     // Pre-compute variables at ingress
     let preContext = body.context;
     if (typeof preContext === 'string') {
