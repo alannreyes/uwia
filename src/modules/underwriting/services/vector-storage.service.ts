@@ -37,8 +37,19 @@ export class VectorStorageService {
   async storeEmbeddings(chunks: SemanticChunk[]): Promise<void> {
     this.logger.log(`📦 [VECTOR-STORAGE] Storing ${chunks.length} embeddings...`);
     
+    let skippedEmpty = 0;
+    let processedCount = 0;
+    
     try {
       for (const chunk of chunks) {
+        // 🚀 VALIDATE CHUNK CONTENT: Skip empty or nearly empty chunks
+        const trimmedContent = chunk.content?.trim() || '';
+        if (trimmedContent.length <= 10) {
+          skippedEmpty++;
+          this.logger.warn(`⚠️ [VECTOR-STORAGE] Skipping empty/tiny chunk ${chunk.id}: only ${trimmedContent.length} chars`);
+          continue;
+        }
+        
         // Generar embedding si no existe
         if (!chunk.embedding) {
           const embeddingResult = await this.embeddingsService.embedText(chunk.content);
@@ -81,6 +92,7 @@ export class VectorStorageService {
           });
           
           await this.documentEmbeddingRepository.save(entity);
+          processedCount++;
           // Removed verbose per-chunk save log
           
         } catch (dbError) {
@@ -89,7 +101,10 @@ export class VectorStorageService {
         }
       }
       
-      this.logger.log(`✅ [VECTOR-STORAGE] Successfully stored ${chunks.length} embeddings in cache`);
+      this.logger.log(`✅ [VECTOR-STORAGE] Successfully stored ${processedCount}/${chunks.length} embeddings in cache`);
+      if (skippedEmpty > 0) {
+        this.logger.warn(`⚠️ [VECTOR-STORAGE] Skipped ${skippedEmpty} empty/tiny chunks (≤10 chars)`);
+      }
       this.logger.log(`📊 [VECTOR-STORAGE] Total cached embeddings: ${this.embeddingCache.size}`);
       
     } catch (error) {

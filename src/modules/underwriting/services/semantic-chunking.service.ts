@@ -260,11 +260,20 @@ export class SemanticChunkingService {
     this.logger.log(`📄 [SEMANTIC-CHUNKING] Session: ${sessionId}, File: ${filename}`);
     
     const semanticChunks: SemanticChunk[] = [];
+    let skippedEmpty = 0;
     
     for (let i = 0; i < pdfChunks.length; i++) {
       const pdfChunk = pdfChunks[i];
       
       try {
+        // 🚀 VALIDATE CHUNK CONTENT: Skip empty or nearly empty chunks
+        const trimmedContent = pdfChunk.content?.trim() || '';
+        if (trimmedContent.length <= 10) {
+          skippedEmpty++;
+          this.logger.warn(`⚠️ [SEMANTIC-CHUNKING] Skipping empty/tiny chunk ${i}: only ${trimmedContent.length} chars`);
+          continue;
+        }
+        
         // Crear semantic chunk usando el método existente
         const semanticChunk = this.createChunkFromText(
           pdfChunk.content,
@@ -292,6 +301,9 @@ export class SemanticChunkingService {
     }
     
     this.logger.log(`✅ [SEMANTIC-CHUNKING] Successfully converted ${semanticChunks.length}/${pdfChunks.length} chunks`);
+    if (skippedEmpty > 0) {
+      this.logger.warn(`⚠️ [SEMANTIC-CHUNKING] Skipped ${skippedEmpty} empty/tiny chunks (≤10 chars)`);
+    }
     
     return semanticChunks;
   }

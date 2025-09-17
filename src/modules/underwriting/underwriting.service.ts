@@ -859,6 +859,31 @@ export class UnderwritingService {
       // Use strategy from AdaptiveProcessingStrategy (database-agnostic)
       let useVisualAnalysis = strategy.useVisualAnalysis;
 
+      // 🚀 FORCE VISION MODE when text extraction is insufficient
+      if (!useVisualAnalysis && preparedDocument.text && preparedDocument.images && preparedDocument.images.size > 0) {
+        const textLength = preparedDocument.text.length;
+        const numPages = preparedDocument.images.size;
+        const textPerPage = textLength / numPages;
+        const textPerMB = textLength / Math.max(fileSizeEstimate, 0.1);
+        
+        // Force vision if:
+        // 1. Very little text overall (< 1000 chars)
+        // 2. Very little text per page (< 200 chars/page)
+        // 3. Low text density per MB (< 50,000 chars/MB indicates scanned/image-heavy PDF)
+        const shouldForceVision = textLength < 1000 || 
+                                 textPerPage < 200 || 
+                                 textPerMB < 50000;
+        
+        if (shouldForceVision) {
+          useVisualAnalysis = true;
+          this.logger.log(`🔴 FORCING VISION MODE due to insufficient text extraction:`);
+          this.logger.log(`   - Total text: ${textLength} chars`);
+          this.logger.log(`   - Text per page: ${textPerPage.toFixed(1)} chars/page`);
+          this.logger.log(`   - Text density: ${textPerMB.toFixed(0)} chars/MB`);
+          this.logger.log(`   - Original strategy: ${strategy.useVisualAnalysis} -> FORCED: true`);
+        }
+      }
+
       // LOGGING: Decisión de estrategia
       this.logger.log(`🎯 Strategy decision for ${documentName}:`);
       this.logger.log(`   - Strategy: Visual=${strategy.useVisualAnalysis}, Model=${strategy.primaryModel}`);

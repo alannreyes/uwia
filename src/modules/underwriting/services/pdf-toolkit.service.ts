@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 const pdfParse = require('pdf-parse');
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { OcrService } from './ocr.service';
 // Suppress canvas warnings before importing anything
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -46,7 +47,7 @@ export class PdfToolkitService {
   private readonly logger = new Logger(PdfToolkitService.name);
   private pdfjsLib: any;
 
-  constructor() {
+  constructor(@Optional() private readonly ocrService?: OcrService) {
     this.initializePdfJs();
     // Set up global functions if needed
     if (typeof global !== 'undefined') {
@@ -63,9 +64,9 @@ export class PdfToolkitService {
       // Use legacy build for better compatibility
       this.pdfjsLib = pdfjsLib;
 
-      // Set worker to avoid version mismatch
-  const workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.mjs');
-      this.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+      // Set worker to avoid version mismatch - use CDN fallback for ESM compatibility
+      this.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
       // DISABLE font loading completely to prevent warnings
       this.pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = null;
@@ -188,6 +189,76 @@ export class PdfToolkitService {
       }
     } catch (error) {
       this.logger.warn(`⚠️ pdfjs-dist extraction failed: ${error.message}`);
+    }
+
+    // 🚀 OCR FALLBACK: If text extraction is insufficient
+    const textLength = results.text.trim().length;
+    if (textLength < 50) {
+      this.logger.log(`🔍 Text extraction insufficient (${textLength} chars), attempting OCR fallback...`);
+      
+      try {
+        // Check if OCR is enabled via environment
+        const ocrEnabled = process.env.OCR_ENABLED !== 'false';
+        if (!ocrEnabled) {
+          this.logger.warn(`⚠️ OCR is disabled via OCR_ENABLED environment variable`);
+          return results;
+        }
+        
+        // Convert PDF to images for OCR (limit pages for performance)
+        const maxOcrPages = parseInt(process.env.MAX_OCR_PAGES || '3');
+        const pageCount = await this.getPageCount(buffer);
+        const pagesToProcess = Math.min(pageCount, maxOcrPages);
+        
+        this.logger.log(`🖼️ Converting ${pagesToProcess}/${pageCount} pages to images for OCR...`);
+        
+        const pageNumbers = Array.from({ length: pagesToProcess }, (_, i) => i + 1);
+        const images = await this.convertToImages(buffer, pageNumbers);
+        
+        if (images.size === 0) {
+          this.logger.warn(`⚠️ No images could be converted for OCR`);
+          return results;
+        }
+        
+        // Extract text from images using Tesseract.js
+        let ocrText = '';
+        let processedImages = 0;
+        
+        for (const [pageNum, imageBuffer] of images) {
+          try {
+            this.logger.log(`🔍 Processing page ${pageNum} with OCR...`);
+            
+            // Use OcrService for text extraction from images
+            if (this.ocrService) {
+              const pageText = await this.ocrService.extractTextFromImage(imageBuffer);
+              ocrText += pageText + '\n';
+            } else {
+              this.logger.warn(`⚠️ OcrService not available, skipping page ${pageNum}`);
+              continue;
+            }
+            
+            processedImages++;
+            
+            // Rate limiting between OCR operations
+            if (processedImages < images.size) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+          } catch (ocrError) {
+            this.logger.warn(`⚠️ OCR failed for page ${pageNum}: ${ocrError.message}`);
+            continue;
+          }
+        }
+        
+        if (ocrText.trim().length > textLength) {
+          results.text = ocrText.trim();
+          this.logger.log(`✅ OCR extracted: ${results.text.length} characters from ${processedImages} pages`);
+        } else {
+          this.logger.warn(`⚠️ OCR did not improve text extraction (${ocrText.trim().length} chars)`);
+        }
+        
+      } catch (ocrError) {
+        this.logger.error(`❌ OCR fallback failed: ${ocrError.message}`);
+      }
     }
 
     return results;

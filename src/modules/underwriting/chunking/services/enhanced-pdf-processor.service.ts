@@ -63,6 +63,31 @@ export class EnhancedPdfProcessorService {
     const stream = Readable.from(buffer);
     const textPages = await this.pdfParserService.extractTextByPages(buffer);
     this.logger.log(`📄 [BATCH-PROCESSING] Extracted ${textPages.length} pages from PDF`);
+    
+    // 🚀 SPECIAL HANDLING: Single page with massive content (POLICY.pdf case)
+    if (textPages.length === 1 && textPages[0].content.length > 1_000_000) {
+      this.logger.log(`🔄 [BATCH-PROCESSING] Single massive page detected: ${textPages[0].content.length} chars`);
+      this.logger.log(`🔪 [BATCH-PROCESSING] Splitting into 8KB chunks for embedding efficiency`);
+      
+      const largeContent = textPages[0].content;
+      const chunkSize8KB = 8192; // 8KB chunks
+      const splitChunks = [];
+      
+      for (let i = 0; i < largeContent.length; i += chunkSize8KB) {
+        const chunkContent = largeContent.slice(i, i + chunkSize8KB);
+        splitChunks.push({
+          page: 1,
+          content: chunkContent
+        });
+      }
+      
+      this.logger.log(`✂️ [BATCH-PROCESSING] Split massive page into ${splitChunks.length} chunks of ~8KB each`);
+      
+      // Replace the single massive page with multiple manageable chunks
+      textPages.splice(0, 1, ...splitChunks);
+      this.logger.log(`📄 [BATCH-PROCESSING] Now processing ${textPages.length} manageable chunks`);
+    }
+    
     if (textPages.length === 0) {
       this.logger.warn(`⚠️ [BATCH-PROCESSING] 0 pages extracted; using full-text fallback as single chunk`);
       try {
