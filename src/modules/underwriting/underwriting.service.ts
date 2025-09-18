@@ -316,7 +316,7 @@ export class UnderwritingService {
       }
 
       // 2. Obtener el prompt consolidado para este documento
-      const queryRunner = this.entityManager.connection.createQueryRunner();
+      const queryRunner = this.documentPromptRepository.manager.connection.createQueryRunner();
       await queryRunner.connect();
 
       let prompt: { pmcField: string; question: string; fieldNames?: string[]; expectedFieldsCount?: number };
