@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnderwritingController } from './underwriting.controller';
 import { RagDebugController } from './controllers/rag-debug.controller';
 import { UnderwritingService } from './underwriting.service';
+import { OpenAiService } from './services/openai.service';
+import { PdfParserService } from './services/pdf-parser.service';
 import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
@@ -46,6 +48,8 @@ import { ChunkingModule } from './chunking/chunking.module';
     UnderwritingService,
     ProcessingOrchestratorService,
     OcrService,
+    OpenAiService,            // FIXED: Added missing OpenAiService
+    PdfParserService,         // FIXED: Added missing PdfParserService
     // Services not provided by ChunkingModule
     PdfFormExtractorService,
     PdfHybridAnalyzerService,
