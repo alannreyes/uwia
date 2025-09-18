@@ -1371,6 +1371,7 @@ export class UnderwritingService {
 
   /**
    * Detecta si un PDF debe usar Gemini File API (imagen-based, poco texto extraído)
+   * Mejorado para detectar PDFs completamente escaneados como POLICY64.pdf
    */
   private async shouldUseGeminiFileApi(buffer: Buffer, fileSizeMB: number): Promise<boolean> {
     try {
@@ -1379,15 +1380,38 @@ export class UnderwritingService {
       const textLength = quickExtraction.length;
       const charsPerMB = textLength / fileSizeMB;
       
-      // Criterios para usar Gemini File API:
-      // 1. Archivo grande (> 10MB) con poco texto extraído (< 200 chars/MB)
-      // 2. O archivo con muy poco texto en general (< 500 chars total)
-      const isImageBased = (fileSizeMB > 10 && charsPerMB < 200) || textLength < 500;
+      // Análisis adicional para PDFs escaneados
+      const content = buffer.toString('latin1');
+      const hasImages = content.includes('/XObject') || content.includes('/Image');
+      const hasText = content.includes('/Font') || content.includes('/Text');
+      const fontMatches = content.match(/\/Type\s*\/Font/g) || [];
+      const imageMatches = content.match(/\/Type\s*\/XObject[\s\S]*?\/Subtype\s*\/Image/g) || [];
+      const pageMatches = content.match(/\/Type\s*\/Page[^s]/g) || [];
+      
+      const fontCount = fontMatches.length;
+      const imageCount = imageMatches.length;
+      const pageCount = pageMatches.length || 1;
+      const fontDensity = fontCount / pageCount;
+      
+      // Criterios mejorados para usar Gemini File API:
+      // 1. Archivo con muy poco texto extraído (< 100 chars/MB)
+      // 2. O archivo con densidad de fuentes muy baja (< 0.5 fuentes por página)
+      // 3. O archivo donde hay más imágenes que fuentes (ratio > 2:1)
+      // 4. O archivos grandes (> 50MB) con poco texto
+      const isScanned = (
+        charsPerMB < 100 ||                           // Muy poco texto extraído
+        fontDensity < 0.5 ||                          // Pocas fuentes por página
+        (imageCount > fontCount * 2) ||               // Más imágenes que fuentes
+        (fileSizeMB > 50 && charsPerMB < 500) ||      // Archivos grandes con poco texto
+        textLength < 200                              // Muy poco texto total
+      );
       
       this.logger.log(`📊 [DETECTION] PDF Analysis: ${fileSizeMB.toFixed(2)}MB, ${textLength} chars, ${charsPerMB.toFixed(1)} chars/MB`);
-      this.logger.log(`🔍 [DETECTION] Image-based PDF: ${isImageBased ? 'YES' : 'NO'}`);
+      this.logger.log(`� [DETECTION] Pages: ${pageCount}, Fonts: ${fontCount}, Images: ${imageCount}`);
+      this.logger.log(`📈 [DETECTION] Font density: ${fontDensity.toFixed(2)} fonts/page`);
+      this.logger.log(`🔍 [DETECTION] Scanned PDF detected: ${isScanned ? 'YES' : 'NO'} → ${isScanned ? 'GEMINI FILE API' : 'MODERN RAG'}`);
       
-      return isImageBased;
+      return isScanned;
     } catch (error) {
       this.logger.warn(`⚠️ [DETECTION] Could not analyze PDF, defaulting to standard processing: ${error.message}`);
       return false;
