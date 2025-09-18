@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 import { PDFDocument } from 'pdf-lib';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as crypto from 'crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { PdfProcessingSession } from '../chunking/entities/pdf-processing-session.entity';
+import { VectorStorageService } from './vector-storage.service';
+import { SemanticChunk } from './semantic-chunking.service';
 
 interface DocumentChunk {
   content: string;
@@ -28,6 +34,7 @@ export interface ModernRAGResult {
   usedChunks: number;
   totalChunks: number;
   relevantChunks: string[];
+  sessionId?: string;
 }
 
 @Injectable()
@@ -37,8 +44,29 @@ export class ModernRAGService {
   private embedModel?: any;
   private generativeModel?: any;
   
-  constructor() {
+  constructor(
+    private readonly vectorStorage?: VectorStorageService,
+    @InjectRepository(PdfProcessingSession)
+    private readonly sessionRepository?: Repository<PdfProcessingSession>
+  ) {
     this.initializeModernRAG();
+  }
+
+  /**
+   * Limpieza explícita de recursos efímeros usados durante Modern RAG
+   * Actualmente no persistimos nada en disco/DB, pero dejamos el hook preparado.
+   */
+  async cleanup(sessionId?: string): Promise<void> {
+    try {
+      // Si se pasó sessionId y hay repositorio, eliminamos la sesión para hacer cascade delete de embeddings
+      if (sessionId && this.sessionRepository) {
+        await this.sessionRepository.delete({ id: sessionId });
+        this.logger.log(`🧹 [MODERN-RAG] Deleted session ${sessionId} (cascade removed embeddings)`);
+      }
+      return;
+    } catch (e) {
+      this.logger.warn(`⚠️ [MODERN-RAG] Cleanup warning: ${e.message}`);
+    }
   }
 
   private initializeModernRAG(): void {
@@ -82,12 +110,66 @@ export class ModernRAGService {
     this.logger.log(`🚀 [MODERN-RAG] Iniciando análisis RAG para PDF de ${fileSizeMB.toFixed(2)}MB`);
     
     try {
-      // 1. Extraer y chunkar el documento
-      const chunks = await this.extractAndChunkDocument(pdfBuffer);
+  // 1. Extraer y chunkar el documento
+  const sessionId = crypto.randomUUID();
+  const chunks = await this.extractAndChunkDocument(pdfBuffer);
       this.logger.log(`📄 [MODERN-RAG] Documento dividido en ${chunks.length} chunks semánticos`);
       
       // 2. Generar embeddings para todos los chunks
-      await this.generateEmbeddings(chunks);
+  await this.generateEmbeddings(chunks);
+
+      // 2.5 Crear sesión (si hay repo) y persistir embeddings con metadatos de Gemini
+      try {
+        if (this.vectorStorage) {
+          // Crear sesión para cumplir FK y permitir consultas posteriores
+          if (this.sessionRepository) {
+            const now = new Date();
+            const ttlMs = 2 * 60 * 60 * 1000; // 2 horas
+            const expires = new Date(now.getTime() + ttlMs);
+            const session = this.sessionRepository.create({
+              id: sessionId,
+              fileName: 'gemini-modernrag.pdf',
+              fileSize: pdfBuffer.length,
+              totalChunks: chunks.length,
+              processedChunks: chunks.length,
+              status: 'ready',
+              expiresAt: expires,
+              metadata: { embeddingModel: 'text-embedding-004', embeddingDimensions: 768 }
+            });
+            await this.sessionRepository.save(session);
+            this.logger.log(`🧾 [MODERN-RAG] Session created: ${sessionId} (ttl 2h)`);
+          }
+
+          // mapear chunks a SemanticChunk estructuralmente compatible
+          const semanticChunks: SemanticChunk[] = chunks.map((c, idx) => ({
+            id: `gem-${idx}`,
+            sessionId,
+            chunkIndex: idx,
+            content: c.content,
+            contentHash: '',
+            tokenCount: c.content.length / 4,
+            characterCount: c.content.length,
+            embedding: c.embedding,
+            metadata: {
+              positionStart: 0,
+              positionEnd: c.content.length,
+              semanticType: 'content',
+              importance: 'medium',
+              hasNumbers: /\d/.test(c.content),
+              hasDates: /\d{2}-\d{2}-\d{2,4}/.test(c.content),
+              hasNames: /[A-Z][a-z]+ [A-Z][a-z]+/.test(c.content),
+              hasMonetaryValues: /[$€£]\s?\d/.test(c.content),
+              keywords: [],
+              // metadatos de modelo
+              ...( { embeddingModel: 'text-embedding-004', embeddingDimensions: 768 } as any )
+            }
+          }));
+          await this.vectorStorage.storeEmbeddings(semanticChunks, { embeddingModel: 'text-embedding-004', embeddingDimensions: 768 });
+          this.logger.log(`💾 [MODERN-RAG] Persisted ${semanticChunks.length} embeddings (Gemini 768D) for session ${sessionId}`);
+        }
+      } catch (persistErr) {
+        this.logger.warn(`⚠️ [MODERN-RAG] Could not persist embeddings: ${persistErr.message}`);
+      }
       this.logger.log(`🧠 [MODERN-RAG] Embeddings generados para ${chunks.length} chunks`);
       
       // 3. Generar embedding para la pregunta
@@ -99,7 +181,7 @@ export class ModernRAGService {
       this.logger.log(`🎯 [MODERN-RAG] Encontrados ${relevantChunks.length} chunks relevantes`);
       
       // 5. Generar respuesta usando los chunks relevantes
-      const response = await this.generateResponseFromChunks(relevantChunks, question, expectedType);
+  const response = await this.generateResponseFromChunks(relevantChunks, question, expectedType);
       
       const processingTime = Date.now() - startTime;
       
@@ -115,7 +197,8 @@ export class ModernRAGService {
         method: 'modern-rag',
         usedChunks: relevantChunks.length,
         totalChunks: chunks.length,
-        relevantChunks: relevantChunks.map(r => `Chunk ${r.chunk.chunkIndex} (pages ${r.chunk.pageNumbers.join(', ')})`)
+        relevantChunks: relevantChunks.map(r => `Chunk ${r.chunk.chunkIndex} (pages ${r.chunk.pageNumbers.join(', ')})`),
+        sessionId
       };
       
     } catch (error) {

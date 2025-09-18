@@ -137,7 +137,7 @@ export class GeminiFileApiService {
       );
 
       // Convertir resultado de Modern RAG a formato GeminiFileApiResult
-      return {
+      const result: GeminiFileApiResult = {
         response: ragResult.response,
         confidence: ragResult.confidence,
         reasoning: `${ragResult.reasoning} | Used ${ragResult.usedChunks}/${ragResult.totalChunks} chunks`,
@@ -146,6 +146,15 @@ export class GeminiFileApiService {
         model: ragResult.model,
         method: 'modern-rag'
       };
+
+      // Limpieza explícita tras terminar
+      try {
+        await this.modernRAGService.cleanup(ragResult.sessionId);
+      } catch (cleanupErr) {
+        this.logger.warn(`⚠️ [MODERN-RAG] Cleanup failed: ${cleanupErr.message}`);
+      }
+
+      return result;
 
     } catch (error) {
       this.logger.error(`❌ [MODERN-RAG] Error: ${error.message}, fallback a splitting`);

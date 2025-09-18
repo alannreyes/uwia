@@ -34,7 +34,10 @@ export class VectorStorageService {
   /**
    * Almacena embeddings de chunks en la base de datos.
    */
-  async storeEmbeddings(chunks: SemanticChunk[]): Promise<void> {
+  async storeEmbeddings(
+    chunks: SemanticChunk[],
+    opts?: { embeddingModel?: string; embeddingDimensions?: number }
+  ): Promise<void> {
     this.logger.log(`📦 [VECTOR-STORAGE] Storing ${chunks.length} embeddings...`);
     
     let skippedEmpty = 0;
@@ -74,8 +77,8 @@ export class VectorStorageService {
             content: chunk.content,
             contentHash: chunk.contentHash,
             embedding: chunk.embedding, // TypeORM handleará la serialización JSON automáticamente
-            embeddingModel: 'text-embedding-3-large',
-            embeddingDimensions: 3072,
+            embeddingModel: opts?.embeddingModel || (chunk.metadata as any)?.embeddingModel || 'text-embedding-3-large',
+            embeddingDimensions: opts?.embeddingDimensions || (chunk.metadata as any)?.embeddingDimensions || 3072,
             semanticType: chunk.metadata.semanticType,
             importance: chunk.metadata.importance,
             tokenCount: chunk.tokenCount,

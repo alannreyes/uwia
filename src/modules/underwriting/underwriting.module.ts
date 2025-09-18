@@ -26,8 +26,10 @@ import { SemanticChunkingService } from './services/semantic-chunking.service';
 import { OpenAIEmbeddingsService } from './services/openai-embeddings.service';
 import { DocumentPrompt } from './entities/document-prompt.entity';
 import { ClaimEvaluation } from './entities/claim-evaluation.entity';
+import { ClaimEvaluationGemini } from './entities/claim-evaluation-gemini.entity';
 import { DocumentEmbedding } from './chunking/entities/document-embedding.entity';
 import { VectorQuery } from './chunking/entities/vector-query.entity';
+import { PdfProcessingSession } from './chunking/entities/pdf-processing-session.entity';
 import { ConfigService } from '@nestjs/config';
 import { ProcessingOrchestratorService } from './orchestration/processing-orchestrator.service';
 import { OcrService } from './services/ocr.service';
@@ -39,7 +41,9 @@ import { ChunkingModule } from './chunking/chunking.module';
     TypeOrmModule.forFeature([
       DocumentPrompt,
       ClaimEvaluation,
+      ClaimEvaluationGemini,
       DocumentEmbedding,
+      PdfProcessingSession,
       VectorQuery,
     ]),
     ChunkingModule, // Importar ChunkingModule para acceder a sus servicios exportados

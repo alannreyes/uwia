@@ -28,6 +28,7 @@ import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
 import { GeminiFileApiService } from './services/gemini-file-api.service';
 import { Express } from 'express';
+import { ClaimEvaluationGemini } from './entities/claim-evaluation-gemini.entity';
 
 // Interface para prompts consolidados de la tabla document_consolidado
 interface ConsolidatedPrompt {
@@ -53,6 +54,8 @@ export class UnderwritingService {
     private documentPromptRepository: Repository<DocumentPrompt>,
     @InjectRepository(ClaimEvaluation)
     private claimEvaluationRepository: Repository<ClaimEvaluation>,
+  @InjectRepository(ClaimEvaluationGemini)
+  private claimEvaluationGeminiRepository: Repository<ClaimEvaluationGemini>,
     private openAiService: OpenAiService,
     private pdfParserService: PdfParserService,
     private pdfFormExtractor: PdfFormExtractorService,
@@ -1452,19 +1455,20 @@ export class UnderwritingService {
       processed_at: new Date()
     };
 
-    // Guardar evaluación en la base de datos
+    // Guardar evaluación en tabla separada para Gemini y limpiar RAG
     try {
-      const evaluation = this.claimEvaluationRepository.create({
+      const promptConsolidadoId = prompt.id;
+      const evaluation = this.claimEvaluationGeminiRepository.create({
         claimReference: body.claim_number || 'unknown',
         documentName: `${document_name}.pdf`,
-        promptId: prompt.id,
+        promptConsolidadoId,
         question: question,
         response: result.response,
         confidence: result.confidence,
         processingTimeMs: result.processingTime
       });
-      await this.claimEvaluationRepository.save(evaluation);
-      this.logger.log(`💾 [GEMINI-FILE-API] Evaluation saved to database`);
+      await this.claimEvaluationGeminiRepository.save(evaluation);
+      this.logger.log(`💾 [GEMINI-FILE-API] Evaluation saved to claim_evaluations_gemini (prompt_consolidado_id=${promptConsolidadoId})`);
     } catch (dbError) {
       this.logger.warn(`⚠️ [GEMINI-FILE-API] Could not save to database: ${dbError.message}`);
     }
