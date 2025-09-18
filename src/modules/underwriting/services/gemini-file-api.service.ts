@@ -95,13 +95,15 @@ export class GeminiFileApiService {
     this.logger.log(`📄 Procesando PDF: ${prompt} (${fileSizeMB.toFixed(2)}MB)`);
 
     try {
-      // Decisión inteligente de estrategia basada en tamaño y complejidad
+      // Decisión inteligente de estrategia basada en tamaño y tipo de documento
       if (pdfBuffer.length > this.MODERN_RAG_THRESHOLD_BYTES) {
-        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - usando Modern RAG 2025`);
-        return await this.processWithModernRAG(pdfBuffer, prompt, expectedType, startTime);
-      } else if (pdfBuffer.length > 50 * 1024 * 1024) { // > 50MB
-        this.logger.log(`🔪 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - usando división automática`);
-        return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
+        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - intentando Modern RAG primero`);
+        try {
+          return await this.processWithModernRAG(pdfBuffer, prompt, expectedType, startTime);
+        } catch (ragError) {
+          this.logger.warn(`⚠️ Modern RAG falló: ${ragError.message}, usando Smart Splitting`);
+          return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
+        }
       } else if (pdfBuffer.length > this.FILE_SIZE_THRESHOLD_BYTES) {
         this.logger.log(`🔄 Archivo grande (${fileSizeMB.toFixed(2)}MB) - usando File API`);
         return await this.processWithFileApi(pdfBuffer, prompt, expectedType, startTime);
@@ -126,8 +128,8 @@ export class GeminiFileApiService {
   ): Promise<GeminiFileApiResult> {
     try {
       if (!this.modernRAGService.isAvailable()) {
-        this.logger.warn(`⚠️ Modern RAG no disponible, fallback a PDF splitting`);
-        return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
+        this.logger.warn(`⚠️ Modern RAG no disponible, fallback a Smart Splitting`);
+        return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
 
       const ragResult: ModernRAGResult = await this.modernRAGService.processWithModernRAG(
@@ -157,8 +159,8 @@ export class GeminiFileApiService {
       return result;
 
     } catch (error) {
-      this.logger.error(`❌ [MODERN-RAG] Error: ${error.message}, fallback a splitting`);
-      return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
+      this.logger.error(`❌ [MODERN-RAG] Error: ${error.message}, fallback a Smart Splitting`);
+      return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
     }
   }
 
@@ -428,61 +430,143 @@ export class GeminiFileApiService {
   }
 
   /**
-   * Procesa PDFs grandes (> 50MB) dividiéndolos en chunks
+   * Procesa PDFs grandes usando división inteligente optimizada para Google AI
    */
-  async processLargePdfWithSplitting(
+  async processWithSmartSplitting(
     pdfBuffer: Buffer,
     prompt: string,
-    expectedType: ResponseType = ResponseType.TEXT
+    expectedType: ResponseType,
+    startTime: number
   ): Promise<GeminiFileApiResult> {
     const fileSizeMB = pdfBuffer.length / (1024 * 1024);
-    this.logger.log(`🔪 [PDF-SPLIT] Iniciando división de PDF grande: ${fileSizeMB.toFixed(2)}MB`);
-    
-    const startTime = Date.now();
-    
+    this.logger.log(`🔪 [SMART-SPLIT] Iniciando división inteligente: ${fileSizeMB.toFixed(2)}MB`);
+
     try {
-      // 1. Dividir PDF en chunks de máximo 40MB
-      const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 40); // 40MB chunks para estar seguro bajo el límite de 50MB
-      
-      this.logger.log(`🔪 [PDF-SPLIT] PDF dividido en ${pdfChunks.length} chunks`);
-      
-      // 2. Procesar cada chunk con Gemini
-      const chunkResults: GeminiFileApiResult[] = [];
-      
-      for (let i = 0; i < pdfChunks.length; i++) {
-        const chunk = pdfChunks[i];
-        const chunkSizeMB = chunk.length / (1024 * 1024);
-        
-        this.logger.log(`🔄 [PDF-SPLIT] Procesando chunk ${i + 1}/${pdfChunks.length} (${chunkSizeMB.toFixed(2)}MB)`);
-        
-        try {
-          // Procesar chunk individual
-          const chunkResult = await this.processPdfDocument(chunk, `${prompt} (Analyzing part ${i + 1} of ${pdfChunks.length})`, expectedType);
-          chunkResults.push(chunkResult);
-          
-          this.logger.log(`✅ [PDF-SPLIT] Chunk ${i + 1} completado en ${chunkResult.processingTime}ms`);
-          
-        } catch (chunkError) {
-          this.logger.error(`❌ [PDF-SPLIT] Error en chunk ${i + 1}: ${chunkError.message}`);
-          // Continuar con los otros chunks
-        }
+      // 1. Analizar PDF para determinar estrategia óptima
+      const pdfDoc = await PDFDocument.load(pdfBuffer);
+      const totalPages = pdfDoc.getPageCount();
+
+      this.logger.log(`📄 [SMART-SPLIT] PDF tiene ${totalPages} páginas`);
+
+      // 2. Determinar si dividir por páginas (siguiendo límite de Google de 1000 páginas)
+      if (totalPages > 900) { // Margen de seguridad bajo el límite de 1000
+        this.logger.log(`📚 [SMART-SPLIT] PDF muy extenso (${totalPages} páginas) - dividiendo por secciones`);
+        return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
+      } else {
+        this.logger.log(`📄 [SMART-SPLIT] PDF dentro del límite de páginas - dividiendo por tamaño`);
+        return await this.processWithSizeBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
-      
-      // 3. Consolidar resultados
-      const consolidatedResult = this.consolidateChunkResults(chunkResults, prompt, expectedType);
-      const totalTime = Date.now() - startTime;
-      
-      consolidatedResult.processingTime = totalTime;
-      consolidatedResult.model = 'gemini-1.5-pro-split-pdf';
-      consolidatedResult.method = 'file-api-split';
-      
-      this.logger.log(`✅ [PDF-SPLIT] Consolidación completada en ${totalTime}ms total`);
-      
-      return consolidatedResult;
-      
+
     } catch (error) {
-      this.logger.error(`❌ [PDF-SPLIT] Error: ${error.message}`);
+      this.logger.error(`❌ [SMART-SPLIT] Error: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * División basada en páginas para PDFs muy extensos
+   */
+  private async processWithPageBasedSplitting(
+    pdfBuffer: Buffer,
+    prompt: string,
+    expectedType: ResponseType,
+    startTime: number
+  ): Promise<GeminiFileApiResult> {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
+    const pagesPerChunk = 400; // Dividir en chunks de 400 páginas para estar seguros
+
+    this.logger.log(`📑 [PAGE-SPLIT] Dividiendo ${totalPages} páginas en chunks de ${pagesPerChunk} páginas`);
+
+    const chunkResults: GeminiFileApiResult[] = [];
+
+    for (let startPage = 0; startPage < totalPages; startPage += pagesPerChunk) {
+      const endPage = Math.min(startPage + pagesPerChunk - 1, totalPages - 1);
+      const pageRange = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+
+      this.logger.log(`📄 [PAGE-SPLIT] Procesando páginas ${startPage + 1}-${endPage + 1}/${totalPages}`);
+
+      try {
+        const chunkBuffer = await this.createPdfChunk(pdfDoc, pageRange);
+        const chunkSizeMB = chunkBuffer.length / (1024 * 1024);
+
+        this.logger.log(`📦 [PAGE-SPLIT] Chunk creado: ${chunkSizeMB.toFixed(2)}MB`);
+
+        // Procesar chunk sin recursión para evitar loops infinitos
+        const chunkResult = await this.processChunkDirectly(chunkBuffer, prompt, expectedType, startPage + 1, endPage + 1);
+        chunkResults.push(chunkResult);
+
+      } catch (chunkError) {
+        this.logger.error(`❌ [PAGE-SPLIT] Error procesando páginas ${startPage + 1}-${endPage + 1}: ${chunkError.message}`);
+      }
+    }
+
+    // Consolidar resultados de manera inteligente para POLICY.pdf
+    const consolidatedResult = this.smartConsolidateResults(chunkResults, prompt, expectedType);
+    consolidatedResult.processingTime = Date.now() - startTime;
+    consolidatedResult.model = 'gemini-1.5-pro-page-split';
+    consolidatedResult.method = 'file-api-split';
+
+    return consolidatedResult;
+  }
+
+  /**
+   * División basada en tamaño para PDFs grandes pero manejables
+   */
+  private async processWithSizeBasedSplitting(
+    pdfBuffer: Buffer,
+    prompt: string,
+    expectedType: ResponseType,
+    startTime: number
+  ): Promise<GeminiFileApiResult> {
+    // Dividir en chunks de 15MB para maximizar calidad de procesamiento
+    const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 15);
+
+    this.logger.log(`📦 [SIZE-SPLIT] PDF dividido en ${pdfChunks.length} chunks de ~15MB`);
+
+    const chunkResults: GeminiFileApiResult[] = [];
+
+    for (let i = 0; i < pdfChunks.length; i++) {
+      const chunk = pdfChunks[i];
+      const chunkSizeMB = chunk.length / (1024 * 1024);
+
+      this.logger.log(`🔄 [SIZE-SPLIT] Procesando chunk ${i + 1}/${pdfChunks.length} (${chunkSizeMB.toFixed(2)}MB)`);
+
+      try {
+        const chunkResult = await this.processChunkDirectly(chunk, prompt, expectedType, 0, 0);
+        chunkResults.push(chunkResult);
+
+      } catch (chunkError) {
+        this.logger.error(`❌ [SIZE-SPLIT] Error en chunk ${i + 1}: ${chunkError.message}`);
+      }
+    }
+
+    const consolidatedResult = this.smartConsolidateResults(chunkResults, prompt, expectedType);
+    consolidatedResult.processingTime = Date.now() - startTime;
+    consolidatedResult.model = 'gemini-1.5-pro-size-split';
+    consolidatedResult.method = 'file-api-split';
+
+    return consolidatedResult;
+  }
+
+  /**
+   * Procesa un chunk directamente sin recursión
+   */
+  private async processChunkDirectly(
+    chunkBuffer: Buffer,
+    prompt: string,
+    expectedType: ResponseType,
+    startPage: number,
+    endPage: number
+  ): Promise<GeminiFileApiResult> {
+    const chunkSizeMB = chunkBuffer.length / (1024 * 1024);
+    const pageInfo = startPage > 0 ? ` (páginas ${startPage}-${endPage})` : '';
+
+    // Usar File API directamente para chunks
+    if (chunkSizeMB > this.FILE_SIZE_THRESHOLD_MB) {
+      return await this.processWithFileApi(chunkBuffer, `${prompt}${pageInfo}`, expectedType, Date.now());
+    } else {
+      return await this.processWithInlineApi(chunkBuffer, `${prompt}${pageInfo}`, expectedType, Date.now());
     }
   }
 
@@ -554,9 +638,9 @@ export class GeminiFileApiService {
   }
 
   /**
-   * Consolida los resultados de múltiples chunks
+   * Consolida los resultados de múltiples chunks de manera inteligente
    */
-  private consolidateChunkResults(
+  private smartConsolidateResults(
     chunkResults: GeminiFileApiResult[],
     originalPrompt: string,
     expectedType: ResponseType
@@ -573,31 +657,132 @@ export class GeminiFileApiService {
       };
     }
 
-    // Consolidar respuestas
     const responses = chunkResults.map(r => r.response).filter(r => r && r !== 'NOT_FOUND');
     const totalTokens = chunkResults.reduce((sum, r) => sum + r.tokensUsed, 0);
     const avgConfidence = chunkResults.reduce((sum, r) => sum + r.confidence, 0) / chunkResults.length;
-    
+
     let consolidatedResponse: string;
-    
+
     if (responses.length === 0) {
-      consolidatedResponse = 'NOT_FOUND';
-    } else if (expectedType === ResponseType.TEXT) {
-      // Para texto, combinar todas las respuestas relevantes
-      consolidatedResponse = responses.join(' | ');
+      // Si ningún chunk encontró datos, generar respuesta con NOT_FOUND
+      consolidatedResponse = this.generateNotFoundResponse(originalPrompt);
     } else {
-      // Para otros tipos, tomar la primera respuesta válida
-      consolidatedResponse = responses[0];
+      // Consolidación inteligente basada en el tipo de documento
+      consolidatedResponse = this.mergeChunkResponses(responses, originalPrompt, expectedType);
     }
-    
+
     return {
       response: consolidatedResponse,
-      confidence: Math.min(avgConfidence, 0.95), // Cap confidence for split processing
-      reasoning: `Processed ${chunkResults.length} chunks, ${responses.length} contained relevant data`,
-      processingTime: 0, // Se asignará luego
+      confidence: Math.min(avgConfidence, 0.95),
+      reasoning: `Smart consolidation: ${chunkResults.length} chunks processed, ${responses.length} with data`,
+      processingTime: 0,
       tokensUsed: totalTokens,
-      model: 'gemini-1.5-pro-split-pdf',
+      model: 'gemini-1.5-pro-smart-split',
       method: 'file-api-split'
     };
+  }
+
+  /**
+   * Genera una respuesta NOT_FOUND con el formato correcto según el prompt
+   */
+  private generateNotFoundResponse(prompt: string): string {
+    // Para POLICY.pdf, generar respuesta con 7 campos
+    if (prompt.includes('policy_valid_from1') || prompt.includes('Extract the following 7 data points')) {
+      return 'NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO';
+    }
+
+    // Para LOP.pdf, generar respuesta con 18 campos
+    if (prompt.includes('mechanics_lien') || prompt.includes('Extract the following 18 data points')) {
+      return 'NO;NOT_FOUND;NO;NO;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NO;NO;NO;NO;NO;NO;NO';
+    }
+
+    // Para otros documentos, respuesta simple
+    return 'NOT_FOUND';
+  }
+
+  /**
+   * Combina respuestas de chunks de manera inteligente
+   */
+  private mergeChunkResponses(responses: string[], prompt: string, expectedType: ResponseType): string {
+    if (expectedType !== ResponseType.TEXT || !responses[0].includes(';')) {
+      // Para respuestas simples, tomar la mejor
+      return responses[0];
+    }
+
+    // Para respuestas con formato semicolon (POLICY.pdf, LOP.pdf)
+    const mergedFields = this.mergeFieldBasedResponses(responses, prompt);
+    return mergedFields;
+  }
+
+  /**
+   * Combina respuestas basadas en campos separados por semicolon
+   */
+  private mergeFieldBasedResponses(responses: string[], prompt: string): string {
+    // Determinar número de campos esperados
+    let expectedFieldCount = 1;
+    if (prompt.includes('Extract the following 7 data points')) {
+      expectedFieldCount = 7;
+    } else if (prompt.includes('Extract the following 18 data points')) {
+      expectedFieldCount = 18;
+    }
+
+    // Dividir todas las respuestas en campos
+    const allFields: string[][] = responses.map(resp => resp.split(';'));
+
+    // Crear array de mejores valores para cada campo
+    const mergedFields: string[] = [];
+
+    for (let fieldIndex = 0; fieldIndex < expectedFieldCount; fieldIndex++) {
+      const fieldValues = allFields
+        .map(fields => fields[fieldIndex] || 'NOT_FOUND')
+        .filter(value => value && value.trim() !== '');
+
+      // Priorizar valores que no sean NOT_FOUND, NO, o vacíos
+      const bestValue = this.selectBestFieldValue(fieldValues);
+      mergedFields.push(bestValue);
+    }
+
+    return mergedFields.join(';');
+  }
+
+  /**
+   * Selecciona el mejor valor para un campo específico
+   */
+  private selectBestFieldValue(values: string[]): string {
+    if (!values || values.length === 0) {
+      return 'NOT_FOUND';
+    }
+
+    // Prioridad: valores con datos > YES/NO > NOT_FOUND
+    const prioritizedValues = values.sort((a, b) => {
+      const scoreA = this.getFieldValueScore(a);
+      const scoreB = this.getFieldValueScore(b);
+      return scoreB - scoreA; // Orden descendente
+    });
+
+    return prioritizedValues[0];
+  }
+
+  /**
+   * Asigna puntuación a valores de campo para priorización
+   */
+  private getFieldValueScore(value: string): number {
+    if (!value || value.trim() === '') return 0;
+
+    const trimmedValue = value.trim().toUpperCase();
+
+    // Valores con datos reales tienen la mayor prioridad
+    if (trimmedValue !== 'NOT_FOUND' && trimmedValue !== 'NO' && trimmedValue !== 'YES') {
+      return 100;
+    }
+
+    // YES tiene mayor prioridad que NO
+    if (trimmedValue === 'YES') return 80;
+    if (trimmedValue === 'NO') return 60;
+
+    // NOT_FOUND tiene la menor prioridad
+    if (trimmedValue === 'NOT_FOUND') return 10;
+
+    return 50; // Valor por defecto
   }
 }
