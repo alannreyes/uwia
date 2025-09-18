@@ -3,8 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnderwritingController } from './underwriting.controller';
 import { RagDebugController } from './controllers/rag-debug.controller';
 import { UnderwritingService } from './underwriting.service';
-import { OpenAiService } from './services/openai.service';
-import { PdfParserService } from './services/pdf-parser.service';
+// import { OpenAiService } from './services/openai.service';     // Provided by ChunkingModule
+// import { PdfParserService } from './services/pdf-parser.service'; // Provided by ChunkingModule
 import { PdfFormExtractorService } from './services/pdf-form-extractor.service';
 import { PdfHybridAnalyzerService } from './services/pdf-hybrid-analyzer.service';
 import { PdfStreamProcessorService } from './services/pdf-stream-processor.service';
@@ -30,7 +30,7 @@ import { DocumentEmbedding } from './chunking/entities/document-embedding.entity
 import { VectorQuery } from './chunking/entities/vector-query.entity';
 import { ConfigService } from '@nestjs/config';
 import { ProcessingOrchestratorService } from './orchestration/processing-orchestrator.service';
-import { OcrService } from './services/ocr.service';
+// import { OcrService } from './services/ocr.service';  // Provided by ChunkingModule
 
 import { ChunkingModule } from './chunking/chunking.module';
 
@@ -47,9 +47,9 @@ import { ChunkingModule } from './chunking/chunking.module';
   providers: [
     UnderwritingService,
     ProcessingOrchestratorService,
-    OcrService,
-    OpenAiService,            // FIXED: Added missing OpenAiService
-    PdfParserService,         // FIXED: Added missing PdfParserService
+    // OcrService,               // Provided by ChunkingModule
+    // OpenAiService,            // Provided by ChunkingModule  
+    // PdfParserService,         // Provided by ChunkingModule
     // Services not provided by ChunkingModule
     PdfFormExtractorService,
     PdfHybridAnalyzerService,
