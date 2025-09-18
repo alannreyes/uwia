@@ -42,21 +42,21 @@ import { ChunkingModule } from './chunking/chunking.module';
       DocumentEmbedding,
       VectorQuery,
     ]),
+    ChunkingModule, // Importar ChunkingModule para acceder a sus servicios exportados
   ],
   controllers: [UnderwritingController, RagDebugController],
   providers: [
     UnderwritingService,
     ProcessingOrchestratorService,
     OcrService,
-    OpenAiService,            // Restored: Required by UnderwritingService
-    PdfParserService,         // Restored: Required by UnderwritingService
-    // Services not provided by ChunkingModule
+    OpenAiService,
+    PdfParserService,
     PdfFormExtractorService,
     PdfHybridAnalyzerService,
     PdfStreamProcessorService,
-    PdfToolkitService,        // NEW: Unified PDF toolkit
-    PdfImageServiceV2,        // NEW: Enhanced image service
-    PdfImageService,          // Keep for backward compatibility
+    PdfToolkitService,
+    PdfImageServiceV2,
+    PdfImageService,
     VisualClassifierService,
     JudgeValidatorService,
     AdaptiveProcessingStrategyService,
@@ -64,7 +64,7 @@ import { ChunkingModule } from './chunking/chunking.module';
     LargePdfVisionService,
     GeminiService,
     GeminiFileApiService,
-    ModernRAGService,         // ONLY NEW ADDITION: Modern RAG 2025
+    ModernRAGService,
     RateLimiterService,
     ModernRagService,
     VectorStorageService,
