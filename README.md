@@ -397,7 +397,7 @@ INSERT INTO document_consolidado VALUES (
 
 ### Tablas de Evaluación (Legacy):
 - **claim_evaluations**: Resultados históricos de evaluaciones
-- **document_prompts**: Tabla obsoleta (reemplazada por `document_consolidado`)
+- **document_consolidado**: Tabla principal de configuración de documentos
 
 ## 🛡️ Seguridad
 

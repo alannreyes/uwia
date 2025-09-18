@@ -52,7 +52,7 @@ export class UnderwritingService {
 
   constructor(
     @InjectRepository(DocumentPrompt)
-    private documentPromptRepository: Repository<DocumentPrompt>,
+    private documentPromptRepository: Repository<DocumentPrompt>, // TODO: Remove - only used for DB connection access
     @InjectRepository(ClaimEvaluation)
     private claimEvaluationRepository: Repository<ClaimEvaluation>,
   @InjectRepository(ClaimEvaluationGemini)
@@ -327,22 +327,12 @@ export class UnderwritingService {
         const result = await queryRunner.query(query, [documentNameWithPdf]);
 
         if (!result || result.length === 0) {
-          // Fallback to old document_prompts table
-          this.logger.warn(`⚠️ [SYNC-LARGE] No consolidated prompt found, checking document_prompts table...`);
-          const documentPrompts = await this.documentPromptRepository.find({
-            where: { documentName: documentNameWithPdf, active: true },
-            order: { promptOrder: 'ASC' },
-          });
-
-          if (documentPrompts.length === 0) {
-            this.logger.warn(`⚠️ [SYNC-LARGE] No active prompts found for document: ${documentNameWithPdf} — switching to RAG-ONLY fallback`);
-            const defaultPmcField = `${String(document_name || 'document').toLowerCase()}_responses`;
-            const prelimVars = this.getVariableMapping(body, context);
-            const defaultQuestion = this.buildDefaultRagQuestion(String(document_name || 'document'), prelimVars);
-            prompt = { pmcField: defaultPmcField, question: defaultQuestion };
-          } else {
-            prompt = documentPrompts[0];
-          }
+          // No consolidated prompt found - use default fallback
+          this.logger.warn(`⚠️ [SYNC-LARGE] No active consolidated prompt found for document: ${documentNameWithPdf} — switching to RAG-ONLY fallback`);
+          const defaultPmcField = `${String(document_name || 'document').toLowerCase()}_responses`;
+          const prelimVars = this.getVariableMapping(body, context);
+          const defaultQuestion = this.buildDefaultRagQuestion(String(document_name || 'document'), prelimVars);
+          prompt = { pmcField: defaultPmcField, question: defaultQuestion };
         } else {
           // Use consolidated prompt
           const rawPrompt = result[0];
@@ -605,14 +595,27 @@ export class UnderwritingService {
       // Inicio del procesamiento con información básica
       const summary = this.prodLogger.createSummary();
       
-      // Verificar si el documento tiene preguntas en la BD
-      const documentPrompts = await this.documentPromptRepository.find({
-        where: { documentName: documentToProcess, active: true },
-        order: { promptOrder: 'ASC' }
-      });
-      
-      if (documentPrompts.length === 0) {
-        this.logger.warn(`⚠️ No configuration found for document: ${documentToProcess} - SKIPPING`);
+      // Verificar si el documento tiene configuración consolidada en la BD
+      const queryRunner = this.documentPromptRepository.manager.connection.createQueryRunner();
+      await queryRunner.connect();
+
+      let hasConfiguration = false;
+      let expectedFieldsCount = 0;
+
+      try {
+        const query = `SELECT expected_fields_count FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+        const result = await queryRunner.query(query, [documentToProcess]);
+
+        if (result && result.length > 0) {
+          hasConfiguration = true;
+          expectedFieldsCount = result[0].expected_fields_count || 1;
+        }
+      } finally {
+        await queryRunner.release();
+      }
+
+      if (!hasConfiguration) {
+        this.logger.warn(`⚠️ No consolidated configuration found for document: ${documentToProcess} - SKIPPING`);
         // Continúa con el procesamiento de otros documentos
         results[documentToProcess] = [{
           pmc_field: 'document_not_configured',
@@ -635,12 +638,12 @@ export class UnderwritingService {
           processed_at: new Date(),
         };
       }
-      
+
       // Log de inicio con información del documento
-      const providerName = dto.context ? 
-        (typeof dto.context === 'string' ? JSON.parse(dto.context)?.provider_name : dto.context?.provider_name) || 'Unknown' 
+      const providerName = dto.context ?
+        (typeof dto.context === 'string' ? JSON.parse(dto.context)?.provider_name : dto.context?.provider_name) || 'Unknown'
         : 'Unknown';
-      this.prodLogger.documentStart(documentToProcess, 0, providerName, documentPrompts.length);
+      this.prodLogger.documentStart(documentToProcess, 0, providerName, expectedFieldsCount);
       
       // Procesar SOLO este documento
       try {
