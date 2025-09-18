@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ResponseType } from '../entities/uw-evaluation.entity';
 import { PDFDocument } from 'pdf-lib';
+import { ModernRAGService, ModernRAGResult } from './modern-rag-2025.service';
 
 // Importar Gemini SDK según documentación oficial
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -13,7 +14,7 @@ export interface GeminiFileApiResult {
   processingTime: number;
   tokensUsed: number;
   model: string;
-  method: 'inline' | 'file-api' | 'file-api-split';
+  method: 'inline' | 'file-api' | 'file-api-split' | 'modern-rag';
 }
 
 @Injectable()
@@ -27,7 +28,13 @@ export class GeminiFileApiService {
   private readonly FILE_SIZE_THRESHOLD_MB = 20;
   private readonly FILE_SIZE_THRESHOLD_BYTES = this.FILE_SIZE_THRESHOLD_MB * 1024 * 1024;
   
-  constructor() {
+  // Threshold de 30MB para activar Modern RAG
+  private readonly MODERN_RAG_THRESHOLD_MB = 30;
+  private readonly MODERN_RAG_THRESHOLD_BYTES = this.MODERN_RAG_THRESHOLD_MB * 1024 * 1024;
+  
+  constructor(
+    private readonly modernRAGService: ModernRAGService
+  ) {
     this.initializeGemini();
   }
 
@@ -71,33 +78,31 @@ export class GeminiFileApiService {
   }
 
   /**
-   * Procesa PDF usando Inline API (< 20MB) o File API (> 20MB)
-   * Para archivos > 50MB, usa división automática
+   * Punto de entrada principal para procesamiento de PDF
    */
   async processPdfDocument(
     pdfBuffer: Buffer,
     prompt: string,
     expectedType: ResponseType = ResponseType.TEXT
   ): Promise<GeminiFileApiResult> {
-    const fileSizeMB = pdfBuffer.length / (1024 * 1024);
-    const startTime = Date.now();
-    
-    this.logger.log(`📄 Procesando PDF: ${prompt} (${fileSizeMB.toFixed(2)}MB)`);
-    
     if (!this.isAvailable()) {
-      throw new Error('Gemini File API Service no está disponible');
+      throw new Error('GeminiFileApiService no está disponible');
     }
 
+    const startTime = Date.now();
+    const fileSizeMB = pdfBuffer.length / (1024 * 1024);
+
+    this.logger.log(`📄 Procesando PDF: ${prompt} (${fileSizeMB.toFixed(2)}MB)`);
+
     try {
-      // Verificar si excede el límite de File API (50MB)
-      const FILE_API_LIMIT_MB = 50;
-      if (fileSizeMB > FILE_API_LIMIT_MB) {
+      // Decisión inteligente de estrategia basada en tamaño y complejidad
+      if (pdfBuffer.length > this.MODERN_RAG_THRESHOLD_BYTES) {
+        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - usando Modern RAG 2025`);
+        return await this.processWithModernRAG(pdfBuffer, prompt, expectedType, startTime);
+      } else if (pdfBuffer.length > 50 * 1024 * 1024) { // > 50MB
         this.logger.log(`🔪 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - usando división automática`);
         return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
-      }
-
-      // Decidir método basado en tamaño (lógica original)
-      if (pdfBuffer.length > this.FILE_SIZE_THRESHOLD_BYTES) {
+      } else if (pdfBuffer.length > this.FILE_SIZE_THRESHOLD_BYTES) {
         this.logger.log(`🔄 Archivo grande (${fileSizeMB.toFixed(2)}MB) - usando File API`);
         return await this.processWithFileApi(pdfBuffer, prompt, expectedType, startTime);
       } else {
@@ -107,6 +112,44 @@ export class GeminiFileApiService {
     } catch (error) {
       this.logger.error(`❌ Error procesando PDF ${prompt}: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Procesa usando Modern RAG 2025 para archivos muy grandes
+   */
+  private async processWithModernRAG(
+    pdfBuffer: Buffer,
+    prompt: string,
+    expectedType: ResponseType,
+    startTime: number
+  ): Promise<GeminiFileApiResult> {
+    try {
+      if (!this.modernRAGService.isAvailable()) {
+        this.logger.warn(`⚠️ Modern RAG no disponible, fallback a PDF splitting`);
+        return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
+      }
+
+      const ragResult: ModernRAGResult = await this.modernRAGService.processWithModernRAG(
+        pdfBuffer,
+        prompt,
+        expectedType
+      );
+
+      // Convertir resultado de Modern RAG a formato GeminiFileApiResult
+      return {
+        response: ragResult.response,
+        confidence: ragResult.confidence,
+        reasoning: `${ragResult.reasoning} | Used ${ragResult.usedChunks}/${ragResult.totalChunks} chunks`,
+        processingTime: ragResult.processingTime,
+        tokensUsed: ragResult.tokensUsed,
+        model: ragResult.model,
+        method: 'modern-rag'
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ [MODERN-RAG] Error: ${error.message}, fallback a splitting`);
+      return await this.processLargePdfWithSplitting(pdfBuffer, prompt, expectedType);
     }
   }
 
@@ -246,23 +289,23 @@ export class GeminiFileApiService {
     
     switch (expectedType) {
       case ResponseType.NUMBER:
-        systemPrompt = 'Extract numeric amounts from this document. Return only the numeric value.';
+        systemPrompt = 'You are a precise document analyzer. Extract only the numeric value requested. Return only the number, no text.';
         break;
       case ResponseType.DATE:
-        systemPrompt = 'Extract dates from this document. Return in YYYY-MM-DD format.';
+        systemPrompt = 'You are a precise document analyzer. Extract only the date requested in MM-DD-YY format. Return only the date, no text.';
         break;
       case ResponseType.BOOLEAN:
-        systemPrompt = 'Analyze this document and respond with YES or NO based on the question.';
+        systemPrompt = 'You are a precise document analyzer. Answer only YES or NO based on the analysis. Return only YES or NO, no text.';
         break;
       case ResponseType.JSON:
-        systemPrompt = 'Analyze this document and return the response in valid JSON format.';
+        systemPrompt = 'You are a precise document analyzer. Return only valid JSON format. No additional text outside the JSON.';
         break;
       case ResponseType.TEXT:
       default:
-        systemPrompt = 'Analyze this document thoroughly and provide a comprehensive response.';
+        systemPrompt = 'You are a precise document analyzer. Follow the exact format specified in the request. Return only the requested format with no additional explanations, reasoning, or commentary.';
     }
     
-    return `${systemPrompt}\n\nDocument Analysis Request:\n${prompt}\n\nProvide a clear, accurate response based on the document content.`;
+    return `${systemPrompt}\n\n${prompt}`;
   }
 
   /**
@@ -286,6 +329,36 @@ export class GeminiFileApiService {
       reasoning = reasoningMatch[1].trim();
     }
     
+    // Limpiar respuesta de markdown, etiquetas y texto explicativo
+    cleanResponse = cleanResponse
+      .replace(/```[^`]*```/g, '') // Remover bloques de código
+      .replace(/`([^`]+)`/g, '$1') // Remover backticks simples
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remover bold markdown
+      .replace(/\*([^*]+)\*/g, '$1') // Remover italic markdown
+      .replace(/#{1,6}\s+/g, '') // Remover headers markdown
+      .replace(/\n\s*\n/g, '\n') // Reducir saltos de línea múltiples
+      .trim();
+    
+    // Para respuestas con formato específico (como semicolons), extraer solo la línea relevante
+    if (expectedType === ResponseType.TEXT && cleanResponse.includes(';')) {
+      const lines = cleanResponse.split('\n');
+      
+      // Buscar la línea que contiene el formato esperado (con semicolons)
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        // Si la línea tiene semicolons y no es explicativa
+        if (trimmedLine.includes(';') && 
+            !trimmedLine.toLowerCase().includes('explanation') &&
+            !trimmedLine.toLowerCase().includes('format') &&
+            !trimmedLine.toLowerCase().includes('return') &&
+            !trimmedLine.startsWith('**') &&
+            !trimmedLine.startsWith('#')) {
+          cleanResponse = trimmedLine;
+          break;
+        }
+      }
+    }
+    
     // Limpiar la respuesta basada en el tipo esperado
     switch (expectedType) {
       case ResponseType.NUMBER:
@@ -295,7 +368,7 @@ export class GeminiFileApiService {
         }
         break;
       case ResponseType.DATE:
-        const dateMatch = cleanResponse.match(/\d{4}-\d{2}-\d{2}/);
+        const dateMatch = cleanResponse.match(/\d{2}-\d{2}-\d{2}/);
         if (dateMatch) {
           cleanResponse = dateMatch[0];
         }
@@ -311,6 +384,13 @@ export class GeminiFileApiService {
           // Si no es JSON válido, envolver en JSON
           cleanResponse = JSON.stringify({ response: cleanResponse });
         }
+        break;
+      case ResponseType.TEXT:
+        // Para texto con formato específico, limpiar caracteres especiales al inicio/final
+        cleanResponse = cleanResponse
+          .replace(/^[`"'\s]+/, '') // Remover backticks, comillas y espacios al inicio
+          .replace(/[`"'\s]+$/, '') // Remover backticks, comillas y espacios al final
+          .trim();
         break;
     }
     

@@ -16,6 +16,7 @@ import { IntelligentPageSelectorService } from './services/intelligent-page-sele
 import { LargePdfVisionService } from './services/large-pdf-vision.service';
 import { GeminiService } from './services/gemini.service';
 import { GeminiFileApiService } from './services/gemini-file-api.service';
+import { ModernRAGService } from './services/modern-rag-2025.service';
 import { RateLimiterService } from './services/rate-limiter.service';
 import { ModernRagService } from './services/modern-rag.service';
 import { VectorStorageService } from './services/vector-storage.service';
@@ -39,7 +40,6 @@ import { ChunkingModule } from './chunking/chunking.module';
       DocumentEmbedding,
       VectorQuery,
     ]),
-    ChunkingModule,
   ],
   controllers: [UnderwritingController, RagDebugController],
   providers: [
@@ -60,6 +60,7 @@ import { ChunkingModule } from './chunking/chunking.module';
     LargePdfVisionService,
     GeminiService,
     GeminiFileApiService,
+    ModernRAGService,         // NEW: Modern RAG 2025
     RateLimiterService,
     ModernRagService,
     VectorStorageService,

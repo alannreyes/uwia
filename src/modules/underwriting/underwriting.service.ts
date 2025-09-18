@@ -23,6 +23,7 @@ import { largePdfConfig } from '../../config/large-pdf.config';
 import { ProductionLogger } from '../../common/utils/production-logger';
 import { EnhancedPdfProcessorService } from './chunking/services/enhanced-pdf-processor.service';
 import { ModernRagService } from './services/modern-rag.service';
+import { ModernRAGService } from './services/modern-rag-2025.service';
 import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
 import { GeminiFileApiService } from './services/gemini-file-api.service';
@@ -65,6 +66,7 @@ export class UnderwritingService {
     private largePdfVision: LargePdfVisionService,
     private enhancedPdfProcessorService: EnhancedPdfProcessorService,
   private modernRagService: ModernRagService,
+  private modernRAGService2025: ModernRAGService,  // NEW: Modern RAG 2025 with embeddings
   private vectorStorageService: VectorStorageService,
   private semanticChunkingService: SemanticChunkingService,
   private geminiFileApiService: GeminiFileApiService,
