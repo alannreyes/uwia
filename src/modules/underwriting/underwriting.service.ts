@@ -315,23 +315,49 @@ export class UnderwritingService {
         }
       }
 
-      // 2. Obtener el prompt para este documento
-      const documentPrompts = await this.documentPromptRepository.find({
-        where: { documentName: `${document_name}.pdf`, active: true },
-        order: { promptOrder: 'ASC' },
-      });
+      // 2. Obtener el prompt consolidado para este documento
+      const queryRunner = this.entityManager.connection.createQueryRunner();
+      await queryRunner.connect();
 
-      let prompt: { pmcField: string; question: string };
-      if (documentPrompts.length === 0) {
-        this.logger.warn(`⚠️ [SYNC-LARGE] No active prompts found for document: ${document_name}.pdf — switching to RAG-ONLY fallback`);
-        // Fallback: construir un prompt genérico para RAG-ONLY
-        const defaultPmcField = `${String(document_name || 'document').toLowerCase()}_responses`;
-        // Preparar mapping preliminar (puede rellenarse luego)
-        const prelimVars = this.getVariableMapping(body, context);
-        const defaultQuestion = this.buildDefaultRagQuestion(String(document_name || 'document'), prelimVars);
-        prompt = { pmcField: defaultPmcField, question: defaultQuestion };
-      } else {
-        prompt = documentPrompts[0];
+      let prompt: { pmcField: string; question: string; fieldNames?: string[]; expectedFieldsCount?: number };
+
+      try {
+        const query = `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+        const documentNameWithPdf = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+        const result = await queryRunner.query(query, [documentNameWithPdf]);
+
+        if (!result || result.length === 0) {
+          // Fallback to old document_prompts table
+          this.logger.warn(`⚠️ [SYNC-LARGE] No consolidated prompt found, checking document_prompts table...`);
+          const documentPrompts = await this.documentPromptRepository.find({
+            where: { documentName: documentNameWithPdf, active: true },
+            order: { promptOrder: 'ASC' },
+          });
+
+          if (documentPrompts.length === 0) {
+            this.logger.warn(`⚠️ [SYNC-LARGE] No active prompts found for document: ${documentNameWithPdf} — switching to RAG-ONLY fallback`);
+            const defaultPmcField = `${String(document_name || 'document').toLowerCase()}_responses`;
+            const prelimVars = this.getVariableMapping(body, context);
+            const defaultQuestion = this.buildDefaultRagQuestion(String(document_name || 'document'), prelimVars);
+            prompt = { pmcField: defaultPmcField, question: defaultQuestion };
+          } else {
+            prompt = documentPrompts[0];
+          }
+        } else {
+          // Use consolidated prompt
+          const rawPrompt = result[0];
+          this.logger.log(`✅ [SYNC-LARGE] Found consolidated prompt for ${documentNameWithPdf}`);
+          prompt = {
+            pmcField: rawPrompt.pmc_field,
+            question: rawPrompt.question,
+            fieldNames: typeof rawPrompt.field_names === 'string'
+              ? JSON.parse(rawPrompt.field_names)
+              : rawPrompt.field_names,
+            expectedFieldsCount: rawPrompt.expected_fields_count
+          };
+        }
+      } finally {
+        await queryRunner.release();
       }
 
       // Verificar si necesitamos extraer variables del documento (cuando body/context están vacíos)
@@ -478,10 +504,22 @@ export class UnderwritingService {
   this.logger.log(`📚 [RAG-INTEGRATION] Sources used: ${ragResult.sources?.length || 0}`);
 
       // 4. Formatear la respuesta para que coincida con la estructura esperada
+      // Check if this is a consolidated response (multiple fields in one answer)
+      let totalFields = 1;
+      let answeredFields = 1;
+
+      if (prompt.expectedFieldsCount && prompt.expectedFieldsCount > 1) {
+        totalFields = prompt.expectedFieldsCount;
+        // Count how many fields have actual answers (not NOT_FOUND)
+        const answerParts = ragResult.answer ? ragResult.answer.split(';') : [];
+        answeredFields = answerParts.filter(part => part && part.trim() !== 'NOT_FOUND').length;
+        this.logger.log(`📊 [SYNC-LARGE] Consolidated response: ${answeredFields}/${totalFields} fields answered`);
+      }
+
       const pmcResult: PMCFieldResultDto = {
         pmc_field: prompt.pmcField,
         question: question, // Usar la pregunta con variables sustituidas, no prompt.question
-        answer: ragResult.answer,
+        answer: ragResult.answer || 'NOT_FOUND',
         confidence: 1, // TODO: Ajustar según modernRagService
         expected_type: 'text',
         // processing_time: ragResult.processingTime, // TODO: Implementar si es necesario
@@ -499,8 +537,8 @@ export class UnderwritingService {
         summary: {
           total_documents: 1,
           processed_documents: 1,
-          total_fields: 1,
-          answered_fields: 1, // TODO: Ajustar lógica según modernRagService
+          total_fields: totalFields,
+          answered_fields: answeredFields,
         },
         processed_at: new Date(),
       };
