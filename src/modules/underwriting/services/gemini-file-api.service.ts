@@ -97,13 +97,9 @@ export class GeminiFileApiService {
     try {
       // Decisión inteligente de estrategia basada en tamaño y tipo de documento
       if (pdfBuffer.length > this.MODERN_RAG_THRESHOLD_BYTES) {
-        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - intentando Modern RAG primero`);
-        try {
-          return await this.processWithModernRAG(pdfBuffer, prompt, expectedType, startTime);
-        } catch (ragError) {
-          this.logger.warn(`⚠️ Modern RAG falló: ${ragError.message}, usando Smart Splitting`);
-          return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
-        }
+        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - SALTANDO Modern RAG, usando Smart Splitting directamente`);
+        // Temporalmente saltamos Modern RAG para debug
+        return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
       } else if (pdfBuffer.length > this.FILE_SIZE_THRESHOLD_BYTES) {
         this.logger.log(`🔄 Archivo grande (${fileSizeMB.toFixed(2)}MB) - usando File API`);
         return await this.processWithFileApi(pdfBuffer, prompt, expectedType, startTime);
