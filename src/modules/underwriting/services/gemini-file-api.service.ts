@@ -126,17 +126,24 @@ export class GeminiFileApiService {
     expectedType: ResponseType,
     startTime: number
   ): Promise<GeminiFileApiResult> {
+    this.logger.log(`🧠 [MODERN-RAG] Iniciando Modern RAG para ${(pdfBuffer.length / 1024 / 1024).toFixed(2)}MB`);
+
     try {
       if (!this.modernRAGService.isAvailable()) {
-        this.logger.warn(`⚠️ Modern RAG no disponible, fallback a Smart Splitting`);
+        this.logger.warn(`⚠️ [MODERN-RAG] Modern RAG no disponible, fallback a Smart Splitting`);
         return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
+
+      this.logger.log(`✅ [MODERN-RAG] Modern RAG disponible, iniciando procesamiento...`);
 
       const ragResult: ModernRAGResult = await this.modernRAGService.processWithModernRAG(
         pdfBuffer,
         prompt,
         expectedType
       );
+
+      this.logger.log(`🎯 [MODERN-RAG] Resultado obtenido: ${ragResult.response?.substring(0, 100)}...`);
+      this.logger.log(`📊 [MODERN-RAG] Chunks: ${ragResult.usedChunks}/${ragResult.totalChunks}, Confianza: ${ragResult.confidence}`);
 
       // Convertir resultado de Modern RAG a formato GeminiFileApiResult
       const result: GeminiFileApiResult = {
@@ -152,14 +159,19 @@ export class GeminiFileApiService {
       // Limpieza explícita tras terminar
       try {
         await this.modernRAGService.cleanup(ragResult.sessionId);
+        this.logger.log(`🧹 [MODERN-RAG] Sesión ${ragResult.sessionId} limpiada correctamente`);
       } catch (cleanupErr) {
         this.logger.warn(`⚠️ [MODERN-RAG] Cleanup failed: ${cleanupErr.message}`);
       }
 
+      this.logger.log(`✅ [MODERN-RAG] Procesamiento completado exitosamente en ${ragResult.processingTime}ms`);
       return result;
 
     } catch (error) {
-      this.logger.error(`❌ [MODERN-RAG] Error: ${error.message}, fallback a Smart Splitting`);
+      this.logger.error(`❌ [MODERN-RAG] Error completo: ${error.message}`);
+      this.logger.error(`❌ [MODERN-RAG] Stack trace: ${error.stack}`);
+      this.logger.warn(`🔄 [MODERN-RAG] Fallback a Smart Splitting...`);
+
       return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
     }
   }
@@ -439,27 +451,45 @@ export class GeminiFileApiService {
     startTime: number
   ): Promise<GeminiFileApiResult> {
     const fileSizeMB = pdfBuffer.length / (1024 * 1024);
-    this.logger.log(`🔪 [SMART-SPLIT] Iniciando división inteligente: ${fileSizeMB.toFixed(2)}MB`);
+    this.logger.log(`🔪 [SMART-SPLIT] ============= INICIANDO SMART SPLITTING =============`);
+    this.logger.log(`🔪 [SMART-SPLIT] Archivo: ${fileSizeMB.toFixed(2)}MB`);
+    this.logger.log(`🔪 [SMART-SPLIT] Prompt length: ${prompt.length} chars`);
+    this.logger.log(`🔪 [SMART-SPLIT] Expected type: ${expectedType}`);
 
     try {
       // 1. Analizar PDF para determinar estrategia óptima
+      this.logger.log(`📋 [SMART-SPLIT] Cargando PDF con pdf-lib...`);
       const pdfDoc = await PDFDocument.load(pdfBuffer);
       const totalPages = pdfDoc.getPageCount();
 
-      this.logger.log(`📄 [SMART-SPLIT] PDF tiene ${totalPages} páginas`);
+      this.logger.log(`📄 [SMART-SPLIT] PDF cargado exitosamente: ${totalPages} páginas`);
 
       // 2. Determinar si dividir por páginas (siguiendo límite de Google de 1000 páginas)
       if (totalPages > 900) { // Margen de seguridad bajo el límite de 1000
-        this.logger.log(`📚 [SMART-SPLIT] PDF muy extenso (${totalPages} páginas) - dividiendo por secciones`);
+        this.logger.log(`📚 [SMART-SPLIT] PDF muy extenso (${totalPages} páginas) - dividiendo por secciones de páginas`);
         return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       } else {
-        this.logger.log(`📄 [SMART-SPLIT] PDF dentro del límite de páginas - dividiendo por tamaño`);
+        this.logger.log(`📄 [SMART-SPLIT] PDF manejable (${totalPages} páginas) - dividiendo por tamaño optimizado`);
         return await this.processWithSizeBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
 
     } catch (error) {
-      this.logger.error(`❌ [SMART-SPLIT] Error: ${error.message}`);
-      throw error;
+      this.logger.error(`❌ [SMART-SPLIT] Error crítico: ${error.message}`);
+      this.logger.error(`❌ [SMART-SPLIT] Stack trace: ${error.stack}`);
+
+      // Generar respuesta de fallback en formato correcto
+      this.logger.warn(`🆘 [SMART-SPLIT] Generando respuesta de fallback...`);
+      const fallbackResponse = this.generateNotFoundResponse(prompt);
+
+      return {
+        response: fallbackResponse,
+        confidence: 0.1,
+        reasoning: `Smart splitting failed: ${error.message}`,
+        processingTime: Date.now() - startTime,
+        tokensUsed: 0,
+        model: 'fallback-error',
+        method: 'file-api-split'
+      };
     }
   }
 
