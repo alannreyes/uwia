@@ -11,6 +11,7 @@ import { PdfStreamProcessorService } from './services/pdf-stream-processor.servi
 import { PdfImageService } from './services/pdf-image.service';
 import { PdfToolkitService } from './services/pdf-toolkit.service';
 import { PdfImageServiceV2 } from './services/pdf-image-v2.service';
+import { PdfValidatorService } from './services/pdf-validator.service';
 import { VisualClassifierService } from './services/visual-classifier.service';
 import { JudgeValidatorService } from './services/judge-validator.service';
 import { AdaptiveProcessingStrategyService } from './services/adaptive-processing-strategy.service';
@@ -61,6 +62,7 @@ import { ChunkingModule } from './chunking/chunking.module';
     PdfToolkitService,
     PdfImageServiceV2,
     PdfImageService,
+    PdfValidatorService,
     VisualClassifierService,
     JudgeValidatorService,
     AdaptiveProcessingStrategyService,

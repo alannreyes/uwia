@@ -27,6 +27,7 @@ import { ModernRAGService } from './services/modern-rag-2025.service';
 import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
 import { GeminiFileApiService } from './services/gemini-file-api.service';
+import { PdfValidatorService } from './services/pdf-validator.service';
 import { Express } from 'express';
 import { ClaimEvaluationGemini } from './entities/claim-evaluation-gemini.entity';
 
@@ -73,6 +74,7 @@ export class UnderwritingService {
   private vectorStorageService: VectorStorageService,
   private semanticChunkingService: SemanticChunkingService,
   private geminiFileApiService: GeminiFileApiService,
+  private pdfValidator: PdfValidatorService,
   ) {}
 
   public getVariableMapping(dto: any, contextData: any): Record<string, string> {
@@ -275,6 +277,21 @@ export class UnderwritingService {
     this.logger.log(`🚨 [SYNC-LARGE-ENTRY] ================================================`);
 
     try {
+      // Validate and auto-repair PDF if needed
+      const validation = await this.pdfValidator.validateAndRepairPdf(file.buffer, file.originalname);
+
+      if (!validation.isValid) {
+        this.logger.error(`[SYNC-LARGE] Invalid PDF: ${validation.error}`);
+        throw new Error(validation.error || 'Invalid PDF format');
+      }
+
+      if (validation.wasRepaired) {
+        this.logger.log(`🔧 [SYNC-LARGE] PDF auto-repaired: ${validation.details}`);
+        this.logger.log(`📁 [SYNC-LARGE] Original size: ${(file.size / 1024 / 1024).toFixed(2)}MB -> Repaired: ${(validation.buffer.length / 1024 / 1024).toFixed(2)}MB`);
+        file.buffer = validation.buffer; // Use repaired buffer
+        file.size = validation.buffer.length; // Update size
+      }
+
       // 1. Procesar y almacenar el archivo en la base de datos
       const session = await this.enhancedPdfProcessorService.processLargePdf({
         buffer: file.buffer,

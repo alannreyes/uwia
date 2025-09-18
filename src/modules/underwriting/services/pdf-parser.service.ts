@@ -3,6 +3,7 @@ import * as pdfParse from 'pdf-parse';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { OcrService } from './ocr.service';
+import { PdfValidatorService } from './pdf-validator.service';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 
@@ -11,7 +12,10 @@ export class PdfParserService {
   private readonly logger = new Logger(PdfParserService.name);
   private standardFontDataUrl: string;
 
-  constructor(private readonly ocrService: OcrService) {
+  constructor(
+    private readonly ocrService: OcrService,
+    private readonly pdfValidator: PdfValidatorService,
+  ) {
     this.initializePdfJs();
   }
 
@@ -33,8 +37,21 @@ export class PdfParserService {
     }
   }
 
-  async extractText(buffer: Buffer): Promise<string> {
+  async extractText(buffer: Buffer, filename?: string): Promise<string> {
     this.logger.log('Attempting to extract text from PDF...');
+
+    // Validate and auto-repair PDF if needed
+    const validation = await this.pdfValidator.validateAndRepairPdf(buffer, filename);
+
+    if (!validation.isValid) {
+      this.logger.error(`Invalid PDF file: ${validation.error}`);
+      throw new Error(validation.error || 'Invalid PDF format');
+    }
+
+    if (validation.wasRepaired) {
+      this.logger.log(`🔧 PDF was auto-repaired: ${validation.details}`);
+      buffer = validation.buffer; // Use the repaired buffer
+    }
 
     // Method 1: pdf-parse for quick text extraction
     try {
@@ -182,9 +199,9 @@ export class PdfParserService {
           const context = canvas.getContext('2d');
 
           await page.render({
-            canvas: canvas,
             canvasContext: context,
             viewport: viewport,
+            intent: 'display'
           }).promise;
 
           const imageBuffer = canvas.toBuffer('image/png');
