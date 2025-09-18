@@ -201,6 +201,7 @@ export class PdfParserService {
           await page.render({
             canvasContext: context,
             viewport: viewport,
+            canvas: canvas,
             intent: 'display'
           }).promise;
 
