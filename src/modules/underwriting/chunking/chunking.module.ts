@@ -16,6 +16,7 @@ import { OpenAiService } from '../services/openai.service';
 import { GeminiService } from '../services/gemini.service';
 import { RateLimiterService } from '../services/rate-limiter.service';
 import { JudgeValidatorService } from '../services/judge-validator.service';
+import { PdfValidatorService } from '../services/pdf-validator.service';
 import { OcrService } from '../services/ocr.service';
 
 @Module({
@@ -38,6 +39,7 @@ import { OcrService } from '../services/ocr.service';
     GeminiService,
     RateLimiterService,
     JudgeValidatorService,
+    PdfValidatorService,
     OcrService,
   ],
   exports: [
