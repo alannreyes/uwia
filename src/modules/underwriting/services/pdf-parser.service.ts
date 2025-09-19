@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as pdfParse from 'pdf-parse';
+const pdfParse = require('pdf-parse');
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { OcrService } from './ocr.service';

@@ -301,10 +301,24 @@ export class UnderwritingService {
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
 
-      // 🔍 DETECTION: Check if this is an image-based PDF that needs Gemini File API
+      // 🚀 FORCE GEMINI FILE API for large files (>25MB) - skip all local text extraction
       const fileSizeMB = file.size / (1024 * 1024);
+      const FORCE_GEMINI_THRESHOLD_MB = 25;
+
+      if (fileSizeMB > FORCE_GEMINI_THRESHOLD_MB && this.geminiFileApiService.isAvailable()) {
+        this.logger.log(`🐘 [LARGE-FILE-DIRECT] File size ${fileSizeMB.toFixed(2)}MB > ${FORCE_GEMINI_THRESHOLD_MB}MB - routing directly to Gemini File API`);
+        this.logger.log(`🚀 [LARGE-FILE-DIRECT] Skipping local text extraction for large file - using Gemini File API only`);
+        try {
+          return await this.processWithGeminiFileApi(file, body, context);
+        } catch (geminiError) {
+          this.logger.error(`❌ [LARGE-FILE-DIRECT] Gemini File API failed for large file: ${geminiError.message}`);
+          throw new Error(`Large file processing failed: ${geminiError.message}`);
+        }
+      }
+
+      // For smaller files, try to detect if Gemini File API is needed
       const shouldUseGeminiFileApi = await this.shouldUseGeminiFileApi(file.buffer, fileSizeMB);
-      
+
       if (shouldUseGeminiFileApi && this.geminiFileApiService.isAvailable()) {
         this.logger.log(`🚀 [GEMINI-FILE-API] Detected image-based PDF - using Gemini File API for better OCR`);
         try {
@@ -1494,18 +1508,37 @@ export class UnderwritingService {
     // Obtener variable mapping
     const variableMapping = this.getVariableMapping(body, context);
     
-    // Obtener el prompt para este documento
+    // Obtener el prompt consolidado para este documento
     const { document_name } = body;
-    const documentPrompts = await this.documentPromptRepository.find({
-      where: { documentName: `${document_name}.pdf`, active: true },
-      order: { promptOrder: 'ASC' },
-    });
+    const queryRunner = this.documentPromptRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
 
-    if (documentPrompts.length === 0) {
-      throw new Error(`No active prompts found for document: ${document_name}.pdf`);
+    let prompt: { pmcField: string; question: string; fieldNames?: string[]; expectedFieldsCount?: number; id?: number };
+
+    try {
+      const query = `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+      const documentNameWithPdf = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+      const result = await queryRunner.query(query, [documentNameWithPdf]);
+
+      if (!result || result.length === 0) {
+        throw new Error(`No active consolidated prompt found for document: ${documentNameWithPdf}`);
+      }
+
+      const rawPrompt = result[0];
+      this.logger.log(`✅ [GEMINI-FILE-API] Found consolidated prompt for ${documentNameWithPdf}`);
+      prompt = {
+        pmcField: rawPrompt.pmc_field,
+        question: rawPrompt.question,
+        fieldNames: typeof rawPrompt.field_names === 'string'
+          ? JSON.parse(rawPrompt.field_names)
+          : rawPrompt.field_names,
+        expectedFieldsCount: rawPrompt.expected_fields_count,
+        id: rawPrompt.id
+      };
+    } finally {
+      await queryRunner.release();
     }
 
-    const prompt = documentPrompts[0];
     const question = this.replaceVariablesInPrompt(prompt.question, variableMapping);
     
     // Procesar con Gemini File API
@@ -1517,27 +1550,41 @@ export class UnderwritingService {
     
     this.logger.log(`✅ [GEMINI-FILE-API] Processing completed in ${result.processingTime}ms using ${result.method}`);
     
+    // Parse consolidated response into multiple fields if needed
+    const fieldNames = prompt.fieldNames || [prompt.pmcField];
+    const expectedFieldsCount = prompt.expectedFieldsCount || 1;
+
+    let answers: string[];
+    if (expectedFieldsCount > 1) {
+      // Parse semicolon-separated response for multiple fields
+      answers = this.parseConsolidatedResponse(result.response, fieldNames);
+      this.logger.log(`🔍 [GEMINI-FILE-API] Parsed ${answers.length} fields from consolidated response`);
+    } else {
+      // Single field response
+      answers = [result.response];
+    }
+
     // Construir respuesta en formato estándar
-    const pmcFieldResult: PMCFieldResultDto = {
+    const pmcFieldResults: PMCFieldResultDto[] = answers.map((answer, index) => ({
       pmc_field: prompt.pmcField,
       question: question,
-      answer: result.response,
+      answer: answer,
       confidence: result.confidence,
       expected_type: 'text',
       processing_time: result.processingTime
-    };
-    
+    }));
+
     const response: EvaluateClaimResponseDto = {
       record_id: body.record_id || 'gemini-file-api',
       status: 'success',
       results: {
-        [`${document_name}.pdf`]: [pmcFieldResult]
+        [`${document_name}.pdf`]: pmcFieldResults
       },
       summary: {
         total_documents: 1,
         processed_documents: 1,
-        total_fields: 1,
-        answered_fields: 1
+        total_fields: expectedFieldsCount,
+        answered_fields: answers.filter(a => a && a !== 'NOT_FOUND').length
       },
       processed_at: new Date()
     };
