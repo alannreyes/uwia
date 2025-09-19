@@ -301,18 +301,18 @@ export class UnderwritingService {
 
       this.logger.log(`[SYNC-LARGE] File stored with session ID: ${session.id}`);
 
-      // 🚀 FORCE GEMINI FILE API for large files (>25MB) - skip all local text extraction
+      // 🚀 FORCE GEMINI FILE API for files >= 20MB per Google official recommendations
       const fileSizeMB = file.size / (1024 * 1024);
-      const FORCE_GEMINI_THRESHOLD_MB = 25;
+      const GEMINI_FILES_API_THRESHOLD_MB = 20; // Google official threshold
 
-      if (fileSizeMB > FORCE_GEMINI_THRESHOLD_MB && this.geminiFileApiService.isAvailable()) {
-        this.logger.log(`🐘 [LARGE-FILE-DIRECT] File size ${fileSizeMB.toFixed(2)}MB > ${FORCE_GEMINI_THRESHOLD_MB}MB - routing directly to Gemini File API`);
-        this.logger.log(`🚀 [LARGE-FILE-DIRECT] Skipping local text extraction for large file - using Gemini File API only`);
+      if (fileSizeMB >= GEMINI_FILES_API_THRESHOLD_MB && this.geminiFileApiService.isAvailable()) {
+        this.logger.log(`🐘 [GEMINI-DIRECT] File size ${fileSizeMB.toFixed(2)}MB >= ${GEMINI_FILES_API_THRESHOLD_MB}MB - routing to Gemini Files API per Google recommendations`);
+        this.logger.log(`🚀 [GEMINI-DIRECT] Skipping local text extraction - using official Google Files API flow`);
         try {
           return await this.processWithGeminiFileApi(file, body, context);
         } catch (geminiError) {
-          this.logger.error(`❌ [LARGE-FILE-DIRECT] Gemini File API failed for large file: ${geminiError.message}`);
-          throw new Error(`Large file processing failed: ${geminiError.message}`);
+          this.logger.error(`❌ [GEMINI-DIRECT] Gemini Files API failed: ${geminiError.message}`);
+          throw new Error(`Gemini Files API processing failed: ${geminiError.message}`);
         }
       }
 
