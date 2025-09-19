@@ -83,3 +83,5 @@ bundle-analyzer-report.html # Archivos de configuración local con credenciales 
 .env.local
 development.env.backup
 *.env.local
+GOOGLE_GEMINI_OFFICIAL_THRESHOLDS.md
+gemini.pdf
