@@ -45,7 +45,7 @@ export class UnderwritingController {
 
     // Si viene archivo (multipart), procesar igual que en evaluateClaimMultipart
     if (file) {
-      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 150;  // Updated to match optimized thresholds
+      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 50;  // Updated to match Google 2025 recommendations
       const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
       this.logger.log(`📥 [MULTIPART] Archivo recibido: ${file.originalname} (${file.size} bytes)`);
       this.logger.log(`🔍 [FILE-DEBUG] Threshold: ${largeFileThreshold} bytes (${(largeFileThreshold/1024/1024).toFixed(2)} MB)`);
@@ -77,7 +77,7 @@ export class UnderwritingController {
 
     // Si no viene archivo, mantener compatibilidad con JSON puro
     try {
-      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 150;  // Updated to match optimized thresholds
+      const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 50;  // Updated to match Google 2025 recommendations
       const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
       const documentName = body.document_name || 'DOCUMENT';
       const base64 = body.file_data || body.lop_pdf || body.policy_pdf;
@@ -161,7 +161,7 @@ export class UnderwritingController {
     let document_name = body.document_name;
 
     if (uploadedFile) {
-  const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 150;  // Updated to match optimized thresholds
+  const largeFileThresholdMB = this.configService.get<number>('LARGE_FILE_THRESHOLD_MB') || 50;  // Updated to match Google 2025 recommendations
   const largeFileThreshold = largeFileThresholdMB * 1024 * 1024;
 
       // 🚨 CRITICAL DEBUG LOGGING

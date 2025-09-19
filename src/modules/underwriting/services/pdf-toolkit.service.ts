@@ -304,9 +304,21 @@ export class PdfToolkitService {
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale });
 
+            // Validate viewport dimensions
+            if (!viewport.width || !viewport.height || viewport.width <= 0 || viewport.height <= 0) {
+              this.logger.warn(`⚠️ Invalid viewport dimensions for page ${pageNum}: ${viewport.width}x${viewport.height}`);
+              continue;
+            }
+
             // Create canvas using node-canvas
-            const canvas = createCanvas(viewport.width, viewport.height);
+            const canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
             const context = canvas.getContext('2d');
+
+            // Validate canvas context
+            if (!context) {
+              this.logger.warn(`⚠️ Failed to get canvas context for page ${pageNum}`);
+              continue;
+            }
 
             // Render PDF page to canvas with font fallback options
             await page.render({
@@ -325,12 +337,18 @@ export class PdfToolkitService {
             this.logger.log(`✅ Page ${pageNum} converted to image`);
           } catch (pageError) {
             this.logger.warn(`⚠️ Failed to convert page ${pageNum}: ${pageError.message}`);
+            // Don't break the loop, continue with other pages
+            continue;
           }
         }
 
         this.logger.log(`✅ Successfully converted ${images.size} pages to images`);
       } catch (error) {
         this.logger.error(`❌ PDF.js image conversion failed: ${error.message}`);
+        // Ensure any unhandled promises are caught
+        if (error.name === 'AbortException' || error.message.includes('Image or Canvas expected')) {
+          this.logger.warn(`⚠️ PDF.js canvas rendering issue detected, switching to fallback method`);
+        }
         // Fall through to pdf-to-png-converter method
       }
     }

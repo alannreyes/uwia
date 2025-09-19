@@ -1020,6 +1020,7 @@ export class UnderwritingService {
           textAnswer = res.response;
           textConf = res.final_confidence || res.confidence || 0;
           this.logger.log(`📝 CONSOLIDATED text analysis result: "${res.response}" (conf: ${textConf})`);
+          this.logger.log(`🔍 [TYPE-DEBUG] textAnswer type: ${typeof res.response}, value: ${JSON.stringify(res.response)}`);
         }).catch(err => {
           this.logger.warn(`⚠️ Text analysis failed: ${err.message}`);
         });
@@ -1032,8 +1033,9 @@ export class UnderwritingService {
       await Promise.allSettled(promises);
 
       // Use responses directly - they are already in correct semicolon-separated format
-      const visionArr = visionAnswer ? visionAnswer.split(';') : null;
-      const textArr = textAnswer ? textAnswer.split(';') : null;
+      // Add type safety for textAnswer and visionAnswer
+      const visionArr = visionAnswer && typeof visionAnswer === 'string' ? visionAnswer.split(';') : null;
+      const textArr = textAnswer && typeof textAnswer === 'string' ? textAnswer.split(';') : null;
 
       this.logger.log(`🔍 [FUSION-DEBUG] Input arrays:`);
       this.logger.log(`   - Vision array: ${visionArr ? visionArr.length : 0} items`);
@@ -1041,6 +1043,9 @@ export class UnderwritingService {
       this.logger.log(`   - Expected fields: ${documentPrompt.fieldNames.length}`);
       if (visionArr) this.logger.log(`   - Vision raw: "${visionAnswer}"`);
       if (textArr) this.logger.log(`   - Text raw: "${textAnswer}"`);
+
+      // Debug response types
+      this.logger.log(`🔍 [TYPE-DEBUG] visionAnswer type: ${typeof visionAnswer}, textAnswer type: ${typeof textAnswer}`);
 
       // Simple fusion: prefer non-NOT_FOUND answers, prefer longer answers for data fields
       const combinedValues: string[] = [];

@@ -24,14 +24,14 @@ export class GeminiFileApiService {
   private fileManager?: any;
   private model?: any;
   
-  // Optimized thresholds based on testing and Gemini File API capabilities
-  // < 10MB: Inline API (fast for small files)
-  // 10-150MB: Direct File API (no splitting, leverages Gemini's 2GB capacity)
-  // > 150MB: Page-based splitting only (avoids pdf-lib size inflation bug)
-  private readonly INLINE_API_THRESHOLD_MB = 10;
+  // Optimized thresholds based on Google Gemini API 2025 documentation
+  // < 20MB: Inline base64 API processing (Google recommended)
+  // 20-50MB: Direct Gemini File API (Google max recommendation)
+  // > 50MB: Page-based splitting with multimodal approach
+  private readonly INLINE_API_THRESHOLD_MB = 20;
   private readonly INLINE_API_THRESHOLD_BYTES = this.INLINE_API_THRESHOLD_MB * 1024 * 1024;
 
-  private readonly DIRECT_API_THRESHOLD_MB = 150;
+  private readonly DIRECT_API_THRESHOLD_MB = 50;
   private readonly DIRECT_API_THRESHOLD_BYTES = this.DIRECT_API_THRESHOLD_MB * 1024 * 1024;
   
   constructor(
