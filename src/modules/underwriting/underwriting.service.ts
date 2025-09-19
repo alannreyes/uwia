@@ -1613,6 +1613,136 @@ export class UnderwritingService {
   }
 
   // ===============================================
+  // 🚀 GEMINI-ONLY SERVICE - BATCH PROCESSING ALL FILES
+  // ===============================================
+
+  async processAllFilesWithPureGemini(
+    files: Express.Multer.File[],
+    body: any,
+    context: any
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    const { record_id } = body;
+
+    this.logger.log(`🚀 [GEMINI-BATCH] Processing ${files.length} files with pure Gemini`);
+
+    // Get variables for replacements
+    const variables = this.getVariableMapping(body, context);
+
+    // Process all files in parallel
+    const processingPromises = files.map(async (file) => {
+      const document_name = file.originalname.replace(/\.pdf$/i, '');
+      const fileSizeMB = file.size / (1024 * 1024);
+
+      this.logger.log(`📄 [GEMINI-BATCH] Processing ${document_name} (${fileSizeMB.toFixed(2)}MB)`);
+
+      // Get prompt from database
+      const prompt = await this.getDocumentPrompt(document_name);
+      if (!prompt) {
+        this.logger.warn(`⚠️ [GEMINI-BATCH] No prompt for ${document_name}, skipping`);
+        return {
+          document: `${document_name}.pdf`,
+          fields: [{
+            pmc_field: 'document_not_configured',
+            question: `Document ${document_name}.pdf not configured in system`,
+            answer: 'SKIPPED',
+            confidence: 0,
+            processing_time: 0,
+            error: `No questions configured for document: ${document_name}.pdf`
+          }],
+          totalFields: 0,
+          answeredFields: 0
+        };
+      }
+
+      // Replace variables in prompt
+      let question = prompt.question || prompt.prompt || prompt.consolidated_prompt;
+      for (const [key, value] of Object.entries(variables)) {
+        const placeholder = `%${key}%`;
+        if (question.includes(placeholder)) {
+          question = question.replace(new RegExp(placeholder, 'g'), String(value));
+        }
+      }
+
+      // Route based on file size
+      let result: any;
+      const buffer = file.buffer;
+
+      try {
+        if (fileSizeMB < 20) {
+          this.logger.log(`🟢 [GEMINI-BATCH] ${document_name}: Using Inline API`);
+          result = await this.processWithGeminiInlineApi(buffer, question, document_name);
+        } else if (fileSizeMB <= 50) {
+          this.logger.log(`🟡 [GEMINI-BATCH] ${document_name}: Using File API`);
+          result = await this.processWithGeminiFileApiDirect(buffer, question, document_name);
+        } else {
+          this.logger.log(`🔴 [GEMINI-BATCH] ${document_name}: Using File API with splitting`);
+          const expectedFields = prompt.expected_fields_count || prompt.field_names?.length || 1;
+          result = await this.processWithGeminiFileApiSplit(buffer, question, document_name, expectedFields);
+        }
+
+        // Parse response
+        const fieldNames = prompt.field_names || [];
+        const pmcField = prompt.pmc_field || `${document_name.toLowerCase()}_responses`;
+        const fields = this.parseResponseToFields(result.answer, fieldNames, pmcField, question);
+
+        return {
+          document: `${document_name}.pdf`,
+          fields: fields,
+          totalFields: fieldNames.length || 1,
+          answeredFields: fields.filter(f => f.answer && f.answer !== 'NOT_FOUND').length
+        };
+
+      } catch (error) {
+        this.logger.error(`❌ [GEMINI-BATCH] Error processing ${document_name}: ${error.message}`);
+        return {
+          document: `${document_name}.pdf`,
+          fields: [{
+            pmc_field: prompt.pmc_field || 'error',
+            question: question.substring(0, 200) + '...',
+            answer: 'ERROR',
+            confidence: 0,
+            error: error.message
+          }],
+          totalFields: 1,
+          answeredFields: 0
+        };
+      }
+    });
+
+    // Wait for all documents to be processed
+    const results = await Promise.all(processingPromises);
+
+    // Consolidate results into final response
+    const consolidatedResults: Record<string, any[]> = {};
+    let totalFields = 0;
+    let answeredFields = 0;
+
+    results.forEach(result => {
+      consolidatedResults[result.document] = result.fields;
+      totalFields += result.totalFields;
+      answeredFields += result.answeredFields;
+    });
+
+    const processingTime = Date.now() - startTime;
+    this.logger.log(`✅ [GEMINI-BATCH] Completed all ${files.length} documents in ${processingTime}ms`);
+
+    return {
+      record_id,
+      status: 'success',
+      results: consolidatedResults,
+      summary: {
+        total_documents: files.length,
+        processed_documents: files.length,
+        total_fields: totalFields,
+        answered_fields: answeredFields
+      },
+      processed_at: new Date(),
+      processing_method: 'gemini_batch_pure'
+    };
+  }
+
+  // ===============================================
   // 🚀 GEMINI-ONLY SERVICE - PURE GEMINI PROCESSING
   // ===============================================
 
