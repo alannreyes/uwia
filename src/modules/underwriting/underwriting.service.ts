@@ -1669,7 +1669,7 @@ export class UnderwritingService {
       const buffer = file.buffer;
 
       try {
-        if (fileSizeMB < 20) {
+        if (fileSizeMB < 5) {
           this.logger.log(`🟢 [GEMINI-BATCH] ${document_name}: Using Inline API`);
           result = await this.processWithGeminiInlineApi(buffer, question, document_name);
         } else if (fileSizeMB <= 50) {
@@ -1803,9 +1803,9 @@ export class UnderwritingService {
     let result: any;
     const buffer = file.buffer;
 
-    if (fileSizeMB < 20) {
-      // Use Gemini Inline API
-      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<20MB)`);
+    if (fileSizeMB < 5) {
+      // Use Gemini Inline API (conservative limit to avoid token overflow)
+      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<5MB)`);
       result = await this.processWithGeminiInlineApi(buffer, question, document_name);
     } else if (fileSizeMB <= 50) {
       // Use Gemini File API
@@ -2173,37 +2173,30 @@ export class UnderwritingService {
   private async processWithGeminiFileApiSplit(buffer: Buffer, prompt: string, fileName: string, expectedFields: number) {
     this.logger.log(`🔴 [GEMINI-SPLIT] Processing with File API Split`);
 
-    // Calculate optimal number of chunks
     const fileSizeMB = buffer.length / (1024 * 1024);
-    const chunkSizeMB = 45; // Safety margin vs 50MB limit
-    const numChunks = Math.ceil(fileSizeMB / chunkSizeMB);
+    this.logger.log(`🔴 [GEMINI-SPLIT] Large file detected: ${fileSizeMB.toFixed(2)}MB`);
 
-    this.logger.log(`🔪 [GEMINI-SPLIT] Splitting ${fileSizeMB.toFixed(2)}MB into ${numChunks} chunks of ~${chunkSizeMB}MB`);
+    // For now, fallback to direct File API instead of risky byte-splitting
+    // This may fail for very large files, but won't create corrupted PDFs
+    this.logger.warn(`⚠️ [GEMINI-SPLIT] Using direct File API instead of splitting to avoid PDF corruption`);
 
-    // Split PDF into chunks using existing page-based splitting
-    const chunks = await this.splitPdfIntoChunks(buffer, numChunks);
-
-    // Process chunks in parallel
-    const chunkPromises = chunks.map(async (chunk, index) => {
-      this.logger.log(`🔄 [GEMINI-SPLIT] Processing chunk ${index + 1}/${numChunks} (${(chunk.length / 1024 / 1024).toFixed(2)}MB)`);
-
+    try {
       return await this.geminiFileApiService.processPdfDocument(
-        chunk,
+        buffer,
         prompt,
         ResponseType.TEXT
       );
-    });
+    } catch (error) {
+      this.logger.error(`❌ [GEMINI-SPLIT] File API failed for large file: ${error.message}`);
 
-    const chunkResults = await Promise.all(chunkPromises);
-
-    // Merge responses
-    const mergedAnswer = await this.mergeChunkResponses(chunkResults, expectedFields);
-
-    return {
-      answer: mergedAnswer,
-      confidence: 0.90, // Slightly lower due to merging
-      method: `gemini_file_api_split_${numChunks}_chunks`
-    };
+      // Return error response instead of crashing
+      return {
+        answer: 'ERROR_LARGE_FILE',
+        confidence: 0,
+        method: 'gemini_file_api_large_file_failed',
+        error: `File too large (${fileSizeMB.toFixed(2)}MB) for current processing limits`
+      };
+    }
   }
 
   private async splitPdfIntoChunks(buffer: Buffer, numChunks: number): Promise<Buffer[]> {
