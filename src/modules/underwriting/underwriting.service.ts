@@ -27,6 +27,7 @@ import { ModernRAGService } from './services/modern-rag-2025.service';
 import { VectorStorageService } from './services/vector-storage.service';
 import { SemanticChunkingService } from './services/semantic-chunking.service';
 import { GeminiFileApiService } from './services/gemini-file-api.service';
+import { GeminiService } from './services/gemini.service'; // ✅ Add missing import
 import { PdfValidatorService } from './services/pdf-validator.service';
 import { Express } from 'express';
 import { ClaimEvaluationGemini } from './entities/claim-evaluation-gemini.entity';
@@ -74,6 +75,7 @@ export class UnderwritingService {
   private vectorStorageService: VectorStorageService,
   private semanticChunkingService: SemanticChunkingService,
   private geminiFileApiService: GeminiFileApiService,
+  private geminiService: GeminiService, // ✅ Add missing GeminiService
   private pdfValidator: PdfValidatorService,
   ) {}
 
@@ -1783,10 +1785,12 @@ export class UnderwritingService {
     this.logger.log(`🟢 [GEMINI-INLINE] Processing with Inline API`);
 
     const base64 = buffer.toString('base64');
-    const result = await this.geminiService.analyzeDocument(base64, prompt, {
-      filename: documentName,
-      useInlineApi: true
-    });
+    const result = await this.geminiService.evaluateDocument(
+      base64,
+      prompt,
+      ResponseType.TEXT,
+      documentName
+    );
 
     return {
       answer: result.response || 'NOT_FOUND',
@@ -1798,7 +1802,11 @@ export class UnderwritingService {
   private async processWithGeminiFileApiDirect(buffer: Buffer, prompt: string, fileName: string) {
     this.logger.log(`🟡 [GEMINI-FILE-API] Processing with File API`);
 
-    const result = await this.geminiFileApiService.processDocumentDirect(buffer, prompt, fileName);
+    const result = await this.geminiFileApiService.processPdfDocument(
+      buffer,
+      prompt,
+      ResponseType.TEXT
+    );
 
     return {
       answer: result.response || 'NOT_FOUND',
@@ -1824,10 +1832,10 @@ export class UnderwritingService {
     const chunkPromises = chunks.map(async (chunk, index) => {
       this.logger.log(`🔄 [GEMINI-SPLIT] Processing chunk ${index + 1}/${numChunks} (${(chunk.length / 1024 / 1024).toFixed(2)}MB)`);
 
-      return await this.geminiFileApiService.processDocumentDirect(
+      return await this.geminiFileApiService.processPdfDocument(
         chunk,
         prompt,
-        `${fileName}_chunk_${index + 1}`
+        ResponseType.TEXT
       );
     });
 

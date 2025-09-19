@@ -3,9 +3,11 @@ export class PMCFieldResultDto {
   question: string;
   answer: string;
   confidence: number;
-  expected_type: string;
+  expected_type?: string;
   error?: string;
   processing_time?: number;
+  processing_time_ms?: number; // ✅ Add processing_time_ms for consistency
+  processing_method?: string; // ✅ Add processing_method for individual fields
 }
 
 export class DocumentResultDto {
@@ -26,4 +28,5 @@ export class EvaluateClaimResponseDto {
   };
   errors?: string[];
   processed_at: Date;
+  processing_method?: string; // ✅ Add processing_method field for Gemini-only tracking
 }
