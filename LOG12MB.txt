@@ -1,0 +1,783 @@
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation] ✅ Configuración de variables de entorno validada exitosamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation] 📊 Configuración actual:
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - Puerto: 5045
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - Entorno: production
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - DB Host: automate_mysql
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - DB Name: axioma
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - OpenAI Model: gpt-4o
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [EnvValidation]    - Max File Size: 104857600 bytes
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [NestFactory] Starting Nest application... +2ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] ✅ Cliente Gemini 2.5 Pro inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] 📊 Contexto máximo: 2,000,000 tokens (2M)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] ✅ Cliente Gemini 2.5 Pro inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] 📊 Contexto máximo: 2,000,000 tokens (2M)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] AppModule dependencies initialized +55ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] MulterModule dependencies initialized +15ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [PdfToolkitService] ✅ PDF.js initialized with fonts disabled (warning-free mode)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [PdfParserService] PDF.js worker and fonts initialized successfully.
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] ✅ Cliente Gemini 2.5 Pro inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] 📊 Contexto máximo: 2,000,000 tokens (2M)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAiService] 🚀 Servicios mejorados inicializados (modo: dual GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] ✅ Cliente Gemini 2.5 Pro inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiService] 📊 Contexto máximo: 2,000,000 tokens (2M)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAiService] 🚀 Servicios mejorados inicializados (modo: dual GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [PdfParserService] PDF.js worker and fonts initialized successfully.
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAIEmbeddingsService] 🚀 OpenAI Embeddings Service initialized
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAIEmbeddingsService] 📊 Model: text-embedding-3-large
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAIEmbeddingsService] 📐 Dimensions: 3072
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [OpenAIEmbeddingsService] 🎯 Max tokens per text: 8191
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] DiscoveryModule dependencies initialized +1ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [SemanticChunkingService] 🚀 Semantic Chunking Service initialized
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] ScheduleModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [MemoryManagerService] Memory monitoring enabled with a limit of 1536MB
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +67ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [VectorStorageService] 🚀 Vector Storage Service initialized
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [ModernRAGService] ✅ Modern RAG inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiFileApiService] ✅ Gemini File API Service inicializado correctamente
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [GeminiFileApiService] 📏 Optimized Thresholds: <10MB (Inline) | 10-150MB (Direct) | >150MB (Page-Split)
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] ChunkingModule dependencies initialized +2ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [InstanceLoader] UnderwritingModule dependencies initialized +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RoutesResolver] UnderwritingController {/api/underwriting}: +33ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/evaluate-claim, POST} route +5ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/document-prompts, GET} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/claim-history/:claimReference, GET} route +1ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/health, GET} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/evaluate-claim-multipart, POST} route +1ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/underwriting/evaluate-claim-batch, POST} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RoutesResolver] RagDebugController {/api/api/debug/rag}: +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/api/debug/rag/session/:sessionId, GET} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/api/debug/rag/test-race-condition, POST} route +1ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RoutesResolver] EnhancedUwiaController {/api/enhanced-uwia}: +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/enhanced-uwia/process-large-pdf, POST} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/enhanced-uwia/query/:sessionId, POST} route +1ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/enhanced-uwia/status/:sessionId, GET} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [RouterExplorer] Mapped {/api/enhanced-uwia/session/:sessionId, DELETE} route +0ms
+[Nest] 1  - 09/19/2025, 11:40:19 AM     LOG [NestApplication] Nest application successfully started +22ms
+🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+🎯 DEPLOY VERIFICADO - 2025-09-19T11:40:19.519Z
+✅ Escuchando en TODAS las interfaces: 0.0.0.0:5045
+🔥 Puerto configurado: 5045 (desde ENV: 5045)
+🌐 Accesible desde: http://automate_uwia_qa:5045/api
+🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+🚀 UWIA - Underwriting IA iniciado en: http://0.0.0.0:5045/api
+📚 Swagger Docs: http://0.0.0.0:5045/api/docs
+📋 Health check: http://0.0.0.0:5045/api/health
+🔍 Evaluate claim: POST http://0.0.0.0:5045/api/underwriting/evaluate-claim
+🔧 Build version: 09-05-25-NETWORK-FIX (Docker ports dynamic)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] → POST /api/underwriting/evaluate-claim - IP: 10.11.0.19 - User-Agent: axios/1.8.3
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 Request received with fields:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📋 Fields: carpeta_id, record_id, document_name, context
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📄 Document: CERTIFICATE
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🆔 Record: 175568
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📥 [MULTIPART] Archivo recibido: CERTIFICATE.pdf (1019708 bytes)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 [FILE-DEBUG] Threshold: 20971520 bytes (20.00 MB)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 [VAR-DEBUG] Getting variable mapping...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] → POST /api/underwriting/evaluate-claim - IP: 10.11.0.19 - User-Agent: axios/1.8.3
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 Request received with fields:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📋 Fields: carpeta_id, record_id, document_name, context
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📄 Document: INVOICES
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🆔 Record: 175568
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📥 [MULTIPART] Archivo recibido: INVOICES.pdf (289177 bytes)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 [FILE-DEBUG] Threshold: 20971520 bytes (20.00 MB)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 [VAR-DEBUG] Getting variable mapping...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🚀 [INICIO] Processing CERTIFICATE.pdf (0.00MB) | Provider: Unknown | Fields: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] → POST /api/underwriting/evaluate-claim - IP: 10.11.0.19 - User-Agent: axios/1.8.3
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 Request received with fields:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📋 Fields: carpeta_id, record_id, document_name, context
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📄 Document: LOP
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🆔 Record: 175568
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📥 [MULTIPART] Archivo recibido: LOP.pdf (875303 bytes)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 [FILE-DEBUG] Threshold: 20971520 bytes (20.00 MB)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 [VAR-DEBUG] Getting variable mapping...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📋 ALL DOCUMENTS in document_consolidado table (7 total):
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    1. ID:6 | CERTIFICATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    2. ID:3 | ESTIMATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    3. ID:1 | LOP.pdf | Active:1 | Fields:18
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    4. ID:4 | MOLD.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    5. ID:2 | POLICY.pdf | Active:1 | Fields:7
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    6. ID:7 | ROOF.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    7. ID:5 | WEATHER.pdf | Active:1 | Fields:2
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 Now searching for specific document: "CERTIFICATE.pdf"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    SQL: SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    Parameters: [CERTIFICATE.pdf]
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] → POST /api/underwriting/evaluate-claim - IP: 10.11.0.19 - User-Agent: axios/1.8.3
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📊 Query result for CERTIFICATE.pdf:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Found records: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Record ID: 6
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Document name: CERTIFICATE.pdf
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Has question: true
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Field names: date_of_completion1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Expected fields count: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Active: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📋 Processing CERTIFICATE.pdf with consolidated prompt:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Expected fields: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Field names: [date_of_completion1]
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Question prompt length: 445 chars
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - First 200 chars of prompt: Find the completion date in this certificate or completion document. Look for any date that indicates when work was completed, project was finished, or certificate was issued. This could be labeled as
+[Nest] 1  - 09/19/2025, 11:41:09 AM    WARN [UnderwritingService] ⚠️ [VAR-REPLACE] No variable replacements made
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📦 Using CONSOLIDATED strategy for CERTIFICATE.pdf (1 fields)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfToolkitService] 📄 Extracting text with pdf-parse...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] → POST /api/underwriting/evaluate-claim - IP: 10.11.0.19 - User-Agent: axios/1.8.3
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 Request received with fields:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📋 Fields: carpeta_id, record_id, document_name, context
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📄 Document: WEATHER
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🆔 Record: 175568
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📥 [MULTIPART] Archivo recibido: WEATHER.pdf (20860 bytes)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 [FILE-DEBUG] Threshold: 20971520 bytes (20.00 MB)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 [VAR-DEBUG] Getting variable mapping...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfToolkitService] ✅ pdf-parse extracted: 3945 characters
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfToolkitService] 📝 Extracting form fields with pdf-lib...
+[Nest] 1  - 09/19/2025, 11:41:09 AM    WARN [UnderwritingService] ⚠️ No consolidated configuration found for document: INVOICES.pdf - SKIPPING
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [HTTP] ← POST /api/underwriting/evaluate-claim 200 - 485ms
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfToolkitService] ✅ pdf-lib found 0 form fields
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📄 Text extracted: 3945 characters
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfImageServiceV2] 🖼️ Converting 5 pages from CERTIFICATE.pdf (scale: 2x)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfImageServiceV2] 🔧 Using PdfToolkit for image conversion...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 Request received with fields:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📋 Fields: carpeta_id, record_id, document_name, context
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📄 Document: POLICY
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🆔 Record: 175568
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 📥 [MULTIPART] Archivo recibido: POLICY.pdf (12460572 bytes)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingController] 🔍 [FILE-DEBUG] Threshold: 20971520 bytes (20.00 MB)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 [VAR-DEBUG] Getting variable mapping...
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🚀 [INICIO] Processing LOP.pdf (0.00MB) | Provider: Unknown | Fields: 18
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📋 ALL DOCUMENTS in document_consolidado table (7 total):
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    1. ID:6 | CERTIFICATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    2. ID:3 | ESTIMATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    3. ID:1 | LOP.pdf | Active:1 | Fields:18
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    4. ID:4 | MOLD.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    5. ID:2 | POLICY.pdf | Active:1 | Fields:7
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    6. ID:7 | ROOF.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    7. ID:5 | WEATHER.pdf | Active:1 | Fields:2
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🔍 Now searching for specific document: "LOP.pdf"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    SQL: SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    Parameters: [LOP.pdf]
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 🚀 [INICIO] Processing POLICY.pdf (0.00MB) | Provider: Unknown | Fields: 7
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📊 Query result for LOP.pdf:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Found records: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Record ID: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Document name: LOP.pdf
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Has question: true
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Field names: mechanics_lien,lop_date1,lop_signed_by_client1,lop_signed_by_ho1,onb_street1,onb_zip1,onb_city1,state1,onb_date_of_loss1,onb_policy_number1,onb_claim_number1,onb_street_match,onb_zip_match,onb_address_match,onb_city_match,onb_date_of_loss_match,onb_policy_number_match,onb_claim_number_match
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Expected fields count: 18
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Active: 1
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📋 Processing LOP.pdf with consolidated prompt:
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Expected fields: 18
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Field names: [mechanics_lien, lop_date1, lop_signed_by_client1, lop_signed_by_ho1, onb_street1, onb_zip1, onb_city1, state1, onb_date_of_loss1, onb_policy_number1, onb_claim_number1, onb_street_match, onb_zip_match, onb_address_match, onb_city_match, onb_date_of_loss_match, onb_policy_number_match, onb_claim_number_match]
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - Question prompt length: 3696 chars
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService]    - First 200 chars of prompt: Check the date when this document was signed. If multiple dates are found, then treat each unique dated document as a separate document for the analysis stated below. Extract the following 18 data poi
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insured_address% → "3213 8th St W, Lehigh Acres, FL 33971"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insured_street% → "3213 8th St W"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insured_city% → "Lehigh Acres"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insured_zip% → "33971"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %date_of_loss% → "06-22-25"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %policy_number% → "13368497-1"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %claim_number% → "75810"
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [UnderwritingService] 📦 Using CONSOLIDATED strategy for LOP.pdf (18 fields)
+[Nest] 1  - 09/19/2025, 11:41:09 AM     LOG [PdfToolkitService] 📄 Extracting text with pdf-parse...
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] ✅ pdf-parse extracted: 12231 characters
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] 📝 Extracting form fields with pdf-lib...
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 🚀 [INICIO] Processing WEATHER.pdf (0.00MB) | Provider: Unknown | Fields: 2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📋 ALL DOCUMENTS in document_consolidado table (7 total):
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    1. ID:6 | CERTIFICATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    2. ID:3 | ESTIMATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    3. ID:1 | LOP.pdf | Active:1 | Fields:18
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    4. ID:4 | MOLD.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    5. ID:2 | POLICY.pdf | Active:1 | Fields:7
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    6. ID:7 | ROOF.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    7. ID:5 | WEATHER.pdf | Active:1 | Fields:2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 🔍 Now searching for specific document: "WEATHER.pdf"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    SQL: SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    Parameters: [WEATHER.pdf]
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📋 ALL DOCUMENTS in document_consolidado table (7 total):
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    1. ID:6 | CERTIFICATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    2. ID:3 | ESTIMATE.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    3. ID:1 | LOP.pdf | Active:1 | Fields:18
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    4. ID:4 | MOLD.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    5. ID:2 | POLICY.pdf | Active:1 | Fields:7
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    6. ID:7 | ROOF.pdf | Active:1 | Fields:1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    7. ID:5 | WEATHER.pdf | Active:1 | Fields:2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 🔍 Now searching for specific document: "POLICY.pdf"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    SQL: SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    Parameters: [POLICY.pdf]
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📊 Query result for WEATHER.pdf:
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Found records: 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Record ID: 5
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Document name: WEATHER.pdf
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Has question: true
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Field names: windspeed1,wind_gust1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Expected fields count: 2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Active: 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📋 Processing WEATHER.pdf with consolidated prompt:
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Expected fields: 2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Field names: [windspeed1, wind_gust1]
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Question prompt length: 393 chars
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - First 200 chars of prompt: Analyze this weather document for %date_of_loss%: STEP 1: Find the maximum wind speed, NOT gust, look for: "Max Wind Speed", "Wind Speed", "Maximum Wind Speed", ignore: Any field containing "gust"; ST
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %date_of_loss% → "06-22-25"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📦 Using CONSOLIDATED strategy for WEATHER.pdf (2 fields)
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] 📄 Extracting text with pdf-parse...
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] ✅ pdf-parse extracted: 1618 characters
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] 📝 Extracting form fields with pdf-lib...
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] ✅ pdf-lib found 0 form fields
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📄 Text extracted: 1618 characters
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfImageServiceV2] 🖼️ Converting 5 pages from WEATHER.pdf (scale: 2x)
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfImageServiceV2] 🔧 Using PdfToolkit for image conversion...
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📊 Query result for POLICY.pdf:
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Found records: 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Record ID: 2
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Document name: POLICY.pdf
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Has question: true
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Field names: policy_valid_from1,policy_valid_to1,matching_insured_name,matching_insured_company,policy_covers_type_job,policy_exclusion,policy_covers_dol
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Expected fields count: 7
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Active: 1
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📋 Processing POLICY.pdf with consolidated prompt:
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Expected fields: 7
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Field names: [policy_valid_from1, policy_valid_to1, matching_insured_name, matching_insured_company, policy_covers_type_job, policy_exclusion, policy_covers_dol]
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - Question prompt length: 1655 chars
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService]    - First 200 chars of prompt: Extract the following 7 data points from this insurance policy document: 1. policy_valid_from1: Find the policy start or effective date when coverage begins. Convert to MM-DD-YY format. Return the ear
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insured_name% → "ONIESKY ARIAS"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %insurance_company% → "Citizens Property Insurance Corporation"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %date_of_loss% → "06-22-25"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %type_of_job% → "Dryout,Tarp,Retarp"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] ✅ [VAR-REPLACE] %cause_of_loss% → "Wind"
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [UnderwritingService] 📦 Using CONSOLIDATED strategy for POLICY.pdf (7 fields)
+[Nest] 1  - 09/19/2025, 11:41:10 AM     LOG [PdfToolkitService] 📄 Extracting text with pdf-parse...
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] ✅ pdf-parse extracted: 338159 characters
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] 📝 Extracting form fields with pdf-lib...
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] ✅ pdf-lib found 0 form fields
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [UnderwritingService] 📄 Text extracted: 12231 characters
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfImageServiceV2] 🖼️ Converting 5 pages from LOP.pdf (scale: 3x)
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfImageServiceV2] 🔧 Using PdfToolkit for image conversion...
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] 🖼️ Converting 5 pages to images with PDF.js...
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] 🖼️ Converting 5 pages to images with PDF.js...
+[Nest] 1  - 09/19/2025, 11:41:11 AM     LOG [PdfToolkitService] 🖼️ Converting 5 pages to images with PDF.js...
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 1: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 1: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 1: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [PdfToolkitService] ✅ Page 2 converted to image
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 3: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 4: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 5: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [PdfToolkitService] ✅ Successfully converted 1 pages to images
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [PdfImageServiceV2] ✅ Successfully converted 1 pages in 2257ms
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🖼️ Images extracted: 1 pages
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 📑 Document preparation for WEATHER.pdf: truncation=false, limit=50
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🤖 Processing WEATHER.pdf with consolidated prompt (expecting 2 fields)
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 📄 Document WEATHER.pdf preparation results:
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Text extracted: 1618 chars
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Images available: 1 pages
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Is extreme file: false
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - File size estimate: 0.02MB
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [AdaptiveProcessingStrategyService] 🔍 Fallback analysis for weather_responses: needsVisual=false
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [AdaptiveProcessingStrategyService] ⚠️ Fallback strategy for weather_responses: Visual=false, Dual=true, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🔴 FORCING VISION MODE due to insufficient text extraction:
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Total text: 1618 chars
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Text per page: 1618.0 chars/page
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Text density: 16180 chars/MB
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Original strategy: false -> FORCED: true
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🎯 Strategy decision for WEATHER.pdf:
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Strategy: Visual=false, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService]    - Final decision: Visual=true
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🔍 Using CONSOLIDATED VISUAL ANALYSIS for WEATHER.pdf with 1 pages
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [UnderwritingService] 🏗️ Processing with NEW consolidated method - expecting 2 fields in one response
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService] 🏗️ CONSOLIDATED PROCESSING for weather_responses:
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService]    - Expected fields: 2
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService]    - Strategy: GPT-4o Primary
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService]    - Use targeted pages: false
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService] 🎯 Consolidated strategy adjusted: targetedPages=false, maxPages=1
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [LargePdfVisionService] 🤖 Processing consolidated prompt with Dual Vision (GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [OpenAiService] [weather_responses] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [RateLimiterService] 📋 Queued vision_weather_responses_page1 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:41:12 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:41:12 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 2: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 2: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 3: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 4: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 5: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:13 AM     LOG [PdfToolkitService] ✅ Successfully converted 0 pages to images
+[Nest] 1  - 09/19/2025, 11:41:13 AM     LOG [PdfToolkitService] 🔄 Using pdf-to-png-converter fallback...
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 3: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 4: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:13 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 5: Invalid page request.
+[Nest] 1  - 09/19/2025, 11:41:13 AM     LOG [PdfToolkitService] ✅ Successfully converted 0 pages to images
+[Nest] 1  - 09/19/2025, 11:41:13 AM     LOG [PdfToolkitService] 🔄 Using pdf-to-png-converter fallback...
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [PdfToolkitService] ✅ Fallback conversion successful: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [PdfImageServiceV2] ✅ Successfully converted 3 pages in 5085ms
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🖼️ Images extracted: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 📑 Document preparation for CERTIFICATE.pdf: truncation=false, limit=50
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🤖 Processing CERTIFICATE.pdf with consolidated prompt (expecting 1 fields)
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 📄 Document CERTIFICATE.pdf preparation results:
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Text extracted: 3945 chars
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Images available: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Is extreme file: false
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - File size estimate: 0.97MB
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [AdaptiveProcessingStrategyService] 🔍 Fallback analysis for certificate_responses: needsVisual=false
+[Nest] 1  - 09/19/2025, 11:41:14 AM    WARN [AdaptiveProcessingStrategyService] ⚠️ Fallback strategy for certificate_responses: Visual=false, Dual=false, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🔴 FORCING VISION MODE due to insufficient text extraction:
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Total text: 3945 chars
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Text per page: 1315.0 chars/page
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Text density: 4057 chars/MB
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Original strategy: false -> FORCED: true
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🎯 Strategy decision for CERTIFICATE.pdf:
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Strategy: Visual=false, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService]    - Final decision: Visual=true
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🔍 Using CONSOLIDATED VISUAL ANALYSIS for CERTIFICATE.pdf with 3 pages
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [UnderwritingService] 🏗️ Processing with NEW consolidated method - expecting 1 fields in one response
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService] 🏗️ CONSOLIDATED PROCESSING for certificate_responses:
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService]    - Expected fields: 1
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService]    - Strategy: GPT-4o Primary
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService]    - Use targeted pages: false
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService] 🎯 Consolidated strategy adjusted: targetedPages=false, maxPages=3
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [LargePdfVisionService] 🤖 Processing consolidated prompt with Dual Vision (GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [OpenAiService] [certificate_responses] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:41:14 AM     LOG [RateLimiterService] 📋 Queued vision_certificate_responses_page1 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfToolkitService] ✅ Fallback conversion successful: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfImageServiceV2] ✅ Successfully converted 3 pages in 5403ms
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 🖼️ Images extracted: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 📑 Document preparation for LOP.pdf: truncation=false, limit=50
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 🤖 Processing LOP.pdf with consolidated prompt (expecting 18 fields)
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 📄 Document LOP.pdf preparation results:
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - Text extracted: 12231 chars
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - Images available: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - Is extreme file: false
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - File size estimate: 0.83MB
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [AdaptiveProcessingStrategyService] 🔍 Fallback analysis for lop_responses: needsVisual=true
+[Nest] 1  - 09/19/2025, 11:41:16 AM    WARN [AdaptiveProcessingStrategyService] ⚠️ Fallback strategy for lop_responses: Visual=true, Dual=true, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 🎯 Strategy decision for LOP.pdf:
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - Strategy: Visual=true, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService]    - Final decision: Visual=true
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 🔍 Using CONSOLIDATED VISUAL ANALYSIS for LOP.pdf with 3 pages
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 🏗️ Processing with NEW consolidated method - expecting 18 fields in one response
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService] 🏗️ CONSOLIDATED PROCESSING for lop_responses:
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService]    - Expected fields: 18
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService]    - Strategy: GPT-4o Primary
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService]    - Use targeted pages: false
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService] 🎯 Consolidated strategy adjusted: targetedPages=false, maxPages=3
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [LargePdfVisionService] 🤖 Processing consolidated prompt with Dual Vision (GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [OpenAiService] [lop_responses] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [RateLimiterService] 📋 Queued vision_lop_responses_page1 (priority: high, queue size: 2)
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfToolkitService] ✅ pdf-lib found 0 form fields
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [UnderwritingService] 📄 Text extracted: 338159 characters
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfImageServiceV2] 🖼️ Converting 5 pages from POLICY.pdf (scale: 2x)
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfImageServiceV2] 🔧 Using PdfToolkit for image conversion...
+[Nest] 1  - 09/19/2025, 11:41:16 AM     LOG [PdfToolkitService] 🖼️ Converting 5 pages to images with PDF.js...
+[Nest] 1  - 09/19/2025, 11:41:16 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 1: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:17 AM     LOG [PdfToolkitService] ✅ Page 2 converted to image
+[Nest] 1  - 09/19/2025, 11:41:17 AM     LOG [PdfToolkitService] ✅ Page 3 converted to image
+[Nest] 1  - 09/19/2025, 11:41:17 AM     LOG [PdfToolkitService] ✅ Page 4 converted to image
+[Nest] 1  - 09/19/2025, 11:41:18 AM    WARN [PdfToolkitService] ⚠️ Failed to convert page 5: Image or Canvas expected
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [PdfToolkitService] ✅ Successfully converted 3 pages to images
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [PdfImageServiceV2] ✅ Successfully converted 3 pages in 2097ms
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🖼️ Images extracted: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 📑 Document preparation for POLICY.pdf: truncation=false, limit=50
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🤖 Processing POLICY.pdf with consolidated prompt (expecting 7 fields)
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 📄 Document POLICY.pdf preparation results:
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Text extracted: 338159 chars
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Images available: 3 pages
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Is extreme file: false
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - File size estimate: 11.88MB
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [AdaptiveProcessingStrategyService] 🔍 Fallback analysis for policy_responses: needsVisual=false
+[Nest] 1  - 09/19/2025, 11:41:18 AM    WARN [AdaptiveProcessingStrategyService] ⚠️ Fallback strategy for policy_responses: Visual=false, Dual=true, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🔴 FORCING VISION MODE due to insufficient text extraction:
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Total text: 338159 chars
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Text per page: 112719.7 chars/page
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Text density: 28457 chars/MB
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Original strategy: false -> FORCED: true
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🎯 Strategy decision for POLICY.pdf:
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Strategy: Visual=false, Model=gpt-4o
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService]    - Final decision: Visual=true
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🔍 Using CONSOLIDATED VISUAL ANALYSIS for POLICY.pdf with 3 pages
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [UnderwritingService] 🏗️ Processing with NEW consolidated method - expecting 7 fields in one response
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService] 🏗️ CONSOLIDATED PROCESSING for policy_responses:
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService]    - Expected fields: 7
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService]    - Strategy: GPT-4o Primary
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService]    - Use targeted pages: true
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService] 🎯 Consolidated strategy adjusted: targetedPages=false, maxPages=3
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [LargePdfVisionService] 🤖 Processing consolidated prompt with Dual Vision (GPT-4o + Gemini)
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [OpenAiService] [policy_responses] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_page1 (priority: high, queue size: 3)
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de weather_responses
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [OpenAiService] ✅ GPT-4o found: "NOT_FOUND; 63" (confidence: 0.9) - primary method
+[Nest] 1  - 09/19/2025, 11:41:18 AM     LOG [OpenAiService] ✅ GPT-4o found: "07-18-25" (confidence: 0.9) - primary method
+[Nest] 1  - 09/19/2025, 11:41:20 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de certificate_responses
+[Nest] 1  - 09/19/2025, 11:41:25 AM     LOG [OpenAiService] ✅ GPT-4o found: "YES; 07-17-25; NO; NO; 3213 8th St W; 33971; Lehigh Acres; FL Florida; 06-22-25; 13368497-1; 75810; YES; YES; YES; YES; YES; YES; YES" (confidence: 0.9) - primary method
+[Nest] 1  - 09/19/2025, 11:41:25 AM     LOG [GeminiService] [certificate_responses] ✅ Gemini completed in 10792ms
+[Nest] 1  - 09/19/2025, 11:41:25 AM     LOG [UnderwritingService] 📝 CONSOLIDATED text analysis result: "07-18-25" (conf: 0.99)
+[Nest] 1  - 09/19/2025, 11:41:26 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de lop_responses
+[Nest] 1  - 09/19/2025, 11:41:26 AM     LOG [GeminiService] [weather_responses] ✅ Gemini completed in 14064ms
+[Nest] 1  - 09/19/2025, 11:41:26 AM    WARN [OpenAiService] [weather_responses] ⚠️ Low consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:41:27 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8227ms
+[Nest] 1  - 09/19/2025, 11:41:27 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND; NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:27 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND; NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:27 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:27 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 1 result: "NOT_FOUND; NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:29 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses
+[Nest] 1  - 09/19/2025, 11:41:29 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:41:29 AM     LOG [UnderwritingService] 📝 CONSOLIDATED text analysis result: "NOT_FOUND; 63" (conf: 1)
+[Nest] 1  - 09/19/2025, 11:41:31 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10908ms
+[Nest] 1  - 09/19/2025, 11:41:31 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:31 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "07-18-25" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:31 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:31 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 1 result: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [GeminiService] ✅ Gemini Vision completado en 6021ms
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 🔍 Gemini page 1 result: "NOT_FOUND;NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 📊 DUAL VISION CONSENSUS: Agreement=0, Final="NOT_FOUND; NOT_FOUND"
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService]    GPT-4o: "NOT_FOUND; NOT_FOUND" (1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService]    Gemini: "NOT_FOUND;NOT_FOUND" (1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 🔴 ACTIVANDO VISIÓN FORZADA: Low consensus (0) OR high NOT_FOUND rate
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 🔥 INICIANDO VISIÓN FORZADA ULTRA-AGRESIVA con 1 páginas
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 💾 Extracted 0 temporal values: 
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [LargePdfVisionService] 💾 Valores temporales retenidos: 0 campos con datos
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [OpenAiService] [weather_responses_enhanced] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [RateLimiterService] 📋 Queued vision_weather_responses_enhanced_page1 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:41:33 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:41:34 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de weather_responses_enhanced
+[Nest] 1  - 09/19/2025, 11:41:34 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:41:35 AM     LOG [GeminiService] [policy_responses] ✅ Gemini completed in 16729ms
+[Nest] 1  - 09/19/2025, 11:41:37 AM     LOG [OpenAiService] ✅ GPT-4o found: "08-12-24;08-12-25;YES;YES;YES;windstorm and hail coverage, including hurricane coverage, may not be provided;NO" (confidence: 0.95) - primary method
+[Nest] 1  - 09/19/2025, 11:41:37 AM    WARN [OpenAiService] [policy_responses] ⚠️ Low consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:41:38 AM     LOG [GeminiService] ✅ Gemini Vision completado en 9408ms
+[Nest] 1  - 09/19/2025, 11:41:38 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:38 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:38 AM    WARN [OpenAiService] [policy_responses] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:41:38 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:38 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 1 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:39 AM     LOG [GeminiService] ✅ Gemini Vision completado en 6577ms
+[Nest] 1  - 09/19/2025, 11:41:39 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND; 63" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8471ms
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [LargePdfVisionService] 🔍 Gemini page 1 result: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [OpenAiService] [certificate_responses] 🎯 Vision page 2
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [RateLimiterService] 📋 Queued vision_certificate_responses_page2 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:41:40 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [GeminiService] ✅ Gemini Vision completado en 7297ms
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND; 63" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND; 63" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [LargePdfVisionService] 🧩 Analyzing 2 field chunks: 1, 1 fields each
+[Nest] 1  - 09/19/2025, 11:41:42 AM     LOG [UnderwritingService] 📝 CONSOLIDATED text analysis result: "08-12-24;08-12-25;YES;YES;YES;loss to watercraft...only while inside a fully enclosed building, windstorm or hail...for model aircraft, hobby aircraft or drones;YES" (conf: 0.95)
+[Nest] 1  - 09/19/2025, 11:41:43 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de certificate_responses
+[Nest] 1  - 09/19/2025, 11:41:43 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:41:45 AM     LOG [GeminiService] [lop_responses] ✅ Gemini completed in 28924ms
+[Nest] 1  - 09/19/2025, 11:41:45 AM    WARN [OpenAiService] [lop_responses] ⚠️ Low consensus: 8.7%
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8515ms
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [LargePdfVisionService] 🔍 Gemini page 1 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [OpenAiService] [policy_responses] 🎯 Vision page 2
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_page2 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:41:47 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:41:48 AM     LOG [GeminiService] ✅ Gemini Vision completado en 6768ms
+[Nest] 1  - 09/19/2025, 11:41:48 AM     LOG [GeminiService] 👁️ Gemini Vision found: "63" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:50 AM     LOG [GeminiService] ✅ Gemini Vision completado en 23804ms
+[Nest] 1  - 09/19/2025, 11:41:50 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:50 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "YES; 07-17-25; YES; YES; 3213 8th St W; 33971; Lehigh Acres; FL Florida; 06-22-25; 13368497-1; 75810; YES; YES; YES; YES; YES; YES; YES" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:50 AM    WARN [OpenAiService] [lop_responses] ⚠️ Low visual consensus: 8.7%
+[Nest] 1  - 09/19/2025, 11:41:50 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:50 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 1 result: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:51 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses
+[Nest] 1  - 09/19/2025, 11:41:51 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:41:52 AM     LOG [GeminiService] ✅ Gemini Vision completado en 9860ms
+[Nest] 1  - 09/19/2025, 11:41:52 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:52 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "07-18-25" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:41:52 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:41:52 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 2 result: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:55 AM     LOG [UnderwritingService] 📝 CONSOLIDATED text analysis result: "YES;07-17-25;NO;NO;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (conf: 0.95)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8372ms
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [GeminiService] 👁️ Gemini Vision found: "63" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🧩 Chunks procesados 2/2 (última conf: 1.00)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🎯 Progressive combining 4 results + 0 temporal values
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🔧 [DEPLOY-TEST] New algorithm active: confidence threshold logic enabled
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🔄 Field [1] updated: "NOT_FOUND" → "63" (ultra-enhanced-vision, conf: 1)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🔄 Field [0] updated: "NOT_FOUND" → "63" (micro-chunked-analysis, conf: 0.75)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🎯 Progressive result: 2/2 fields filled (100.0%)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🎯 Final answer: "63;63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🎯 Progressive combined result: "63;63" (confidence: 0.875)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 📈 ULTRA-AGGRESSIVE improvement: 1.00 → 0.00 (improved: true)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] ✅ Forced vision improved results: 0.875
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService] 🔍 CONSOLIDATED RESPONSE VALIDATION:
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService]    - Raw response: "63;63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService]    - Split values: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [LargePdfVisionService]    - Expected fields: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] 🔍 CONSOLIDATED visual analysis result: "63;63" (conf: 0.875)
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] 🔍 [FUSION-DEBUG] Input arrays:
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Vision array: 2 items
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Text array: 2 items
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Expected fields: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Vision raw: "63;63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Text raw: "NOT_FOUND; 63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] Combined result for WEATHER.pdf:
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Response length: 5 chars
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Full response: "63;63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Split count: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] 📋 Using combined values for WEATHER.pdf:
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Expected fields: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Final values: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Values with content: 2
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] ✅ FINAL RESULT for WEATHER.pdf:
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - pmc_field: "weather_responses"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - answer length: 5 chars
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - answer split: 2 values
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - confidence: 1
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] COMPLETE FINAL ANSWER: "63;63"
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService]    - Matches combined result: YES
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] ✅ FINAL VALIDATION PASSED: 2 values match 2 expected fields
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [UnderwritingService] ✅ [COMPLETADO] WEATHER.pdf | Duration: 47.8s | Success: 1/1 | Errors: 0 | Warnings: 0
+[Nest] 1  - 09/19/2025, 11:41:57 AM     LOG [HTTP] ← POST /api/underwriting/evaluate-claim 200 - 47801ms
+[Nest] 1  - 09/19/2025, 11:42:00 AM     LOG [GeminiService] ✅ Gemini Vision completado en 9321ms
+[Nest] 1  - 09/19/2025, 11:42:00 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:00 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:42:00 AM    WARN [OpenAiService] [policy_responses] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:42:00 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 0.8 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:42:00 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 2 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8814ms
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [LargePdfVisionService] 🔍 Gemini page 2 result: "07-18-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [OpenAiService] [certificate_responses] 🎯 Vision page 3
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [RateLimiterService] 📋 Queued vision_certificate_responses_page3 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:01 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:42:04 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de certificate_responses
+[Nest] 1  - 09/19/2025, 11:42:04 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [GeminiService] ✅ Gemini Vision completado en 16769ms
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [LargePdfVisionService] 🔍 Gemini page 1 result: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [OpenAiService] [lop_responses] 🎯 Vision page 2
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [RateLimiterService] 📋 Queued vision_lop_responses_page2 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:07 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:42:09 AM     LOG [GeminiService] ✅ Gemini Vision completado en 9146ms
+[Nest] 1  - 09/19/2025, 11:42:09 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:09 AM     LOG [LargePdfVisionService] 🔍 Gemini page 2 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:09 AM     LOG [OpenAiService] [policy_responses] 🎯 Vision page 3
+[Nest] 1  - 09/19/2025, 11:42:09 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_page3 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:11 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de lop_responses
+[Nest] 1  - 09/19/2025, 11:42:13 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses
+[Nest] 1  - 09/19/2025, 11:42:13 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:42:14 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10219ms
+[Nest] 1  - 09/19/2025, 11:42:14 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-30-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:14 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "06-22-25" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:42:14 AM    WARN [OpenAiService] [certificate_responses] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:42:14 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:42:14 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 3 result: "07-30-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [GeminiService] ✅ Gemini Vision completado en 7297ms
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [GeminiService] 👁️ Gemini Vision found: "07-30-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] 🔍 Gemini page 3 result: "07-30-25" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] 📊 DUAL VISION CONSENSUS: Agreement=1, Final="07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService]    GPT-4o: "07-18-25" (1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService]    Gemini: "07-18-25" (1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] 📊 NOT_FOUND rate: 0/1 (0.0%)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] 🎯 Ultra-aggressive threshold (40%): OK
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] ✅ High consensus (1) - Final confidence: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService] 🔍 CONSOLIDATED RESPONSE VALIDATION:
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService]    - Raw response: "07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService]    - Split values: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [LargePdfVisionService]    - Expected fields: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] 🔍 CONSOLIDATED visual analysis result: "07-18-25" (conf: 1)
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] 🔍 [FUSION-DEBUG] Input arrays:
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Vision array: 1 items
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Text array: 1 items
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Expected fields: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Vision raw: "07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Text raw: "07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] Combined result for CERTIFICATE.pdf:
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Response length: 8 chars
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Full response: "07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Split count: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] 📋 Using combined values for CERTIFICATE.pdf:
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Expected fields: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Final values: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Values with content: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] ✅ FINAL RESULT for CERTIFICATE.pdf:
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - pmc_field: "certificate_responses"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - answer length: 8 chars
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - answer split: 1 values
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - confidence: 1
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] COMPLETE FINAL ANSWER: "07-18-25"
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService]    - Matches combined result: YES
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] ✅ FINAL VALIDATION PASSED: 1 values match 1 expected fields
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [UnderwritingService] ✅ [COMPLETADO] CERTIFICATE.pdf | Duration: 72.4s | Success: 1/1 | Errors: 0 | Warnings: 0
+[Nest] 1  - 09/19/2025, 11:42:21 AM     LOG [HTTP] ← POST /api/underwriting/evaluate-claim 200 - 72399ms
+[Nest] 1  - 09/19/2025, 11:42:23 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10269ms
+[Nest] 1  - 09/19/2025, 11:42:23 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:23 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:42:23 AM    WARN [OpenAiService] [policy_responses] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:42:23 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:42:23 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 3 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:25 AM     LOG [GeminiService] ✅ Gemini Vision completado en 14551ms
+[Nest] 1  - 09/19/2025, 11:42:25 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:25 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "YES; 07-17-25; YES; YES; 3213 8th St W; 33971; Lehigh Acres; FL Florida; 06-22-25; 13368497-1; 75810; YES; YES; YES; YES; YES; YES; YES" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:42:25 AM    WARN [OpenAiService] [lop_responses] ⚠️ Low visual consensus: 8.7%
+[Nest] 1  - 09/19/2025, 11:42:25 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:42:25 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 2 result: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8293ms
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 🔍 Gemini page 3 result: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 📊 DUAL VISION CONSENSUS: Agreement=1, Final="NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO"
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService]    GPT-4o: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (1)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService]    Gemini: "NOT_FOUND;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (0.8)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 📊 NOT_FOUND rate: 3/7 (42.9%)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 🎯 Ultra-aggressive threshold (40%): TRIGGERED
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 🔴 ACTIVANDO VISIÓN FORZADA: Low consensus (1) OR high NOT_FOUND rate
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 🔥 INICIANDO VISIÓN FORZADA ULTRA-AGRESIVA con 3 páginas
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 💾 Extracted 4 temporal values: [2]=NO, [3]=NO, [4]=NO, [6]=NO
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [LargePdfVisionService] 💾 Valores temporales retenidos: 4 campos con datos
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [OpenAiService] [policy_responses_enhanced] 🎯 Vision page 1
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_enhanced_page1 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:32 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:42:34 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses_enhanced
+[Nest] 1  - 09/19/2025, 11:42:34 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [GeminiService] ✅ Gemini Vision completado en 20098ms
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [LargePdfVisionService] 🔍 Gemini page 2 result: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [OpenAiService] [lop_responses] 🎯 Vision page 3
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [RateLimiterService] 📋 Queued vision_lop_responses_page3 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:45 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:42:50 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de lop_responses
+[Nest] 1  - 09/19/2025, 11:42:50 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:42:54 AM     LOG [GeminiService] ✅ Gemini Vision completado en 22368ms
+[Nest] 1  - 09/19/2025, 11:42:54 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [GeminiService] ✅ Gemini Vision completado en 22713ms
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND;NOT_FOUND;YES;YES;NOT_FOUND;NOT_FOUND;NO" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:42:56 AM    WARN [OpenAiService] [policy_responses_enhanced] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 0.9 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [OpenAiService] [policy_responses_enhanced] 🎯 Vision page 2
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_enhanced_page2 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:42:56 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:42:58 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses_enhanced
+[Nest] 1  - 09/19/2025, 11:42:58 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:43:06 AM     LOG [GeminiService] ✅ Gemini Vision completado en 15959ms
+[Nest] 1  - 09/19/2025, 11:43:06 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-30-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:43:06 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "YES; 07-30-25; YES; YES; 3213 8th St W; 33971; Lehigh Acres; FL Florida; 06-22-25; 13368497-1; 75810; YES; YES; YES; YES; YES; YES; YES" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:43:06 AM    WARN [OpenAiService] [lop_responses] ⚠️ Low visual consensus: 8.7%
+[Nest] 1  - 09/19/2025, 11:43:06 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 1 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:43:06 AM     LOG [LargePdfVisionService] 🔍 GPT-4o page 3 result: "YES;07-30-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:43:14 AM     LOG [GeminiService] ✅ Gemini Vision completado en 18123ms
+[Nest] 1  - 09/19/2025, 11:43:14 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [GeminiService] ✅ Gemini Vision completado en 19400ms
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "08-12-24;NOT_FOUND;YES;YES;NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:43:17 AM    WARN [OpenAiService] [policy_responses_enhanced] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 0.9 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [OpenAiService] [policy_responses_enhanced] 🎯 Vision page 3
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [RateLimiterService] 📋 Queued vision_policy_responses_enhanced_page3 (priority: high, queue size: 1)
+[Nest] 1  - 09/19/2025, 11:43:17 AM     LOG [RateLimiterService] 🔄 Starting queue processor
+[Nest] 1  - 09/19/2025, 11:43:19 AM     LOG [OpenAiService] 👁️ Ejecutando Gemini Vision para dual validation de policy_responses_enhanced
+[Nest] 1  - 09/19/2025, 11:43:19 AM     LOG [RateLimiterService] ⏹️ Queue processor stopped
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [GeminiService] ✅ Gemini Vision completado en 18675ms
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [GeminiService] 👁️ Gemini Vision found: "YES;07-30-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] 🔍 Gemini page 3 result: "YES;07-30-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] 📊 DUAL VISION CONSENSUS: Agreement=1, Final="YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService]    GPT-4o: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (1)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService]    Gemini: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (1)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] 📊 NOT_FOUND rate: 0/18 (0.0%)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] 🎯 Ultra-aggressive threshold (40%): OK
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] ✅ High consensus (1) - Final confidence: 1
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService] 🔍 CONSOLIDATED RESPONSE VALIDATION:
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService]    - Raw response: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService]    - Split values: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [LargePdfVisionService]    - Expected fields: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] 🔍 CONSOLIDATED visual analysis result: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES" (conf: 1)
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] 🔍 [FUSION-DEBUG] Input arrays:
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Vision array: 18 items
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Text array: 18 items
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Expected fields: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Vision raw: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Text raw: "YES;07-17-25;NO;NO;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] Combined result for LOP.pdf:
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Response length: 118 chars
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Full response: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Split count: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] 📋 Using combined values for LOP.pdf:
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Expected fields: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Final values: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Values with content: 18
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] ✅ FINAL RESULT for LOP.pdf:
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - pmc_field: "lop_responses"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - answer length: 118 chars
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - answer split: 18 values
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - confidence: 1
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] COMPLETE FINAL ANSWER: "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES"
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService]    - Matches combined result: YES
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] ✅ FINAL VALIDATION PASSED: 18 values match 18 expected fields
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [UnderwritingService] ✅ [COMPLETADO] LOP.pdf | Duration: 136.1s | Success: 1/1 | Errors: 0 | Warnings: 0
+[Nest] 1  - 09/19/2025, 11:43:25 AM     LOG [HTTP] ← POST /api/underwriting/evaluate-claim 200 - 136101ms
+[Nest] 1  - 09/19/2025, 11:43:41 AM     LOG [GeminiService] ✅ Gemini Vision completado en 22806ms
+[Nest] 1  - 09/19/2025, 11:43:41 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:43:41 AM     LOG [OpenAiService] 👁️ === GPT-4o VISION === "NOT_FOUND;NOT_FOUND;YES;YES;NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.5) ===
+[Nest] 1  - 09/19/2025, 11:43:41 AM    WARN [OpenAiService] [policy_responses_enhanced] ⚠️ Low visual consensus: 0.0%
+[Nest] 1  - 09/19/2025, 11:43:41 AM     LOG [OpenAiService] ✅ Usando Gemini Vision (confianza: 0.9 vs GPT-4o: 0.5)
+[Nest] 1  - 09/19/2025, 11:43:53 AM     LOG [GeminiService] ✅ Gemini Vision completado en 36475ms
+[Nest] 1  - 09/19/2025, 11:43:53 AM     LOG [GeminiService] 👁️ Gemini Vision found: "08-12-24;NOT_FOUND;YES;YES;YES;NOT_FOUND;NO" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:43:53 AM     LOG [LargePdfVisionService] 🧩 Analyzing 3 field chunks: 3, 3, 1 fields each
+[Nest] 1  - 09/19/2025, 11:44:04 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10701ms
+[Nest] 1  - 09/19/2025, 11:44:04 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;ONIESKY ARIAS" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:44:11 AM     LOG [GeminiService] ✅ Gemini Vision completado en 7124ms
+[Nest] 1  - 09/19/2025, 11:44:11 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;ONIESKY ARIAS" (confidence: 0.8)
+[Nest] 1  - 09/19/2025, 11:44:21 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10230ms
+[Nest] 1  - 09/19/2025, 11:44:21 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;ONIESKY ARIAS" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:44:30 AM     LOG [GeminiService] ✅ Gemini Vision completado en 8060ms
+[Nest] 1  - 09/19/2025, 11:44:30 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:44:40 AM     LOG [GeminiService] ✅ Gemini Vision completado en 10157ms
+[Nest] 1  - 09/19/2025, 11:44:40 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:44:49 AM     LOG [GeminiService] ✅ Gemini Vision completado en 9007ms
+[Nest] 1  - 09/19/2025, 11:44:49 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND;NOT_FOUND;NOT_FOUND" (confidence: 0.9)
+[Nest] 1  - 09/19/2025, 11:44:55 AM     LOG [GeminiService] ✅ Gemini Vision completado en 6664ms
+[Nest] 1  - 09/19/2025, 11:44:55 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:45:02 AM     LOG [GeminiService] ✅ Gemini Vision completado en 6817ms
+[Nest] 1  - 09/19/2025, 11:45:02 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [GeminiService] ✅ Gemini Vision completado en 7287ms
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [GeminiService] 👁️ Gemini Vision found: "NOT_FOUND" (confidence: 1)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🧩 Chunks procesados 3/3 (última conf: 1.00)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🎯 Progressive combining 4 results + 4 temporal values
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🔧 [DEPLOY-TEST] New algorithm active: confidence threshold logic enabled
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 💾 Applied temporal value [2]: NO
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 💾 Applied temporal value [3]: NO
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 💾 Applied temporal value [4]: NO
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 💾 Applied temporal value [6]: NO
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🔄 Field [0] updated: "NOT_FOUND" → "08-12-24" (ultra-enhanced-vision, conf: 0.9)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🎯 Progressive result: 5/7 fields filled (71.4%)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🎯 Final answer: "08-12-24;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🎯 Progressive combined result: "08-12-24;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (confidence: 0.9142857142857144)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 📈 ULTRA-AGGRESSIVE improvement: 0.43 → 0.29 (improved: true)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] ✅ Forced vision improved results: 0.9142857142857144
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService] 🔍 CONSOLIDATED RESPONSE VALIDATION:
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService]    - Raw response: "08-12-24;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService]    - Split values: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [LargePdfVisionService]    - Expected fields: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] 🔍 CONSOLIDATED visual analysis result: "08-12-24;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO" (conf: 0.9142857142857144)
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] 🔍 [FUSION-DEBUG] Input arrays:
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Vision array: 7 items
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Text array: 7 items
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Expected fields: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Vision raw: "08-12-24;NOT_FOUND;NO;NO;NO;NOT_FOUND;NO"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Text raw: "08-12-24;08-12-25;YES;YES;YES;loss to watercraft...only while inside a fully enclosed building, windstorm or hail...for model aircraft, hobby aircraft or drones;YES"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] Combined result for POLICY.pdf:
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Response length: 164 chars
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Full response: "08-12-24;08-12-25;YES;YES;YES;loss to watercraft...only while inside a fully enclosed building, windstorm or hail...for model aircraft, hobby aircraft or drones;YES"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Split count: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] 📋 Using combined values for POLICY.pdf:
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Expected fields: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Final values: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Values with content: 7
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] ✅ FINAL RESULT for POLICY.pdf:
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - pmc_field: "policy_responses"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - answer length: 164 chars
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - answer split: 7 values
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - confidence: 0.95
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] 🎯 [FINAL-FIX] COMPLETE FINAL ANSWER: "08-12-24;08-12-25;YES;YES;YES;loss to watercraft...only while inside a fully enclosed building, windstorm or hail...for model aircraft, hobby aircraft or drones;YES"
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService]    - Matches combined result: YES
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] ✅ FINAL VALIDATION PASSED: 7 values match 7 expected fields
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [UnderwritingService] ✅ [COMPLETADO] POLICY.pdf | Duration: 240.1s | Success: 1/1 | Errors: 0 | Warnings: 0
+[Nest] 1  - 09/19/2025, 11:45:09 AM     LOG [HTTP] ← POST /api/underwriting/evaluate-claim 200 - 240643ms

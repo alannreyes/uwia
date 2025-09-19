@@ -1,0 +1,117 @@
+[
+  {
+    "record_id": "175568",
+    "status": "success",
+    "results": {
+      "CERTIFICATE.pdf": [
+        {
+          "pmc_field": "certificate_responses",
+          "question": "Find the completion date in this certificate or completion document. Look for any date that indicates when work was completed, project was finished, or certificate was issued. This could be labeled as completion date, date completed, project finished, work completed, or similar terms. Convert to MM-DD-YY format for example: 07-28-25. If multiple completion dates exist, return the earliest one. If no completion date is found, return NOT_FOUND",
+          "answer": "07-18-25",
+          "confidence": 1,
+          "processing_time_ms": 72332,
+          "error": null
+        }
+      ]
+    },
+    "summary": {
+      "total_documents": 1,
+      "processed_documents": 1,
+      "total_fields": 1,
+      "answered_fields": 1
+    },
+    "processed_at": "2025-09-19T11:42:21.695Z"
+  },
+  {
+    "record_id": "175568",
+    "status": "success",
+    "results": {
+      "INVOICES.pdf": [
+        {
+          "pmc_field": "document_not_configured",
+          "question": "Document INVOICES.pdf not configured in system",
+          "answer": "SKIPPED",
+          "confidence": 0,
+          "processing_time": 0,
+          "error": "No questions configured for document: INVOICES.pdf"
+        }
+      ]
+    },
+    "summary": {
+      "total_documents": 1,
+      "processed_documents": 0,
+      "total_fields": 0,
+      "answered_fields": 0
+    },
+    "processed_at": "2025-09-19T11:41:09.810Z"
+  },
+  {
+    "record_id": "175568",
+    "status": "success",
+    "results": {
+      "LOP.pdf": [
+        {
+          "pmc_field": "lop_responses",
+          "question": "Check the date when this document was signed. If multiple dates are found, then treat each unique dated document as a separate document for the analysis stated below. Extract the following 18 data points from this Letter of Protection document: 1. mechanics_lien: Search for language related to liens, mechanics liens, lien rights, lien waivers, security interests, or statements about placing claims on property or funds. Return YES if found or NO if not found. 2. lop_date1: Find any date written next to signatures in any format and convert to MM-DD-YY format. Return the earliest date if multiple exist or NOT_FOUND if none. 3. lop_signed_by_client1: Check for ANY signature, mark, or initial in Service Provider Representative Provider Representative Service Provider Signature fields. Return YES if any signature mark is found or NO if signature areas are blank. 4. lop_signed_by_ho1: Check for ANY signature, mark, or initial in Client Signature Client 1 Signature Signature fields. Return YES if any Signature mark is found or NO if signature areas are blank. 5. onb_street1: Extract the street address of the homeowner or client. Return only the house number and street name, excluding city, state, and ZIP code, or NOT_FOUND. 6. onb_zip1: Find the ZIP code associated with the homeowner or client address. Return only the 5-digit number or NOT_FOUND. 7. onb_city1: Extract the city name from the homeowner or client address. Return only the city name or NOT_FOUND. 8. state1: Find the state associated with the homeowner or client address. Return in format \"XX StateName\" e.g., CA California or NOT_FOUND. 9. onb_date_of_loss1: Find the date when the loss, damage, or incident occurred. Convert to MM-DD-YY format or NOT_FOUND. 10. onb_policy_number1: Find the insurance policy number. Look for \"Policy #\", \"Policy No\", \"Policy Number\", or similar labels, e.g. 13368497-1. Return the complete policy number exactly as shown or NOT_FOUND. 11. onb_claim_number1: Find the insurance claim number, e.g. 75810. Return complete claim number or NOT_FOUND. 12. onb_street_match: Compare the street address found with 3213 8th St W. Return YES if essentially the same or NO if different. 13. onb_zip_match: Compare the ZIP code found with 33971. Return YES if essentially the same or NO if different. 14. onb_address_match: Compare the complete address found with 3213 8th St W, Lehigh Acres, FL 33971. Allow for minor formatting differences, abbreviations, and capitalization variations. Return YES if they represent the same location or NO if different. 15. onb_city_match: Compare the city found with Lehigh Acres. Return YES if the main city name matches or NO if different. 16. onb_date_of_loss_match: Compare the date of loss found with 06-22-25. Return YES if they match or NO if different. 17. onb_policy_number_match: Compare the policy number found with 13368497-1. Return YES if essentially the same or NO if different. 18. onb_claim_number_match: Compare the claim number found with 75810. Return YES if essentially the same or NO if different. The output should be combined values of all documents analyzed for fields lop_signed_by_client1, lop_signed_by_ho1, mechanics_lien, return YES if all values are YES and NO if any one of them is NO for each field. Return EXACTLY in this format with semicolons as separators, do not include any other text: mechanics_lien; lop_date1; lop_signed_by_client1; lop_signed_by_ho1;onb_street1; onb_zip1; onb_city1; state1;onb_date_of_loss1; onb_policy_number1; onb_claim_number1; onb_street_match; onb_zip_match; onb_address_match; onb_city_match; onb_date_of_loss_match; onb_policy_number_match; onb_claim_number_match",
+          "answer": "YES;07-17-25;YES;YES;3213 8th St W;33971;Lehigh Acres;FL Florida;06-22-25;13368497-1;75810;YES;YES;YES;YES;YES;YES;YES",
+          "confidence": 1,
+          "processing_time_ms": 135573,
+          "error": null
+        }
+      ]
+    },
+    "summary": {
+      "total_documents": 1,
+      "processed_documents": 1,
+      "total_fields": 1,
+      "answered_fields": 1
+    },
+    "processed_at": "2025-09-19T11:43:25.435Z"
+  },
+  {
+    "record_id": "175568",
+    "status": "success",
+    "results": {
+      "POLICY.pdf": [
+        {
+          "pmc_field": "policy_responses",
+          "question": "Extract the following 7 data points from this insurance policy document: 1. policy_valid_from1: Find the policy start or effective date when coverage begins. Convert to MM-DD-YY format. Return the earliest date if multiple exist or NOT_FOUND. 2. policy_valid_to1: Find the policy expiration or end date when coverage ends. Convert to MM-DD-YY format. Return the latest date if multiple exist or NOT_FOUND. 3. matching_insured_name: Extract the primary insured or policyholder full name and compare with ONIESKY ARIAS,dont look for an exact match. Return YES if they match or NO if different. 4. matching_insured_company: Extract the insurance company name and compare with Citizens Property Insurance Corporation, dont look for an exact match. Return YES if they represent the same company or NO if different. 5. policy_covers_type_job: Return YES if the policy explicitly covers wind, storm, weather damage. Return NO only if Dryout,Tarp,Retarp is explicitly excluded. 6. policy_exclusion: List only the specific Wind exclusions found in the policy. If multiple exclusions exist, separate with commas. Return NOT_FOUND if no wind exclusions exist. 7. policy_covers_dol: Compare 06-22-25 with the policy effective dates from fields 1 and 2 above. Return YES if 06-22-25 falls between policy_valid_from1 and policy_valid_to1. Return NO if the date is before policy_valid_from1 or after policy_valid_to1. Focus only on date ranges, ignore coverage details. Return EXACTLY in this format with semicolons as separators: policy_valid_from1;policy_valid_to1;matching_insured_name;matching_insured_company;policy_covers_type_job;policy_exclusion;policy_covers_dol",
+          "answer": "08-12-24;08-12-25;YES;YES;YES;loss to watercraft...only while inside a fully enclosed building, windstorm or hail...for model aircraft, hobby aircraft or drones;YES",
+          "confidence": 0.95,
+          "processing_time_ms": 239850,
+          "error": null
+        }
+      ]
+    },
+    "summary": {
+      "total_documents": 1,
+      "processed_documents": 1,
+      "total_fields": 1,
+      "answered_fields": 1
+    },
+    "processed_at": "2025-09-19T11:45:09.992Z"
+  },
+  {
+    "record_id": "175568",
+    "status": "success",
+    "results": {
+      "WEATHER.pdf": [
+        {
+          "pmc_field": "weather_responses",
+          "question": "Analyze this weather document for 06-22-25: STEP 1: Find the maximum wind speed, NOT gust, look for: \"Max Wind Speed\", \"Wind Speed\", \"Maximum Wind Speed\", ignore: Any field containing \"gust\"; STEP 2: Find the maximum wind gust, look for: \"Wind Gust\", \"Gust\", \"Peak Gust\", \"Maximum Gust\", Return format: wind_speed; wind_gust, If either value is not found, use NOT_FOUND for that position",
+          "answer": "63;63",
+          "confidence": 1,
+          "processing_time_ms": 47082,
+          "error": null
+        }
+      ]
+    },
+    "summary": {
+      "total_documents": 1,
+      "processed_documents": 1,
+      "total_fields": 1,
+      "answered_fields": 1
+    },
+    "processed_at": "2025-09-19T11:41:57.208Z"
+  }
+]

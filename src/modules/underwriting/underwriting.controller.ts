@@ -298,40 +298,55 @@ export class UnderwritingController {
   // ===============================================
 
   @Post('evaluate-gemini')
-  @UseInterceptors(FilesInterceptor('files', 10)) // Accept multiple files
+  @UseInterceptors(FileInterceptor('file')) // Single file like evaluate-claim
   @HttpCode(HttpStatus.OK)
   async evaluateGemini(
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFile() file: Express.Multer.File,
     @Body() body: any
   ): Promise<EvaluateClaimResponseDto> {
-    this.logger.log('🚀 [GEMINI-BATCH] Processing ALL documents with pure Gemini');
+    this.logger.log('🚀 [GEMINI-PURE] Processing document with pure Gemini');
     this.logger.log(`🆔 Record: ${body.record_id || 'unknown'}`);
-    this.logger.log(`📁 Files received: ${files?.length || 0}`);
+    this.logger.log(`📄 Document: ${body.document_name || 'unknown'}`);
 
-    if (!files || files.length === 0) {
-      this.logger.error('❌ No files provided in multipart request');
-      throw new Error('No files provided');
+    if (!file) {
+      this.logger.error('❌ No file provided in multipart request');
+      throw new Error('No file provided');
     }
 
-    // Log all files received
-    files.forEach((file, index) => {
-      const fileSizeMB = file.size / (1024 * 1024);
-      this.logger.log(`📄 File ${index + 1}: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
-    });
+    const fileSizeMB = file.size / (1024 * 1024);
+    this.logger.log(`📥 File received: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
 
-    // Extract context
+    // Extract context (same as evaluate-claim)
     let context = body.context;
     if (typeof context === 'string') {
       try {
         context = JSON.parse(context);
         this.logger.log('✅ Context parsed from JSON string');
       } catch (e) {
-        this.logger.warn('⚠️ Failed to parse context as JSON, using as string');
+        this.logger.warn('⚠️ Failed to parse context as JSON');
       }
     }
 
-    // Process all files with Gemini and consolidate results
-    return await this.underwritingService.processAllFilesWithPureGemini(files, body, context);
+    // Extract document name
+    let document_name = body.document_name;
+    if (!document_name && file.originalname) {
+      document_name = file.originalname.replace(/\.pdf$/i, '');
+    }
+
+    // Get variables for replacement
+    const _variables = this.underwritingService.getVariableMapping(body, context);
+
+    // Create DTO
+    const dto = {
+      ...body,
+      document_name,
+      file_data: file.buffer.toString('base64'),
+      _variables,
+      context
+    };
+
+    // Process with pure Gemini (single document)
+    return await this.underwritingService.processWithPureGemini(file, dto);
   }
 
   private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {
