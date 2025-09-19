@@ -24,14 +24,14 @@ export class GeminiFileApiService {
   private fileManager?: any;
   private model?: any;
   
-  // Optimized thresholds based on Google Gemini API 2025 documentation
+  // Optimized thresholds based on Google Gemini API 2025 documentation and real testing
   // < 20MB: Inline base64 API processing (Google recommended)
-  // 20-50MB: Direct Gemini File API (Google max recommendation)
-  // > 50MB: Page-based splitting with multimodal approach
+  // 20-25MB: Direct Gemini File API (tested limit for reliable processing)
+  // > 25MB: Page-based splitting with multimodal approach
   private readonly INLINE_API_THRESHOLD_MB = 20;
   private readonly INLINE_API_THRESHOLD_BYTES = this.INLINE_API_THRESHOLD_MB * 1024 * 1024;
 
-  private readonly DIRECT_API_THRESHOLD_MB = 50;
+  private readonly DIRECT_API_THRESHOLD_MB = 25;
   private readonly DIRECT_API_THRESHOLD_BYTES = this.DIRECT_API_THRESHOLD_MB * 1024 * 1024;
   
   constructor(
@@ -506,7 +506,7 @@ export class GeminiFileApiService {
   ): Promise<GeminiFileApiResult> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const totalPages = pdfDoc.getPageCount();
-    const pagesPerChunk = 400; // Dividir en chunks de 400 páginas para estar seguros
+    const pagesPerChunk = 20; // Dividir en chunks de 20 páginas para mantener bajo 25MB
 
     this.logger.log(`📑 [PAGE-SPLIT] Dividiendo ${totalPages} páginas en chunks de ${pagesPerChunk} páginas`);
 
@@ -615,12 +615,19 @@ export class GeminiFileApiService {
 
     this.logger.log(`📄 [DIRECT] Procesando archivo completo de ${fileSizeMB.toFixed(2)}MB directamente`);
 
-    // Always use File API for direct processing (files are already 10MB+ when this method is called)
+    // Always use File API for direct processing (files are already 20MB+ when this method is called)
     if (fileSizeMB > this.INLINE_API_THRESHOLD_MB) {
-      const result = await this.processWithFileApi(fileBuffer, prompt, expectedType, startTime);
-      result.model = 'gemini-1.5-pro-direct';
-      result.method = 'file-api-direct';
-      return result;
+      try {
+        const result = await this.processWithFileApi(fileBuffer, prompt, expectedType, startTime);
+        result.model = 'gemini-1.5-pro-direct';
+        result.method = 'file-api-direct';
+        return result;
+      } catch (error) {
+        this.logger.warn(`⚠️ [DIRECT] File API failed for ${fileSizeMB.toFixed(2)}MB file: ${error.message}`);
+        this.logger.log(`🔄 [DIRECT] Falling back to page-based splitting`);
+        // Fallback to page-based splitting for large files that fail File API
+        return await this.processWithPageBasedSplitting(fileBuffer, prompt, expectedType, startTime);
+      }
     } else {
       const result = await this.processWithInlineApi(fileBuffer, prompt, expectedType, startTime);
       result.model = 'gemini-1.5-pro-direct';
