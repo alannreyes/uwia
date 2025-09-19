@@ -8,10 +8,15 @@ README.md
 coverage
 .nyc_output
 docs
+docs2
+test-images
 test-*.ts
 test-*.js
 *test*.ts
 *test*.js
+*.test.*
+*Test*
+*spec*
 enhanced-signature-prompts.sql
 fix-signature-prompts.sql
 logsproduccion.txt
@@ -20,3 +25,9 @@ validate-*.js
 analisis-*.txt
 errores*.txt
 *.md
+*.pdf
+debug-*.js
+analyze-*.js
+fix-*.js
+update-*.js
+migration-*.js

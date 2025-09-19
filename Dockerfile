@@ -33,7 +33,7 @@ COPY package*.json ./
 # Instalar TODAS las dependencias (necesarias para build)
 RUN npm install --production=false && npm cache clean --force
 
-# Copiar código fuente
+# Copiar código fuente (excluye archivos via .dockerignore)
 COPY . .
 
 # Construir la aplicación
