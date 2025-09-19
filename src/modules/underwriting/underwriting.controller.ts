@@ -298,23 +298,26 @@ export class UnderwritingController {
   // ===============================================
 
   @Post('evaluate-gemini')
-  @UseInterceptors(FileInterceptor('file')) // Single file like evaluate-claim
+  @UseInterceptors(FilesInterceptor('file', 10)) // Multiple files with same field name from N8N
   @HttpCode(HttpStatus.OK)
   async evaluateGemini(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[],
     @Body() body: any
   ): Promise<EvaluateClaimResponseDto> {
-    this.logger.log('🚀 [GEMINI-PURE] Processing document with pure Gemini');
+    this.logger.log('🚀 [GEMINI-PURE] Processing ALL documents with pure Gemini');
     this.logger.log(`🆔 Record: ${body.record_id || 'unknown'}`);
-    this.logger.log(`📄 Document: ${body.document_name || 'unknown'}`);
+    this.logger.log(`📄 Files received: ${files ? files.length : 0}`);
 
-    if (!file) {
-      this.logger.error('❌ No file provided in multipart request');
-      throw new Error('No file provided');
+    if (!files || files.length === 0) {
+      this.logger.error('❌ No files provided in multipart request');
+      throw new Error('No files provided');
     }
 
-    const fileSizeMB = file.size / (1024 * 1024);
-    this.logger.log(`📥 File received: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
+    // Log all files received
+    files.forEach((file, index) => {
+      const fileSizeMB = file.size / (1024 * 1024);
+      this.logger.log(`📥 File ${index + 1}: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
+    });
 
     // Extract context (same as evaluate-claim)
     let context = body.context;
@@ -327,26 +330,8 @@ export class UnderwritingController {
       }
     }
 
-    // Extract document name
-    let document_name = body.document_name;
-    if (!document_name && file.originalname) {
-      document_name = file.originalname.replace(/\.pdf$/i, '');
-    }
-
-    // Get variables for replacement
-    const _variables = this.underwritingService.getVariableMapping(body, context);
-
-    // Create DTO
-    const dto = {
-      ...body,
-      document_name,
-      file_data: file.buffer.toString('base64'),
-      _variables,
-      context
-    };
-
-    // Process with pure Gemini (single document)
-    return await this.underwritingService.processWithPureGemini(file, dto);
+    // Process all files with pure Gemini
+    return await this.underwritingService.processAllFilesWithPureGemini(files, body, context);
   }
 
   private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {
