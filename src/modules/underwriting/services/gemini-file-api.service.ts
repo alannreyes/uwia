@@ -24,13 +24,15 @@ export class GeminiFileApiService {
   private fileManager?: any;
   private model?: any;
   
-  // Threshold de 20MB para decidir entre inline vs file API
-  private readonly FILE_SIZE_THRESHOLD_MB = 20;
-  private readonly FILE_SIZE_THRESHOLD_BYTES = this.FILE_SIZE_THRESHOLD_MB * 1024 * 1024;
-  
-  // Threshold de 30MB para activar Modern RAG
-  private readonly MODERN_RAG_THRESHOLD_MB = 30;
-  private readonly MODERN_RAG_THRESHOLD_BYTES = this.MODERN_RAG_THRESHOLD_MB * 1024 * 1024;
+  // Optimized thresholds based on testing and Gemini File API capabilities
+  // < 10MB: Inline API (fast for small files)
+  // 10-150MB: Direct File API (no splitting, leverages Gemini's 2GB capacity)
+  // > 150MB: Page-based splitting only (avoids pdf-lib size inflation bug)
+  private readonly INLINE_API_THRESHOLD_MB = 10;
+  private readonly INLINE_API_THRESHOLD_BYTES = this.INLINE_API_THRESHOLD_MB * 1024 * 1024;
+
+  private readonly DIRECT_API_THRESHOLD_MB = 150;
+  private readonly DIRECT_API_THRESHOLD_BYTES = this.DIRECT_API_THRESHOLD_MB * 1024 * 1024;
   
   constructor(
     private readonly modernRAGService: ModernRAGService
@@ -64,7 +66,7 @@ export class GeminiFileApiService {
       });
       
       this.logger.log('✅ Gemini File API Service inicializado correctamente');
-      this.logger.log(`📏 Threshold: ${this.FILE_SIZE_THRESHOLD_MB}MB (File API para archivos mayores)`);
+      this.logger.log(`📏 Optimized Thresholds: <${this.INLINE_API_THRESHOLD_MB}MB (Inline) | ${this.INLINE_API_THRESHOLD_MB}-${this.DIRECT_API_THRESHOLD_MB}MB (Direct) | >${this.DIRECT_API_THRESHOLD_MB}MB (Page-Split)`);
     } catch (error) {
       this.logger.error(`❌ Error inicializando Gemini File API: ${error.message}`);
     }
@@ -95,17 +97,19 @@ export class GeminiFileApiService {
     this.logger.log(`📄 Procesando PDF: ${prompt} (${fileSizeMB.toFixed(2)}MB)`);
 
     try {
-      // Decisión inteligente de estrategia basada en tamaño y tipo de documento
-      if (pdfBuffer.length > this.MODERN_RAG_THRESHOLD_BYTES) {
-        this.logger.log(`🧠 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - SALTANDO Modern RAG, usando Smart Splitting directamente`);
-        // Temporalmente saltamos Modern RAG para debug
-        return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
-      } else if (pdfBuffer.length > this.FILE_SIZE_THRESHOLD_BYTES) {
-        this.logger.log(`🔄 Archivo grande (${fileSizeMB.toFixed(2)}MB) - usando File API`);
-        return await this.processWithFileApi(pdfBuffer, prompt, expectedType, startTime);
-      } else {
+      // Optimized decision flow based on proven performance testing
+      if (pdfBuffer.length < this.INLINE_API_THRESHOLD_BYTES) {
+        // Small files < 10MB: Use inline API for fastest processing
         this.logger.log(`📝 Archivo pequeño (${fileSizeMB.toFixed(2)}MB) - usando Inline API`);
         return await this.processWithInlineApi(pdfBuffer, prompt, expectedType, startTime);
+      } else if (pdfBuffer.length <= this.DIRECT_API_THRESHOLD_BYTES) {
+        // Medium files 10-150MB: Direct to File API without splitting
+        this.logger.log(`🚀 Archivo mediano (${fileSizeMB.toFixed(2)}MB) - usando File API Direct (sin splitting)`);
+        return await this.processFileDirectly(pdfBuffer, prompt, expectedType, startTime);
+      } else {
+        // Large files > 150MB: Use page-based splitting only (avoids pdf-lib bug)
+        this.logger.log(`📚 Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - usando división por páginas`);
+        return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
     } catch (error) {
       this.logger.error(`❌ Error procesando PDF ${prompt}: ${error.message}`);
@@ -126,8 +130,8 @@ export class GeminiFileApiService {
 
     try {
       if (!this.modernRAGService.isAvailable()) {
-        this.logger.warn(`⚠️ [MODERN-RAG] Modern RAG no disponible, fallback a Smart Splitting`);
-        return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
+        this.logger.warn(`⚠️ [MODERN-RAG] Modern RAG no disponible, fallback a Page-based Splitting`);
+        return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
 
       this.logger.log(`✅ [MODERN-RAG] Modern RAG disponible, iniciando procesamiento...`);
@@ -166,9 +170,9 @@ export class GeminiFileApiService {
     } catch (error) {
       this.logger.error(`❌ [MODERN-RAG] Error completo: ${error.message}`);
       this.logger.error(`❌ [MODERN-RAG] Stack trace: ${error.stack}`);
-      this.logger.warn(`🔄 [MODERN-RAG] Fallback a Smart Splitting...`);
+      this.logger.warn(`🔄 [MODERN-RAG] Fallback a Page-based Splitting...`);
 
-      return await this.processWithSmartSplitting(pdfBuffer, prompt, expectedType, startTime);
+      return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
     }
   }
 
@@ -430,10 +434,12 @@ export class GeminiFileApiService {
   /**
    * Obtiene información del threshold configurado
    */
-  getThresholdInfo(): { sizeMB: number; sizeBytes: number } {
+  getThresholdInfo(): { inlineMB: number; directMB: number; inlineBytes: number; directBytes: number } {
     return {
-      sizeMB: this.FILE_SIZE_THRESHOLD_MB,
-      sizeBytes: this.FILE_SIZE_THRESHOLD_BYTES
+      inlineMB: this.INLINE_API_THRESHOLD_MB,
+      directMB: this.DIRECT_API_THRESHOLD_MB,
+      inlineBytes: this.INLINE_API_THRESHOLD_BYTES,
+      directBytes: this.DIRECT_API_THRESHOLD_BYTES
     };
   }
 
@@ -609,8 +615,8 @@ export class GeminiFileApiService {
 
     this.logger.log(`📄 [DIRECT] Procesando archivo completo de ${fileSizeMB.toFixed(2)}MB directamente`);
 
-    // Usar File API directamente para archivos grandes
-    if (fileSizeMB > this.FILE_SIZE_THRESHOLD_MB) {
+    // Always use File API for direct processing (files are already 10MB+ when this method is called)
+    if (fileSizeMB > this.INLINE_API_THRESHOLD_MB) {
       const result = await this.processWithFileApi(fileBuffer, prompt, expectedType, startTime);
       result.model = 'gemini-1.5-pro-direct';
       result.method = 'file-api-direct';
@@ -636,8 +642,8 @@ export class GeminiFileApiService {
     const chunkSizeMB = chunkBuffer.length / (1024 * 1024);
     const pageInfo = startPage > 0 ? ` (páginas ${startPage}-${endPage})` : '';
 
-    // Usar File API directamente para chunks
-    if (chunkSizeMB > this.FILE_SIZE_THRESHOLD_MB) {
+    // Use File API for larger chunks, Inline for smaller ones
+    if (chunkSizeMB > this.INLINE_API_THRESHOLD_MB) {
       return await this.processWithFileApi(chunkBuffer, `${prompt}${pageInfo}`, expectedType, Date.now());
     } else {
       return await this.processWithInlineApi(chunkBuffer, `${prompt}${pageInfo}`, expectedType, Date.now());

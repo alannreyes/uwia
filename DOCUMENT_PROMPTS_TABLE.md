@@ -88,3 +88,28 @@ The system has been fully migrated from the old `document_prompts` table to `doc
 2. **Better Performance**: Single query per document instead of multiple
 3. **Unified Response Format**: Consistent field extraction across all documents
 4. **Easier Maintenance**: Centralized configuration management
+
+## Recent Optimizations
+
+### ROOF.pdf Prompt Enhancement (Sept 2025)
+- **Issue**: Complex prompt was looking for tables and calculations when document clearly shows "Total roof area: 2250 sqft"
+- **Solution**: Simplified prompt to directly search for "Total roof area", "total area", or measurements with "sqft"/"square feet"
+- **Result**: Should now extract "2250" instead of NOT_FOUND
+
+### POLICY.pdf Variable Handling (Sept 2025)
+- **Issue**: `matching_insured_company` returns NO when `%insurance_company%` variable is empty
+- **Analysis**: When client doesn't send insurance_company data, prompt becomes "compare with [empty]"
+- **Behavior**: This is correct - returns NO when no comparison data available
+- **Alternative**: Could modify prompt to extract and return company name when variable is empty
+
+## Troubleshooting Guide
+
+### Variable Issues
+1. **Empty Variables**: Check that client is sending required context data
+2. **Comparison Fields**: Fields like `matching_*` need variables to compare against
+3. **Debug Variables**: Look for `[VAR-DEBUG]` logs to see variable mapping
+
+### Prompt Issues
+1. **NOT_FOUND Results**: Prompt may be too specific or complex
+2. **Simplification**: Use direct search terms rather than complex instructions
+3. **Testing**: Use clear examples in prompts (e.g., "e.g. 2250")
