@@ -292,4 +292,52 @@ export class UnderwritingController {
     
     return result;
   }
+
+  // ===============================================
+  // 🚀 GEMINI-ONLY BATCH PROCESSING - ALL DOCUMENTS
+  // ===============================================
+
+  @Post('evaluate-gemini')
+  @HttpCode(HttpStatus.OK)
+  async evaluateGemini(@Body() body: any): Promise<EvaluateClaimResponseDto> {
+    this.logger.log('🚀 [GEMINI-BATCH] Processing ALL documents with Gemini-only');
+    this.logger.log(`🆔 Record: ${body.record_id || 'unknown'}`);
+
+    // Expect 5-7 documents in base64 format:
+    // certificate.pdf, invoices.pdf, lop.pdf, policy.pdf, roof.pdf, weather.pdf
+    const documents = this.extractDocumentsFromBody(body);
+    this.logger.log(`📁 [GEMINI-BATCH] Found ${documents.length} documents: ${documents.map(d => d.name).join(', ')}`);
+
+    return await this.underwritingService.evaluateAllDocumentsGeminiOnly(documents, body);
+  }
+
+  private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {
+    const documents = [];
+
+    // Standard document mappings
+    const documentMappings = [
+      { field: 'certificate_pdf', name: 'CERTIFICATE' },
+      { field: 'invoices_pdf', name: 'INVOICES' },
+      { field: 'lop_pdf', name: 'LOP' },
+      { field: 'policy_pdf', name: 'POLICY' },
+      { field: 'roof_pdf', name: 'ROOF' },
+      { field: 'weather_pdf', name: 'WEATHER' },
+      // Fallback
+      { field: 'file_data', name: body.document_name || 'DOCUMENT' }
+    ];
+
+    for (const mapping of documentMappings) {
+      if (body[mapping.field]) {
+        const buffer = Buffer.from(body[mapping.field], 'base64');
+        documents.push({
+          name: mapping.name,
+          base64: body[mapping.field],
+          size: buffer.length
+        });
+        this.logger.log(`📄 [GEMINI-BATCH] ${mapping.name}: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
+      }
+    }
+
+    return documents;
+  }
 }

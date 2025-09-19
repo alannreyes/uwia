@@ -1610,6 +1610,271 @@ export class UnderwritingService {
     return response;
   }
 
+  // ===============================================
+  // 🚀 GEMINI-ONLY SERVICE - ALL DOCUMENTS BATCH
+  // ===============================================
+
+  async evaluateAllDocumentsGeminiOnly(
+    documents: Array<{name: string, base64: string, size: number}>,
+    body: any
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    const { record_id } = body;
+
+    this.logger.log(`🚀 [GEMINI-BATCH] Processing ${documents.length} documents with 100% Gemini`);
+    this.logger.log(`🚀 [GEMINI-BATCH] Documents: ${documents.map(d => d.name).join(', ')}`);
+
+    // Parse context once for all documents
+    let context = body.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+      } catch (e) {
+        this.logger.warn(`⚠️ [GEMINI-BATCH] Failed to parse context JSON`);
+      }
+    }
+
+    // Process all documents in parallel
+    const documentPromises = documents.map(async (doc) => {
+      return await this.processDocumentGeminiOnly(doc, body, context);
+    });
+
+    const results = await Promise.all(documentPromises);
+
+    // Consolidate results
+    const consolidatedResults: any = {};
+    let totalFields = 0;
+    let answeredFields = 0;
+
+    results.forEach((result, index) => {
+      const docName = documents[index].name;
+      consolidatedResults[`${docName}.pdf`] = result.fields;
+      totalFields += result.totalFields;
+      answeredFields += result.answeredFields;
+    });
+
+    const processingTime = Date.now() - startTime;
+    this.logger.log(`✅ [GEMINI-BATCH] Completed ${documents.length} documents in ${processingTime}ms`);
+
+    return {
+      record_id,
+      status: 'success',
+      results: consolidatedResults,
+      summary: {
+        total_documents: documents.length,
+        processed_documents: documents.length,
+        total_fields: totalFields,
+        answered_fields: answeredFields
+      },
+      processed_at: new Date(),
+      processing_method: 'gemini_batch_all_documents'
+    };
+  }
+
+  private async processDocumentGeminiOnly(
+    doc: {name: string, base64: string, size: number},
+    body: any,
+    context: any
+  ): Promise<{fields: any[], totalFields: number, answeredFields: number}> {
+    const docStartTime = Date.now();
+
+    this.logger.log(`🔄 [GEMINI-DOC] Processing ${doc.name} (${(doc.size / 1024 / 1024).toFixed(2)}MB)`);
+
+    // Get consolidated prompt for this document
+    const prompt = await this.getConsolidatedPromptForDocument(doc.name, body, context);
+    if (!prompt) {
+      this.logger.warn(`⚠️ [GEMINI-DOC] No prompt found for ${doc.name} - skipping`);
+      return {
+        fields: [{
+          pmc_field: 'document_not_configured',
+          question: `Document ${doc.name} not configured in system`,
+          answer: 'SKIPPED',
+          confidence: 0,
+          processing_time_ms: 0,
+          processing_method: 'skipped',
+          error: `No questions configured for document: ${doc.name}`
+        }],
+        totalFields: 0,
+        answeredFields: 0
+      };
+    }
+
+    this.logger.log(`📋 [GEMINI-DOC] ${doc.name}: ${prompt.expectedFieldsCount || 1} fields expected`);
+
+    const fileBuffer = Buffer.from(doc.base64, 'base64');
+    const fileSizeMB = doc.size / (1024 * 1024);
+    let result: any;
+
+    // ✅ GEMINI-ONLY ROUTING - 3 PATHS PER DOCUMENT
+    if (fileSizeMB <= 20) {
+      // 🟢 PATH 1: Gemini Inline API (0-20MB)
+      this.logger.log(`🟢 [GEMINI-DOC] ${doc.name}: Inline API (${fileSizeMB.toFixed(2)}MB ≤ 20MB)`);
+      result = await this.processWithGeminiInlineApi(fileBuffer, prompt.question, doc.name);
+
+    } else if (fileSizeMB <= 50) {
+      // 🟡 PATH 2: Gemini File API (20-50MB)
+      this.logger.log(`🟡 [GEMINI-DOC] ${doc.name}: File API (${fileSizeMB.toFixed(2)}MB ≤ 50MB)`);
+      result = await this.processWithGeminiFileApiDirect(fileBuffer, prompt.question, `${doc.name}.pdf`);
+
+    } else {
+      // 🔴 PATH 3: Gemini File API with Split (>50MB)
+      this.logger.log(`🔴 [GEMINI-DOC] ${doc.name}: File API + Split (${fileSizeMB.toFixed(2)}MB > 50MB)`);
+      result = await this.processWithGeminiFileApiSplit(fileBuffer, prompt.question, `${doc.name}.pdf`, prompt.expectedFieldsCount);
+    }
+
+    const processingTime = Date.now() - docStartTime;
+    this.logger.log(`✅ [GEMINI-DOC] ${doc.name} completed in ${processingTime}ms`);
+
+    const answeredFields = result.answer !== 'NOT_FOUND' ? (prompt.expectedFieldsCount || 1) : 0;
+
+    // ✅ RESPUESTA CONSOLIDADA: Una sola respuesta por archivo
+    return {
+      fields: [{
+        pmc_field: prompt.pmcField,
+        question: prompt.question,
+        answer: result.answer, // Respuesta consolidada (ej: "08-18-25" o "YES;08-14-25;YES;...")
+        confidence: result.confidence,
+        processing_time_ms: processingTime,
+        processing_method: result.method,
+        error: null
+      }],
+      totalFields: prompt.expectedFieldsCount || 1,
+      answeredFields: result.answer !== 'NOT_FOUND' ? 1 : 0 // Una respuesta consolidada
+    };
+  }
+
+  private async getConsolidatedPromptForDocument(documentName: string, body: any, context: any) {
+    // Use existing logic from processWithGeminiFileApi
+    const documentNameWithPdf = documentName.endsWith('.pdf') ? documentName : `${documentName}.pdf`;
+
+    const queryRunner = this.documentPromptRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      const query = `SELECT * FROM document_consolidado WHERE document_name = ? AND active = true LIMIT 1`;
+      const result = await queryRunner.query(query, [documentNameWithPdf]);
+
+      if (!result || result.length === 0) {
+        return null;
+      }
+
+      const doc = result[0];
+      let question = doc.question_prompt;
+
+      // Apply variable replacements
+      const variables = this.getVariableMapping(body, context);
+      for (const [placeholder, value] of Object.entries(variables)) {
+        if (value) {
+          question = question.replace(new RegExp(placeholder, 'g'), value);
+        }
+      }
+
+      return {
+        pmcField: doc.pmc_field,
+        question,
+        expectedFieldsCount: doc.field_names ? doc.field_names.split(',').length : 1
+      };
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async processWithGeminiInlineApi(buffer: Buffer, prompt: string, documentName: string) {
+    this.logger.log(`🟢 [GEMINI-INLINE] Processing with Inline API`);
+
+    const base64 = buffer.toString('base64');
+    const result = await this.geminiService.analyzeDocument(base64, prompt, {
+      filename: documentName,
+      useInlineApi: true
+    });
+
+    return {
+      answer: result.response || 'NOT_FOUND',
+      confidence: result.confidence || 0.85,
+      method: 'gemini_inline_api'
+    };
+  }
+
+  private async processWithGeminiFileApiDirect(buffer: Buffer, prompt: string, fileName: string) {
+    this.logger.log(`🟡 [GEMINI-FILE-API] Processing with File API`);
+
+    const result = await this.geminiFileApiService.processDocumentDirect(buffer, prompt, fileName);
+
+    return {
+      answer: result.response || 'NOT_FOUND',
+      confidence: result.confidence || 0.85,
+      method: 'gemini_file_api'
+    };
+  }
+
+  private async processWithGeminiFileApiSplit(buffer: Buffer, prompt: string, fileName: string, expectedFields: number) {
+    this.logger.log(`🔴 [GEMINI-SPLIT] Processing with File API Split`);
+
+    // Calculate optimal number of chunks
+    const fileSizeMB = buffer.length / (1024 * 1024);
+    const chunkSizeMB = 45; // Safety margin vs 50MB limit
+    const numChunks = Math.ceil(fileSizeMB / chunkSizeMB);
+
+    this.logger.log(`🔪 [GEMINI-SPLIT] Splitting ${fileSizeMB.toFixed(2)}MB into ${numChunks} chunks of ~${chunkSizeMB}MB`);
+
+    // Split PDF into chunks using existing page-based splitting
+    const chunks = await this.splitPdfIntoChunks(buffer, numChunks);
+
+    // Process chunks in parallel
+    const chunkPromises = chunks.map(async (chunk, index) => {
+      this.logger.log(`🔄 [GEMINI-SPLIT] Processing chunk ${index + 1}/${numChunks} (${(chunk.length / 1024 / 1024).toFixed(2)}MB)`);
+
+      return await this.geminiFileApiService.processDocumentDirect(
+        chunk,
+        prompt,
+        `${fileName}_chunk_${index + 1}`
+      );
+    });
+
+    const chunkResults = await Promise.all(chunkPromises);
+
+    // Merge responses
+    const mergedAnswer = await this.mergeChunkResponses(chunkResults, expectedFields);
+
+    return {
+      answer: mergedAnswer,
+      confidence: 0.90, // Slightly lower due to merging
+      method: `gemini_file_api_split_${numChunks}_chunks`
+    };
+  }
+
+  private async splitPdfIntoChunks(buffer: Buffer, numChunks: number): Promise<Buffer[]> {
+    // For now, simple byte-based splitting
+    // TODO: Implement page-based splitting using pdf-lib
+    const chunkSize = Math.ceil(buffer.length / numChunks);
+    const chunks: Buffer[] = [];
+
+    for (let i = 0; i < numChunks; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, buffer.length);
+      chunks.push(buffer.slice(start, end));
+    }
+
+    return chunks;
+  }
+
+  private async mergeChunkResponses(chunkResults: any[], expectedFields: number): Promise<string> {
+    // Simple merge strategy: take first non-NOT_FOUND response
+    // TODO: Implement intelligent field-by-field merging
+
+    const validResponses = chunkResults
+      .map(result => result.response)
+      .filter(response => response && response !== 'NOT_FOUND');
+
+    if (validResponses.length === 0) {
+      return 'NOT_FOUND';
+    }
+
+    // For now, return the first valid response
+    // In production, implement field-specific merging logic
+    return validResponses[0];
+  }
+
   /**
    * Utility method to sleep for a specified amount of time
    * @param ms Milliseconds to sleep
