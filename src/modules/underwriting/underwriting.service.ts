@@ -2176,16 +2176,24 @@ export class UnderwritingService {
     const fileSizeMB = buffer.length / (1024 * 1024);
     this.logger.log(`🔴 [GEMINI-SPLIT] Large file detected: ${fileSizeMB.toFixed(2)}MB`);
 
-    // For now, fallback to direct File API instead of risky byte-splitting
-    // This may fail for very large files, but won't create corrupted PDFs
-    this.logger.warn(`⚠️ [GEMINI-SPLIT] Using direct File API instead of splitting to avoid PDF corruption`);
+    // Use GeminiFileApiService which has proper page-based splitting for >50MB files
+    // This automatically handles: <20MB->Inline, 20-50MB->FileAPI, >50MB->PageSplit
+    this.logger.log(`🔄 [GEMINI-SPLIT] Using GeminiFileApiService with automatic routing and page-based splitting`);
 
     try {
-      return await this.geminiFileApiService.processPdfDocument(
+      const result = await this.geminiFileApiService.processPdfDocument(
         buffer,
         prompt,
         ResponseType.TEXT
       );
+
+      // Convert GeminiFileApiResult to expected format
+      return {
+        answer: result.response,
+        confidence: result.confidence || 0.85,
+        method: result.method || 'gemini_file_api_split',
+        processingTime: result.processingTime
+      };
     } catch (error) {
       this.logger.error(`❌ [GEMINI-SPLIT] File API failed for large file: ${error.message}`);
 
