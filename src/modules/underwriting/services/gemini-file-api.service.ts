@@ -545,6 +545,25 @@ export class GeminiFileApiService {
     expectedType: ResponseType,
     startTime: number
   ): Promise<GeminiFileApiResult> {
+    const fileSizeMB = pdfBuffer.length / (1024 * 1024);
+
+    // Bypass splitting for files under 100MB - Gemini File API supports up to 2GB
+    // This avoids the pdf-lib bug that causes massive size inflation when copying pages
+    if (fileSizeMB <= 100) {
+      this.logger.log(`📄 [BYPASS-SPLIT] Archivo de ${fileSizeMB.toFixed(2)}MB - enviando directamente a Gemini (sin split)`);
+
+      try {
+        const response = await this.processFileDirectly(pdfBuffer, prompt, expectedType, startTime);
+        this.logger.log(`✅ [BYPASS-SPLIT] Procesamiento directo exitoso`);
+        return response;
+      } catch (error) {
+        this.logger.warn(`⚠️ [BYPASS-SPLIT] Fallo procesamiento directo: ${error.message}`);
+        this.logger.log(`🔄 [BYPASS-SPLIT] Fallback a splitting por páginas`);
+        // Fallback to page-based splitting if direct processing fails
+      }
+    }
+
+    // Original splitting logic for very large files or when direct processing fails
     // Dividir en chunks de 5MB para evitar límites de Gemini File API
     // Nota: Gemini tiene límites muy estrictos - reducido de 15MB a 10MB y ahora a 5MB
     // debido a errores "files bytes are too large to be read"
@@ -575,6 +594,33 @@ export class GeminiFileApiService {
     consolidatedResult.method = 'file-api-split';
 
     return consolidatedResult;
+  }
+
+  /**
+   * Procesa un archivo completo directamente sin división en chunks
+   */
+  private async processFileDirectly(
+    fileBuffer: Buffer,
+    prompt: string,
+    expectedType: ResponseType,
+    startTime: number
+  ): Promise<GeminiFileApiResult> {
+    const fileSizeMB = fileBuffer.length / (1024 * 1024);
+
+    this.logger.log(`📄 [DIRECT] Procesando archivo completo de ${fileSizeMB.toFixed(2)}MB directamente`);
+
+    // Usar File API directamente para archivos grandes
+    if (fileSizeMB > this.FILE_SIZE_THRESHOLD_MB) {
+      const result = await this.processWithFileApi(fileBuffer, prompt, expectedType, startTime);
+      result.model = 'gemini-1.5-pro-direct';
+      result.method = 'file-api-direct';
+      return result;
+    } else {
+      const result = await this.processWithInlineApi(fileBuffer, prompt, expectedType, startTime);
+      result.model = 'gemini-1.5-pro-direct';
+      result.method = 'inline-api-direct';
+      return result;
+    }
   }
 
   /**
