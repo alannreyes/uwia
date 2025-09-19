@@ -298,20 +298,53 @@ export class UnderwritingController {
   // ===============================================
 
   @Post('evaluate-gemini')
+  @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.OK)
-  async evaluateGemini(@Body() body: any): Promise<EvaluateClaimResponseDto> {
-    this.logger.log('🚀 [GEMINI-BATCH] Processing ALL documents with Gemini-only');
+  async evaluateGemini(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any
+  ): Promise<EvaluateClaimResponseDto> {
+    this.logger.log('🚀 [GEMINI-ONLY] Processing document with pure Gemini');
     this.logger.log(`🆔 Record: ${body.record_id || 'unknown'}`);
+    this.logger.log(`📄 Document: ${body.document_name || file?.originalname || 'unknown'}`);
 
-    // Extract documents from body (same format as evaluate-claim-batch)
-    const documents = this.extractDocumentsFromBody(body);
-    this.logger.log(`📁 [GEMINI-BATCH] Found ${documents.length} documents: ${documents.map(d => d.name).join(', ')}`);
-
-    if (documents.length === 0) {
-      throw new Error('No documents found in request body');
+    if (!file) {
+      this.logger.error('❌ No file provided in multipart request');
+      throw new Error('No file provided');
     }
 
-    return await this.underwritingService.evaluateAllDocumentsGeminiOnly(documents, body);
+    const fileSizeMB = file.size / (1024 * 1024);
+    this.logger.log(`📥 File received: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
+
+    // Extract context
+    let context = body.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+        this.logger.log('✅ Context parsed from JSON string');
+      } catch (e) {
+        this.logger.warn('⚠️ Failed to parse context as JSON, using as string');
+      }
+    }
+
+    // Extract document name
+    let document_name = body.document_name;
+    if (!document_name && file.originalname) {
+      document_name = file.originalname.replace(/\.pdf$/i, '');
+      this.logger.log(`📝 Document name extracted from file: ${document_name}`);
+    }
+
+    // Create DTO compatible with existing pipeline
+    const dto = {
+      ...body,
+      context: context,
+      document_name: document_name,
+      file_data: file.buffer.toString('base64'),
+      _variables: this.underwritingService.getVariableMapping(body, context)
+    };
+
+    // Process with pure Gemini (similar to evaluate-claim but Gemini-only)
+    return await this.underwritingService.processWithPureGemini(file, dto);
   }
 
   private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {

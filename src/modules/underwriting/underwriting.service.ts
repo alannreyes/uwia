@@ -1613,6 +1613,176 @@ export class UnderwritingService {
   }
 
   // ===============================================
+  // 🚀 GEMINI-ONLY SERVICE - PURE GEMINI PROCESSING
+  // ===============================================
+
+  async processWithPureGemini(
+    file: Express.Multer.File,
+    dto: any
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    const { record_id, document_name } = dto;
+
+    this.logger.log(`🚀 [PURE-GEMINI] Processing ${document_name} with 100% Gemini`);
+    const fileSizeMB = file.size / (1024 * 1024);
+    this.logger.log(`📊 [PURE-GEMINI] File size: ${fileSizeMB.toFixed(2)}MB`);
+
+    // Get prompt from database based on document name
+    const prompt = await this.getDocumentPrompt(document_name);
+    if (!prompt) {
+      this.logger.error(`❌ [PURE-GEMINI] No prompt found for document: ${document_name}`);
+      return {
+        record_id,
+        status: 'error',
+        results: {},
+        summary: {
+          total_documents: 1,
+          processed_documents: 0,
+          total_fields: 0,
+          answered_fields: 0
+        },
+        errors: [`No prompt configuration found for document: ${document_name}`],
+        processed_at: new Date(),
+        processing_method: 'gemini_pure'
+      };
+    }
+
+    // Parse context and get variables
+    let context = dto.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+      } catch (e) {
+        this.logger.warn(`⚠️ [PURE-GEMINI] Failed to parse context JSON`);
+      }
+    }
+
+    const variables = dto._variables || this.getVariableMapping(dto, context);
+
+    // Replace variables in prompt
+    let question = prompt.question || prompt.prompt || prompt.consolidated_prompt;
+    for (const [key, value] of Object.entries(variables)) {
+      const placeholder = `%${key}%`;
+      if (question.includes(placeholder)) {
+        question = question.replace(new RegExp(placeholder, 'g'), String(value));
+        this.logger.log(`✅ [PURE-GEMINI] Replaced ${placeholder} with "${value}"`);
+      }
+    }
+
+    // Route based on file size
+    let result: any;
+    const buffer = file.buffer;
+
+    if (fileSizeMB < 20) {
+      // Use Gemini Inline API
+      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<20MB)`);
+      result = await this.processWithGeminiInlineApi(buffer, question, document_name);
+    } else if (fileSizeMB <= 50) {
+      // Use Gemini File API
+      this.logger.log(`🟡 [PURE-GEMINI] Using Gemini File API (20-50MB)`);
+      result = await this.processWithGeminiFileApiDirect(buffer, question, document_name);
+    } else {
+      // Use Gemini File API with splitting
+      this.logger.log(`🔴 [PURE-GEMINI] Using Gemini File API with splitting (>50MB)`);
+      const expectedFields = prompt.expected_fields_count || prompt.field_names?.length || 1;
+      result = await this.processWithGeminiFileApiSplit(buffer, question, document_name, expectedFields);
+    }
+
+    // Parse response based on expected fields
+    const fieldNames = prompt.field_names || [];
+    const pmcField = prompt.pmc_field || `${document_name.toLowerCase()}_responses`;
+
+    const fields = this.parseResponseToFields(result.answer, fieldNames, pmcField, question);
+
+    const processingTime = Date.now() - startTime;
+    this.logger.log(`✅ [PURE-GEMINI] Completed ${document_name} in ${processingTime}ms`);
+
+    return {
+      record_id,
+      status: 'success',
+      results: {
+        [`${document_name}.pdf`]: fields
+      },
+      summary: {
+        total_documents: 1,
+        processed_documents: 1,
+        total_fields: fieldNames.length || 1,
+        answered_fields: fields.filter(f => f.answer && f.answer !== 'NOT_FOUND').length
+      },
+      processed_at: new Date(),
+      processing_method: `gemini_${result.method || 'pure'}`
+    };
+  }
+
+  private parseResponseToFields(response: string, fieldNames: string[], pmcField: string, question: string): PMCFieldResultDto[] {
+    const fields: PMCFieldResultDto[] = [];
+
+    if (!response || response === 'NOT_FOUND') {
+      // Create empty response for all fields
+      fieldNames.forEach(fieldName => {
+        fields.push({
+          pmc_field: pmcField,
+          question: fieldName,
+          answer: 'NOT_FOUND',
+          confidence: 0
+        });
+      });
+      return fields;
+    }
+
+    if (fieldNames.length === 1) {
+      // Single field response
+      fields.push({
+        pmc_field: pmcField,
+        question: question,
+        answer: response,
+        confidence: 0.85,
+        processing_method: 'gemini_pure'
+      });
+    } else {
+      // Multiple fields separated by semicolon
+      const values = response.split(';').map(v => v.trim());
+      fieldNames.forEach((fieldName, index) => {
+        const answer = values[index] || 'NOT_FOUND';
+        fields.push({
+          pmc_field: pmcField,
+          question: fieldName,
+          answer: answer,
+          confidence: answer !== 'NOT_FOUND' ? 0.85 : 0,
+          processing_method: 'gemini_pure'
+        });
+      });
+    }
+
+    return fields;
+  }
+
+  private async getDocumentPrompt(documentName: string): Promise<any> {
+    try {
+      // Try to get from database
+      const query = `
+        SELECT * FROM document_consolidado
+        WHERE UPPER(REPLACE(document_name, '.pdf', '')) = UPPER(?)
+        AND active = 1
+        LIMIT 1
+      `;
+
+      const cleanName = documentName.replace(/\.pdf$/i, '');
+      const result = await this.documentPromptRepository.query(query, [cleanName]);
+
+      if (result && result.length > 0) {
+        return result[0];
+      }
+
+      this.logger.warn(`⚠️ No prompt found for document: ${documentName}`);
+      return null;
+    } catch (error) {
+      this.logger.error(`❌ Error getting prompt for ${documentName}: ${error.message}`);
+      return null;
+    }
+  }
+
+  // ===============================================
   // 🚀 GEMINI-ONLY SERVICE - SINGLE DOCUMENT
   // ===============================================
 
