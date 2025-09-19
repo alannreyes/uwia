@@ -545,11 +545,12 @@ export class GeminiFileApiService {
     expectedType: ResponseType,
     startTime: number
   ): Promise<GeminiFileApiResult> {
-    // Dividir en chunks de 10MB para evitar límites de Gemini File API
-    // Nota: Gemini tiene límites estrictos en el tamaño total de archivos por request
-    const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 10);
+    // Dividir en chunks de 5MB para evitar límites de Gemini File API
+    // Nota: Gemini tiene límites muy estrictos - reducido de 15MB a 10MB y ahora a 5MB
+    // debido a errores "files bytes are too large to be read"
+    const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 5);
 
-    this.logger.log(`📦 [SIZE-SPLIT] PDF dividido en ${pdfChunks.length} chunks de ~10MB`);
+    this.logger.log(`📦 [SIZE-SPLIT] PDF dividido en ${pdfChunks.length} chunks de ~5MB`);
 
     const chunkResults: GeminiFileApiResult[] = [];
 
