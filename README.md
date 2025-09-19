@@ -12,7 +12,7 @@ Sistema backend enterprise en NestJS para procesamiento inteligente de documento
 - **🔄 Validación Complementaria**: Múltiples fuentes procesan independientemente, el mejor resultado gana
 - **📊 Enterprise Logging**: Logs limpios y profesionales sin spam de contenido
 - **🛡️ Rate Limiting Inteligente**: Manejo automático de límites de API con fallbacks robustos
-- **⚙️ Performance Optimizado**: Chunking inteligente con progreso agrupado para documentos grandes (50MB+)
+- **⚡ Performance Optimizado**: Thresholds inteligentes (10MB/150MB) con procesamiento directo para archivos medianos
 - **🎯 Vector Storage**: Sistema de embeddings con OpenAI text-embedding-3-large (3072 dimensiones)
 - **🔧 PDF Toolkit Unificado**: Arquitectura robusta que combina pdf-parse, pdf-lib y pdfjs-dist
 
@@ -410,19 +410,20 @@ INSERT INTO document_consolidado VALUES (
 
 ## ⚡ Performance y Benchmarks
 
-### Tiempos Típicos de Procesamiento:
-- **Documentos pequeños** (< 1MB): 5-15 segundos
-- **Documentos medianos** (1-10MB): 15-45 segundos  
-- **Documentos grandes** (10-50MB): 1-3 minutos
-- **Documentos ultra** (50-100MB): 3-8 minutos
+### Tiempos Optimizados de Procesamiento (Sept 2025):
+- **Documentos pequeños** (< 10MB): 5-15 segundos ⚡ *Inline API*
+- **Documentos medianos** (10-150MB): 20-40 segundos ✨ *File API Direct*
+- **Documentos grandes** (> 150MB): 60+ segundos 📄 *Page-based splitting*
+
+**Ejemplo real**: POLICY.pdf (31.43MB) procesa en **30.4 segundos** ✅
 
 ### Optimizaciones Activas:
+- ✅ **Thresholds inteligentes** - 10MB/150MB para procesamiento óptimo
+- ✅ **File API Direct** - Sin splitting para archivos medianos (10-150MB)
+- ✅ **Eliminación del bug pdf-lib** - No más inflación de tamaño
 - ✅ **Respuestas consolidadas** - Un documento = una respuesta
-- ✅ **Dual AI validation** con selección inteligente  
-- ✅ **Chunking inteligente** para documentos grandes
-- ✅ **Rate limiting adaptativo** con fallbacks
-- ✅ **Caché de conversión** de imágenes
-- ✅ **Timeouts escalados** según tamaño de documento
+- ✅ **Dual AI validation** con selección inteligente
+- ✅ **Rate limiting adaptativo** con fallbacks automáticos
 
 ## Contribución
 
