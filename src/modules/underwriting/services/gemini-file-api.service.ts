@@ -24,17 +24,16 @@ export class GeminiFileApiService {
   private fileManager?: any;
   private model?: any;
   
-  // Official thresholds based on Google Gemini API 2025 documentation
+  // Official thresholds based on Google Gemini API 2025 documentation for PDFs
   // 0-20MB: Inline base64 API processing (Google official recommendation)
-  // 20MB-2GB: Files API (Google official limit)
-  // Max pages: 1,000 pages per document (Google enforced limit)
+  // 20MB-50MB: Files API for PDFs (Google official PDF limit)
+  // >50MB: Requires page-based splitting (exceeds Files API PDF limit)
   private readonly INLINE_API_THRESHOLD_MB = 20;
   private readonly INLINE_API_THRESHOLD_BYTES = this.INLINE_API_THRESHOLD_MB * 1024 * 1024;
 
-  private readonly FILES_API_THRESHOLD_MB = 20; // Start using Files API at 20MB
-  private readonly FILES_API_THRESHOLD_BYTES = this.FILES_API_THRESHOLD_MB * 1024 * 1024;
+  private readonly FILES_API_PDF_LIMIT_MB = 50; // Google official PDF limit for Files API
+  private readonly FILES_API_PDF_LIMIT_BYTES = this.FILES_API_PDF_LIMIT_MB * 1024 * 1024;
 
-  private readonly MAX_FILE_SIZE_MB = 2048; // 2GB Google official limit
   private readonly MAX_PAGES = 1000; // Google enforced page limit
   
   constructor(
@@ -69,7 +68,7 @@ export class GeminiFileApiService {
       });
       
       this.logger.log('✅ Gemini File API Service inicializado correctamente');
-      this.logger.log(`📏 Official Google Thresholds: <${this.INLINE_API_THRESHOLD_MB}MB (Inline) | ${this.FILES_API_THRESHOLD_MB}MB-${this.MAX_FILE_SIZE_MB}MB (Files API) | Max ${this.MAX_PAGES} pages`);
+      this.logger.log(`📏 Official Google PDF Thresholds: <${this.INLINE_API_THRESHOLD_MB}MB (Inline) | ${this.INLINE_API_THRESHOLD_MB}-${this.FILES_API_PDF_LIMIT_MB}MB (Files API) | >${this.FILES_API_PDF_LIMIT_MB}MB (Split) | Max ${this.MAX_PAGES} pages`);
     } catch (error) {
       this.logger.error(`❌ Error inicializando Gemini File API: ${error.message}`);
     }
@@ -105,14 +104,14 @@ export class GeminiFileApiService {
         // Small files < 20MB: Use inline API per Google recommendations
         this.logger.log(`📝 Archivo pequeño (${fileSizeMB.toFixed(2)}MB) - usando Inline API (Google oficial <20MB)`);
         return await this.processWithInlineApi(pdfBuffer, prompt, expectedType, startTime);
-      } else if (fileSizeMB <= this.MAX_FILE_SIZE_MB) {
-        // Files 20MB-2GB: Use Files API per Google official limits
-        this.logger.log(`🚀 Archivo (${fileSizeMB.toFixed(2)}MB) - usando Files API (Google oficial 20MB-2GB)`);
+      } else if (pdfBuffer.length <= this.FILES_API_PDF_LIMIT_BYTES) {
+        // Files 20MB-50MB: Use Files API per Google official PDF limit
+        this.logger.log(`🚀 Archivo mediano (${fileSizeMB.toFixed(2)}MB) - usando Files API (Google oficial PDF limit 50MB)`);
         return await this.processFileDirectly(pdfBuffer, prompt, expectedType, startTime);
       } else {
-        // Files > 2GB: Exceeds Google official limit
-        this.logger.error(`❌ Archivo demasiado grande (${fileSizeMB.toFixed(2)}MB) - excede límite oficial de Google (2GB)`);
-        throw new Error(`File too large: ${fileSizeMB.toFixed(2)}MB exceeds Google Gemini API limit of 2GB`);
+        // Files > 50MB: Exceeds Google Files API PDF limit, use page splitting
+        this.logger.log(`📚 Archivo grande (${fileSizeMB.toFixed(2)}MB) - excede límite Files API (50MB), usando page splitting`);
+        return await this.processWithPageBasedSplitting(pdfBuffer, prompt, expectedType, startTime);
       }
     } catch (error) {
       this.logger.error(`❌ Error procesando PDF ${prompt}: ${error.message}`);
@@ -437,14 +436,13 @@ export class GeminiFileApiService {
   /**
    * Obtiene información del threshold configurado
    */
-  getThresholdInfo(): { inlineMB: number; filesApiMB: number; maxFileSizeMB: number; maxPages: number; inlineBytes: number; filesApiBytes: number } {
+  getThresholdInfo(): { inlineMB: number; filesApiPdfLimitMB: number; maxPages: number; inlineBytes: number; filesApiPdfLimitBytes: number } {
     return {
       inlineMB: this.INLINE_API_THRESHOLD_MB,
-      filesApiMB: this.FILES_API_THRESHOLD_MB,
-      maxFileSizeMB: this.MAX_FILE_SIZE_MB,
+      filesApiPdfLimitMB: this.FILES_API_PDF_LIMIT_MB,
       maxPages: this.MAX_PAGES,
       inlineBytes: this.INLINE_API_THRESHOLD_BYTES,
-      filesApiBytes: this.FILES_API_THRESHOLD_BYTES
+      filesApiPdfLimitBytes: this.FILES_API_PDF_LIMIT_BYTES
     };
   }
 

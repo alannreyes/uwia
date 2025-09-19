@@ -303,11 +303,11 @@ export class UnderwritingService {
 
       // 🚀 FORCE GEMINI FILE API for files >= 20MB per Google official recommendations
       const fileSizeMB = file.size / (1024 * 1024);
-      const GEMINI_FILES_API_THRESHOLD_MB = 20; // Google official threshold
+      const GEMINI_FILES_API_THRESHOLD_MB = 20; // Google official threshold for switching to Files API
 
       if (fileSizeMB >= GEMINI_FILES_API_THRESHOLD_MB && this.geminiFileApiService.isAvailable()) {
-        this.logger.log(`🐘 [GEMINI-DIRECT] File size ${fileSizeMB.toFixed(2)}MB >= ${GEMINI_FILES_API_THRESHOLD_MB}MB - routing to Gemini Files API per Google recommendations`);
-        this.logger.log(`🚀 [GEMINI-DIRECT] Skipping local text extraction - using official Google Files API flow`);
+        this.logger.log(`🐘 [GEMINI-DIRECT] File size ${fileSizeMB.toFixed(2)}MB >= ${GEMINI_FILES_API_THRESHOLD_MB}MB - routing to Gemini per Google PDF guidelines`);
+        this.logger.log(`🚀 [GEMINI-DIRECT] Skipping local text extraction - using Google official flow (supports up to 50MB PDFs)`);
         try {
           return await this.processWithGeminiFileApi(file, body, context);
         } catch (geminiError) {
