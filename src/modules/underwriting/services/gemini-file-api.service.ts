@@ -14,7 +14,7 @@ export interface GeminiFileApiResult {
   processingTime: number;
   tokensUsed: number;
   model: string;
-  method: 'inline' | 'file-api' | 'file-api-split' | 'modern-rag';
+  method: 'inline' | 'file-api' | 'file-api-split' | 'modern-rag' | 'file-api-direct' | 'inline-api-direct';
 }
 
 @Injectable()
