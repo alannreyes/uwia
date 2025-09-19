@@ -303,10 +303,13 @@ export class UnderwritingController {
     this.logger.log('🚀 [GEMINI-BATCH] Processing ALL documents with Gemini-only');
     this.logger.log(`🆔 Record: ${body.record_id || 'unknown'}`);
 
-    // Expect 5-7 documents in base64 format:
-    // certificate.pdf, invoices.pdf, lop.pdf, policy.pdf, roof.pdf, weather.pdf
+    // Extract documents from body (same format as evaluate-claim-batch)
     const documents = this.extractDocumentsFromBody(body);
     this.logger.log(`📁 [GEMINI-BATCH] Found ${documents.length} documents: ${documents.map(d => d.name).join(', ')}`);
+
+    if (documents.length === 0) {
+      throw new Error('No documents found in request body');
+    }
 
     return await this.underwritingService.evaluateAllDocumentsGeminiOnly(documents, body);
   }
@@ -314,7 +317,23 @@ export class UnderwritingController {
   private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {
     const documents = [];
 
-    // Standard document mappings
+    // Check if using batch format with documents array
+    if (body.documents && Array.isArray(body.documents)) {
+      body.documents.forEach(doc => {
+        if (doc.file_data && doc.document_name) {
+          const buffer = Buffer.from(doc.file_data, 'base64');
+          documents.push({
+            name: doc.document_name,
+            base64: doc.file_data,
+            size: buffer.length
+          });
+          this.logger.log(`📄 [GEMINI-BATCH] ${doc.document_name}: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
+        }
+      });
+      return documents;
+    }
+
+    // Check individual fields (legacy format)
     const documentMappings = [
       { field: 'certificate_pdf', name: 'CERTIFICATE' },
       { field: 'invoices_pdf', name: 'INVOICES' },

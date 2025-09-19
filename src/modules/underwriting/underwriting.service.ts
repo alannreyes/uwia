@@ -1613,6 +1613,61 @@ export class UnderwritingService {
   }
 
   // ===============================================
+  // 🚀 GEMINI-ONLY SERVICE - SINGLE DOCUMENT
+  // ===============================================
+
+  async evaluateSingleDocumentGeminiOnly(
+    file: Express.Multer.File,
+    body: any
+  ): Promise<EvaluateClaimResponseDto> {
+    const startTime = Date.now();
+    const { record_id, document_name } = body;
+
+    this.logger.log(`🚀 [GEMINI-SINGLE] Processing ${document_name} with 100% Gemini`);
+
+    // Parse context
+    let context = body.context;
+    if (typeof context === 'string') {
+      try {
+        context = JSON.parse(context);
+      } catch (e) {
+        this.logger.warn(`⚠️ [GEMINI-SINGLE] Failed to parse context JSON`);
+      }
+    }
+
+    // Create document object
+    const doc = {
+      name: document_name,
+      base64: file.buffer.toString('base64'),
+      size: file.size
+    };
+
+    // Process single document
+    const result = await this.processDocumentGeminiOnly(doc, body, context);
+
+    // Create response in expected format
+    const consolidatedResults: any = {};
+    consolidatedResults[`${document_name}.pdf`] = result.fields;
+
+    const processingTime = Date.now() - startTime;
+    this.logger.log(`✅ [GEMINI-SINGLE] Completed ${document_name} in ${processingTime}ms`);
+
+    return {
+      record_id,
+      status: 'success',
+      results: consolidatedResults,
+      summary: {
+        total_documents: 1,
+        processed_documents: 1,
+        total_fields: result.totalFields,
+        answered_fields: result.answeredFields
+      },
+      processed_at: new Date(),
+      processing_method: 'gemini_single_document'
+    };
+  }
+
+  // ===============================================
   // 🚀 GEMINI-ONLY SERVICE - ALL DOCUMENTS BATCH
   // ===============================================
 
