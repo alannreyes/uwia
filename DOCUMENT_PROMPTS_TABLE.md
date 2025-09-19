@@ -94,6 +94,7 @@ The system has been fully migrated from the old `document_prompts` table to `doc
 ### File Processing Optimization (Sept 19, 2025) ✨
 - **Major Update**: Implemented optimized file processing thresholds
 - **Impact**: POLICY.pdf (31MB) now processes successfully in 30.4 seconds
+- **Reference**: Based on [Gemini API Document Processing](https://ai.google.dev/gemini-api/docs/document-processing)
 - **Changes**:
   * < 10MB: Inline API (fast processing)
   * 10-150MB: Direct File API (no splitting, leverages Gemini's 2GB capacity)

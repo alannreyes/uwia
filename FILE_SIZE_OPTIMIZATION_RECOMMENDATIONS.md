@@ -1,5 +1,11 @@
 # File Size Threshold Optimization Recommendations
 
+## Reference Documentation
+
+**🔗 [Official Gemini API Document Processing Guide](https://ai.google.dev/gemini-api/docs/document-processing)**
+
+This recommendation is based on Gemini's official documentation, which states that the File API supports files **up to 2GB**. Our previous 20-30MB limits were unnecessarily restrictive.
+
 ## Current Issues
 
 1. **Overlapping Logic**: Files 20-30MB use File API, but files >30MB that are <100MB also use File API (via bypass)

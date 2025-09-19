@@ -418,7 +418,7 @@ INSERT INTO document_consolidado VALUES (
 **Ejemplo real**: POLICY.pdf (31.43MB) procesa en **30.4 segundos** ✅
 
 ### Optimizaciones Activas:
-- ✅ **Thresholds inteligentes** - 10MB/150MB para procesamiento óptimo
+- ✅ **Thresholds inteligentes** - 10MB/150MB basados en [documentación oficial de Gemini](https://ai.google.dev/gemini-api/docs/document-processing)
 - ✅ **File API Direct** - Sin splitting para archivos medianos (10-150MB)
 - ✅ **Eliminación del bug pdf-lib** - No más inflación de tamaño
 - ✅ **Respuestas consolidadas** - Un documento = una respuesta

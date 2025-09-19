@@ -6,6 +6,10 @@ POLICY.pdf (33MB) was failing with "files bytes are too large" error due to a pd
 ## Solution Implemented
 Bypass PDF splitting for files under 100MB and send them directly to Gemini File API.
 
+**Based on official documentation**: [Gemini API Document Processing](https://ai.google.dev/gemini-api/docs/document-processing)
+
+The documentation clearly states that Gemini File API supports files up to 2GB, making our 33MB file trivial to process directly.
+
 ## Results - 2025-09-19
 
 ### Before (Failed)

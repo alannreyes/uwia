@@ -33,6 +33,16 @@ PDF Input → Size Check:
 - **Direct routing**: File API Direct (single step)
 - **No size inflation**: Leverages Gemini's native 2GB capacity
 
+## 📖 Reference Documentation
+
+This optimization is based on **official Gemini File API documentation**:
+**🔗 [Gemini API Document Processing Guide](https://ai.google.dev/gemini-api/docs/document-processing)**
+
+Key insights from the documentation:
+- Gemini File API supports files **up to 2GB** (much larger than our previous 20MB threshold)
+- Direct file upload is the recommended approach for most documents
+- No need for complex splitting when files are within Gemini's capacity
+
 ## 🔧 Technical Implementation
 
 ### Environment Variables
