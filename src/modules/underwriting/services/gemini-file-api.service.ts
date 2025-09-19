@@ -545,10 +545,11 @@ export class GeminiFileApiService {
     expectedType: ResponseType,
     startTime: number
   ): Promise<GeminiFileApiResult> {
-    // Dividir en chunks de 15MB para maximizar calidad de procesamiento
-    const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 15);
+    // Dividir en chunks de 10MB para evitar límites de Gemini File API
+    // Nota: Gemini tiene límites estrictos en el tamaño total de archivos por request
+    const pdfChunks = await this.splitPdfIntoChunks(pdfBuffer, 10);
 
-    this.logger.log(`📦 [SIZE-SPLIT] PDF dividido en ${pdfChunks.length} chunks de ~15MB`);
+    this.logger.log(`📦 [SIZE-SPLIT] PDF dividido en ${pdfChunks.length} chunks de ~10MB`);
 
     const chunkResults: GeminiFileApiResult[] = [];
 
@@ -621,8 +622,9 @@ export class GeminiFileApiService {
           // Crear chunk con las páginas actuales
           const chunkBuffer = await this.createPdfChunk(pdfDoc, currentChunkPages);
           chunks.push(chunkBuffer);
-          
-          this.logger.log(`📦 [PDF-SPLIT] Chunk creado con páginas ${currentChunkPages[0] + 1}-${currentChunkPages[currentChunkPages.length - 1] + 1} (${(chunkBuffer.length / 1024 / 1024).toFixed(2)}MB)`);
+
+          const chunkSizeMB = chunkBuffer.length / (1024 * 1024);
+          this.logger.log(`📦 [PDF-SPLIT] Chunk creado con páginas ${currentChunkPages[0] + 1}-${currentChunkPages[currentChunkPages.length - 1] + 1} (${chunkSizeMB.toFixed(2)}MB)`);
           
           // Reiniciar para el siguiente chunk
           currentChunkPages = [pageIndex];
@@ -637,8 +639,9 @@ export class GeminiFileApiService {
       if (currentChunkPages.length > 0) {
         const chunkBuffer = await this.createPdfChunk(pdfDoc, currentChunkPages);
         chunks.push(chunkBuffer);
-        
-        this.logger.log(`📦 [PDF-SPLIT] Chunk final creado con páginas ${currentChunkPages[0] + 1}-${currentChunkPages[currentChunkPages.length - 1] + 1} (${(chunkBuffer.length / 1024 / 1024).toFixed(2)}MB)`);
+
+        const chunkSizeMB = chunkBuffer.length / (1024 * 1024);
+        this.logger.log(`📦 [PDF-SPLIT] Chunk final creado con páginas ${currentChunkPages[0] + 1}-${currentChunkPages[currentChunkPages.length - 1] + 1} (${chunkSizeMB.toFixed(2)}MB)`);
       }
       
       return chunks;
