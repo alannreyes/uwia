@@ -1690,7 +1690,7 @@ export class UnderwritingService {
           document: `${document_name}.pdf`,
           fields: fields,
           totalFields: fieldNames.length || 1,
-          answeredFields: fields.filter(f => f.answer && f.answer !== 'NOT_FOUND').length
+          answeredFields: this.countAnsweredFields(fields[0]?.answer, fieldNames.length || 1)
         };
 
       } catch (error) {
@@ -1837,52 +1837,52 @@ export class UnderwritingService {
         total_documents: 1,
         processed_documents: 1,
         total_fields: fieldNames.length || 1,
-        answered_fields: fields.filter(f => f.answer && f.answer !== 'NOT_FOUND').length
+        answered_fields: this.countAnsweredFields(fields[0]?.answer, fieldNames.length)
       },
       processed_at: new Date(),
       processing_method: `gemini_${result.method || 'pure'}`
     };
   }
 
+  private countAnsweredFields(answer: string, totalFields: number): number {
+    if (!answer || answer === 'NOT_FOUND') {
+      return 0;
+    }
+
+    // For single field responses
+    if (totalFields === 1) {
+      return answer && answer !== 'NOT_FOUND' ? 1 : 0;
+    }
+
+    // For multi-field responses, count non-NOT_FOUND values
+    const values = answer.split(';').map(v => v.trim());
+    return values.filter(v => v && v !== 'NOT_FOUND').length;
+  }
+
   private parseResponseToFields(response: string, fieldNames: string[], pmcField: string, question: string): PMCFieldResultDto[] {
     const fields: PMCFieldResultDto[] = [];
 
     if (!response || response === 'NOT_FOUND') {
-      // Create empty response for all fields
-      fieldNames.forEach(fieldName => {
-        fields.push({
-          pmc_field: pmcField,
-          question: fieldName,
-          answer: 'NOT_FOUND',
-          confidence: 0
-        });
+      // Create single consolidated response with NOT_FOUND
+      fields.push({
+        pmc_field: pmcField,
+        question: question,
+        answer: 'NOT_FOUND',
+        confidence: 0,
+        processing_method: 'gemini_pure'
       });
       return fields;
     }
 
-    if (fieldNames.length === 1) {
-      // Single field response
-      fields.push({
-        pmc_field: pmcField,
-        question: question,
-        answer: response,
-        confidence: 0.85,
-        processing_method: 'gemini_pure'
-      });
-    } else {
-      // Multiple fields separated by semicolon
-      const values = response.split(';').map(v => v.trim());
-      fieldNames.forEach((fieldName, index) => {
-        const answer = values[index] || 'NOT_FOUND';
-        fields.push({
-          pmc_field: pmcField,
-          question: fieldName,
-          answer: answer,
-          confidence: answer !== 'NOT_FOUND' ? 0.85 : 0,
-          processing_method: 'gemini_pure'
-        });
-      });
-    }
+    // ALWAYS return a single consolidated response (even for multiple fields)
+    // The prompt explicitly asks for semicolon-separated values in ONE response
+    fields.push({
+      pmc_field: pmcField,
+      question: question,  // Full prompt question
+      answer: response,    // Complete semicolon-separated response
+      confidence: 0.85,
+      processing_method: 'gemini_pure'
+    });
 
     return fields;
   }
