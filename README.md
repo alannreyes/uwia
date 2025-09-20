@@ -1,322 +1,99 @@
-# UWIA - Underwriting Inteligente con IA
+# UWIA - Underwriting Intelligence API
 
-Sistema backend enterprise en NestJS para procesamiento inteligente de documentos de underwriting utilizando **GPT-4o + Gemini 2.5 Pro** con **RAG (Retrieval Augmented Generation)**.
+Sistema de procesamiento inteligente de documentos de seguros usando Google Gemini AI para análisis automático de pólizas, cartas de protección, certificados y reportes.
 
 ## 🚀 Características Principales
 
-- **🤖 Dual AI Processing**: GPT-4o como motor principal + Gemini 2.5 Pro para validación complementaria
-- **🧠 RAG Comprehensive**: Sistema de recuperación inteligente que usa 100% de chunks del documento para máxima precisión
-- **📄 Análisis Visual Inteligente**: Procesamiento de PDFs con OCR + Vision API para documentos complejos
-- **⚡ Respuestas Consolidadas**: Un documento = una respuesta con múltiples valores separados por semicolons
-- **🎯 Fusion Logic**: Algoritmo inteligente que combina resultados de visión y texto para campos críticos
-- **🔄 Validación Complementaria**: Múltiples fuentes procesan independientemente, el mejor resultado gana
-- **📊 Enterprise Logging**: Logs limpios y profesionales sin spam de contenido
-- **🛡️ Rate Limiting Inteligente**: Manejo automático de límites de API con fallbacks robustos
-- **⚡ Performance Optimizado**: Thresholds inteligentes (10MB/150MB) con procesamiento directo para archivos medianos
-- **🎯 Vector Storage**: Sistema de embeddings con OpenAI text-embedding-3-large (3072 dimensiones)
-- **🔧 PDF Toolkit Unificado**: Arquitectura robusta que combina pdf-parse, pdf-lib y pdfjs-dist
+- **Procesamiento 100% Gemini**: Sistema optimizado que usa exclusivamente Google Gemini APIs
+- **Enrutamiento Inteligente**: Selección automática entre Inline API y File API según tamaño de archivo
+- **Respuestas Consolidadas**: Un solo objeto de respuesta por documento con valores separados por punto y coma
+- **Escalabilidad**: Manejo de archivos desde 0.1MB hasta 66MB+ con división automática de páginas
+- **Logging Avanzado**: Logs detallados para validación y debug de respuestas
 
-## 🧠 Post-proceso Determinístico
+## 🏗️ Arquitectura del Sistema
 
-- **Campos `*_match`**: Recalculados programáticamente (street/zip/city/address/DOL/policy/claim) con normalización robusta.
-- **Address match**: Mantiene `state1` en formato requerido (ej. `FL Florida`) pero para validar la dirección usa solo la abreviatura (`FL`) y limpia puntuación/espacios.
-- **LOP mechanics_lien**: Si la IA devuelve `NO/NOT_FOUND` y el texto contiene evidencia fuerte (p.ej., “lien upon proceeds”, “construction lien law”), se ajusta a `YES`.
+### Endpoint Principal: `/api/underwriting/evaluate-gemini`
 
-## 📋 Documentos Soportados
+**Método**: `POST` (multipart/form-data)
+**Uso**: Procesamiento individual de documentos (compatible con N8N)
 
-El sistema procesa **7 tipos de documentos** con respuestas consolidadas:
+#### Flujo de Procesamiento
 
-| Documento | pmc_field | Campos | Función Principal |
-|-----------|-----------|--------|-------------------|
-| **LOP.pdf** | `lop_responses` | 18 | Liens, firmas, direcciones, comparaciones |
-| **POLICY.pdf** | `policy_responses` | 9 | Fechas de póliza, cobertura, exclusiones |
-| **WEATHER.pdf** | `weather_responses` | 2 | Velocidad de viento y ráfagas |
-| **CERTIFICATE.pdf** | `certificate_responses` | 1 | Fecha de completación de trabajo |
-| **ESTIMATE.pdf** | `estimate_responses` | 1 | Firma de aprobación de monto |
-| **MOLD.pdf** | `mold_responses` | 1 | Condiciones de moho (Positive/Negative) |
-| **ROOF.pdf** | `roof_responses` | 1 | Área total del techo en pies² |
+1. **Recepción**: Un archivo PDF por llamada + contexto JSON
+2. **Enrutamiento por Tamaño**:
+   - `< 1MB` → Gemini Inline API
+   - `1-50MB` → Gemini File API directo
+   - `> 50MB` → Gemini File API con división de páginas
+3. **Procesamiento**: Aplicación de prompts consolidados con reemplazo de variables
+4. **Respuesta**: Formato JSON estandarizado con respuesta consolidada
 
-## 📦 Requisitos Previos
+### Tipos de Documentos Soportados
 
-- Node.js 20+
-- MySQL 8.0+
-- Docker (para producción)
-- **OpenAI API Key** con acceso a GPT-4o
-- **Google Gemini API Key** con acceso a Gemini 2.5 Pro
-- Mínimo 4GB RAM (8GB recomendado para archivos grandes)
+| Documento | PMC Field | Campos Esperados | Descripción |
+|-----------|-----------|------------------|-------------|
+| `LOP.pdf` | `lop_responses` | 18 campos | Carta de Protección con validaciones de firma y datos |
+| `POLICY.pdf` | `policy_responses` | 7 campos | Póliza de seguro con fechas, coberturas y exclusiones |
+| `CERTIFICATE.pdf` | `certificate_responses` | 1 campo | Certificado con fecha de completación |
+| `ROOF.pdf` | `roof_responses` | 1 campo | Reporte de techo con área total |
+| `WEATHER.pdf` | `weather_responses` | 2 campos | Datos meteorológicos de velocidad del viento |
 
-## Instalación
+## 📋 Configuración de Variables
 
-1. Clonar el repositorio:
-```bash
-git clone https://github.com/[tu-usuario]/uwia.git
-cd uwia
+### Variables de Contexto
+
+El sistema reemplaza automáticamente las siguientes variables en los prompts:
+
+```json
+{
+  "%insured_name%": "Nombre del asegurado",
+  "%insurance_company%": "Compañía de seguros",
+  "%insured_address%": "Dirección completa",
+  "%insured_street%": "Dirección de calle",
+  "%insured_city%": "Ciudad",
+  "%insured_zip%": "Código postal",
+  "%date_of_loss%": "Fecha de pérdida (MM-DD-YY)",
+  "%policy_number%": "Número de póliza",
+  "%claim_number%": "Número de reclamo",
+  "%type_of_job%": "Tipo de trabajo",
+  "%cause_of_loss%": "Causa de pérdida"
+}
 ```
-
-2. Instalar dependencias:
-```bash
-npm install
-```
-
-3. Configurar variables de entorno:
-```bash
-cp env.example .env
-# Editar .env con tus credenciales
-```
-
-4. Ejecutar scripts de base de datos:
-```bash
-mysql -u [usuario] -p < database/scripts/01_create_database.sql
-mysql -u [usuario] -p < database/scripts/02_create_tables.sql
-mysql -u [usuario] -p < database/scripts/03_create_indexes.sql
-```
-
-## Configuración
 
 ### Variables de Entorno
 
-```env
-# ===== API Configuration =====
-PORT=5035
+```bash
+# Google Gemini API
+GOOGLE_GEMINI_API_KEY=your_gemini_api_key
+
+# Servidor
+PORT=5045
 NODE_ENV=production
 
-# ===== Base de Datos =====
+# Base de Datos
 DB_HOST=localhost
 DB_PORT=3306
-DB_USERNAME=your_user
-DB_PASSWORD=your_password
-DB_DATABASE=axioma
-DOCUMENT_PROMPTS_TABLE_NAME=document_consolidado
+DB_USERNAME=uwia_user
+DB_PASSWORD=uwia_pass
+DB_DATABASE=uwia_dev
 
-# ===== OpenAI GPT-4o =====
-OPENAI_API_KEY=sk-proj-your-key-here
-OPENAI_MODEL=gpt-4o
-OPENAI_ENABLED=true
-OPENAI_TIMEOUT=90000
-OPENAI_TEMPERATURE=0.1
-OPENAI_MAX_TOKENS=8192
-OPENAI_VISION_TEMPERATURE=0.1
-OPENAI_RATE_LIMIT_RPM=30
-OPENAI_RATE_LIMIT_TPM=30000
-OPENAI_MAX_RETRIES=5
-
-# ===== Gemini 2.5 Pro =====
-GEMINI_API_KEY=AIzaSy-your-key-here
-GEMINI_ENABLED=true
-GEMINI_MODEL=gemini-2.5-pro
-GEMINI_TEMPERATURE=0.1
-GEMINI_MAX_TOKENS=8192
-GEMINI_THINKING_MODE=true
-GEMINI_RATE_LIMIT_RPM=80
-GEMINI_RATE_LIMIT_TPM=1500000
-GEMINI_TIMEOUT=120000
-GEMINI_MAX_RETRIES=3
-GEMINI_AUTO_FALLBACK=true
-
-# ===== Procesamiento =====
-MAX_FILE_SIZE=104857600  # 100MB
-LARGE_FILE_TIMEOUT=300000  # 5 minutos
-LOCAL_PROCESSING_DEFAULT=false
-MAX_PAGES_TO_CONVERT=10
-
-# ===== Logging =====
-LOG_LEVEL=info
-ENABLE_DOCUMENT_START_END_LOGS=true
-ENABLE_FIELD_SUCCESS_LOGS=false
-ENABLE_VISION_API_LOGS=false
+# Límites de Archivo
+MAX_FILE_SIZE=67108864  # 64MB (recomendado para PDFs grandes)
 ```
 
-## Uso
+## 🔧 Uso de la API
 
-### Desarrollo
+### Ejemplo de Llamada
+
 ```bash
-npm run start:dev
+curl -X POST http://localhost:5045/api/underwriting/evaluate-gemini \
+  -F "file=@LOP.pdf" \
+  -F 'record_id=175568' \
+  -F 'document_name=LOP' \
+  -F 'context={"insured_name":"John Doe","date_of_loss":"08-30-23","policy_number":"POL123"}'
 ```
 
-### Producción
-```bash
-npm run build
-npm run start:prod
-```
+### Respuesta Esperada
 
-### Testing
-```bash
-npm run test
-npm run test:e2e
-npm run test:cov
-```
-
-## Estructura del Proyecto
-
-```
-src/
-├── config/          # Configuraciones (DB, OpenAI, etc)
-├── common/          # Utilidades compartidas
-│   ├── filters/     # Filtros de excepciones
-│   ├── interceptors/# Interceptores (logging, etc)
-│   └── validators/  # Validadores personalizados
-└── modules/
-    └── underwriting/
-        ├── dto/     # Data Transfer Objects
-        ├── entities/# Entidades de base de datos
-        ├── chunking/# Vector embeddings & storage
-        └── services/# Servicios principales (ver detalle abajo)
-            ├── underwriting.service.ts      # 🎯 Orquestador principal
-            ├── pdf-toolkit.service.ts       # 📄 Procesamiento PDF unificado
-            ├── pdf-parser.service.ts        # 📋 Parsing y extracción
-            ├── semantic-chunking.service.ts # 🧩 División inteligente
-            ├── vector-storage.service.ts    # 🗄️ Almacenamiento vectorial
-            ├── modern-rag.service.ts        # 🧠 RAG comprehensive
-            ├── openai.service.ts           # 🤖 GPT-4o integration
-            ├── gemini.service.ts           # 🔮 Gemini 2.5 Pro integration
-            └── large-pdf-vision.service.ts # 👁️ Análisis visual avanzado
-```
-
-## 🏗️ Arquitectura Técnica
-
-### Stack de Tecnologías Core
-
-```
-┌─ NestJS Framework ─────────────────────────────┐
-│  ├── TypeScript + Decorators                  │
-│  ├── Dependency Injection                     │
-│  ├── MySQL + TypeORM                          │
-│  └── Modular Architecture                     │
-├─ AI Processing Layer ─────────────────────────┤
-│  ├── OpenAI GPT-4o (text-davinci-003+)       │
-│  ├── Google Gemini 2.5 Pro (vision + text)   │
-│  ├── OpenAI Embeddings (text-embedding-3-large) │
-│  └── Dual AI Fusion Logic                    │
-├─ PDF Processing Stack ────────────────────────┤
-│  ├── pdf-parse (fast text extraction)        │
-│  ├── pdf-lib (forms + metadata)              │
-│  ├── pdfjs-dist (advanced rendering)         │
-│  ├── canvas (image conversion)               │
-│  └── pdf-to-png-converter (fallback)         │
-├─ Vector Storage & RAG ────────────────────────┤
-│  ├── MySQL JSON columns (embeddings)         │
-│  ├── Cosine similarity search                │
-│  ├── Semantic chunking (8KB optimized)       │
-│  └── Comprehensive chunk retrieval           │
-└─ Performance & Reliability ───────────────────┤
-   ├── Rate limiting (OpenAI: 30 RPM, Gemini: 80 RPM)
-   ├── Automatic fallbacks & retries         │
-   ├── Progress tracking & grouped logging    │
-   └── Memory optimization for 100MB+ files  │
-```
-
-## 🔄 Flujo de Procesamiento
-
-### Arquitectura del Sistema
-
-```
-📄 DOCUMENTO PDF → 📋 ANÁLISIS → 🤖 IA DUAL → 🎯 FUSION → ✅ RESPUESTA
-```
-
-### Flujo Detallado Paso a Paso
-
-#### 1. **Recepción del Documento** 📥
-```
-POST /api/underwriting/evaluate-claim-multipart
-├── Validación de archivo (tamaño, formato)
-├── Extracción de contexto (record_id, document_name)
-├── Carga de configuración desde DB (document_consolidado)
-└── Inicio de sesión de procesamiento
-```
-
-#### 2. **Procesamiento PDF** 📄
-```
-PDF Toolkit Service
-├── 📝 Extracción de texto (pdf-parse, pdfjs-dist)
-├── 🖼️ Conversión a imágenes (canvas + PDF.js)
-├── 📋 Detección de formularios (pdf-lib)
-├── ✍️ Identificación de firmas
-└── 🔍 Análisis OCR si es necesario
-```
-
-#### 3. **Chunking Semántico** 🧩
-```
-Semantic Chunking Service
-├── División en chunks de 8KB optimizados
-├── Generación de embeddings (OpenAI text-embedding-3-large)
-├── Metadata enriquecido (fechas, nombres, números)
-├── Almacenamiento en vector database
-└── Indexado por sessionId para recuperación
-```
-
-#### 4. **Análisis RAG Comprehensive** 🧠
-```
-Modern RAG Service
-├── Recuperación del 100% de chunks (getAllChunksForSession)
-├── Ensamblaje de contexto completo
-├── Sustitución de variables (%insured_name%, %date_of_loss%)
-├── Preparación de prompt consolidado
-└── Contextualización inteligente
-```
-
-#### 5. **Procesamiento IA Dual** 🤖
-```
-Procesamiento Paralelo:
-┌─ GPT-4o (Texto) ────────────┐
-│  ├── Análisis de contexto   │
-│  ├── Extracción de campos   │  ➤ Respuesta Principal
-│  └── Validación lógica      │
-└─ Gemini 2.5 Pro (Visión) ──┘
-   ├── Análisis visual OCR
-   ├── Detección de elementos
-   └── Validación complementaria ➤ Respuesta Secundaria
-```
-
-#### 6. **Fusion Logic** 🎯
-```
-Algoritmo de Fusión Inteligente:
-├── Campo por campo: GPT vs Gemini
-├── Selección por confianza y especificidad
-├── Prioridad a respuestas más detalladas
-├── Validación cruzada de fechas/números
-└── Consolidación final sin duplicados
-```
-
-#### 7. **Post-procesamiento Determinístico** ⚙️
-```
-Validación Automática:
-├── Recálculo de campos *_match (street, zip, city, address)
-├── Normalización de direcciones y estados
-├── Validación de LOP mechanics_lien con evidencia textual
-├── Verificación de formato de respuestas
-└── Aplicación de reglas de negocio
-```
-
-#### 8. **Respuesta Consolidada** ✅
-```
-Formato Final:
-├── Un documento = una respuesta (18 campos para LOP)
-├── Valores separados por semicolons (;)
-├── Campos ordenados según field_names en DB
-├── Confidence score y tiempo de procesamiento
-└── Metadata de sesión para trazabilidad
-```
-
-## 🛠️ API Endpoints
-
-### Health Check
-```bash
-GET /api/underwriting/health
-```
-
-### Procesar Documento Individual (Multipart)
-```bash
-POST /api/underwriting/evaluate-claim-multipart
-Content-Type: multipart/form-data
-
-# Form Data:
-record_id: "175568"
-document_name: "LOP"  # LOP | POLICY | WEATHER | CERTIFICATE | etc.
-context: '{"insured_name":"John Doe","policy_number":"12345",...}'
-file: [PDF file]
-```
-
-### Respuesta Consolidada Típica:
 ```json
 {
   "record_id": "175568",
@@ -325,11 +102,10 @@ file: [PDF file]
     "LOP.pdf": [
       {
         "pmc_field": "lop_responses",
-        "question": "Analyze this document and extract the following information...",
-        "answer": "NO;NOT_FOUND;YES;YES;NOT_FOUND;...",
-        "confidence": 1.0,
-        "processing_time_ms": 104590,
-        "error": null
+        "question": "Extract the following 18 data points...",
+        "answer": "YES;08-30-23;YES;YES;123 Main St;33607;Tampa;FL Florida;08-30-23;POL123;CLM456;YES;YES;YES;YES;YES;YES;YES",
+        "confidence": 0.85,
+        "processing_method": "gemini_inline_api"
       }
     ]
   },
@@ -337,177 +113,96 @@ file: [PDF file]
     "total_documents": 1,
     "processed_documents": 1,
     "total_fields": 18,
-    "answered_fields": 15
-  }
+    "answered_fields": 18
+  },
+  "processed_at": "2025-09-20T12:00:00.000Z"
 }
 ```
 
-### Procesar Lote de Documentos
-```bash
-POST /api/underwriting/evaluate-claim-batch
-Content-Type: application/json
+## 📊 Logs de Validación
 
+El sistema genera logs especiales para validación rápida:
+
+```log
+🎯 [VALIDATION] LOP.pdf → "YES;08-30-23;YES;YES;123 Main St;33607;Tampa;FL Florida..."
+🎯 [VALIDATION] POLICY.pdf → "04-20-23;04-20-24;YES;YES;YES;NOT_FOUND;YES"
+🎯 [VALIDATION] CERTIFICATE.pdf → "08-28-25"
+```
+
+## 🚨 Manejo de Errores
+
+### Documentos No Configurados
+
+```json
 {
   "record_id": "175568",
-  "carpeta_id": "folder_id",
-  "context": {...},
-  "documents": [
-    {
-      "document_name": "LOP",
-      "file_data": "base64_encoded_pdf"
-    },
-    {
-      "document_name": "POLICY", 
-      "file_data": "base64_encoded_pdf"
-    }
-  ]
+  "status": "error",
+  "results": {},
+  "errors": ["No prompt configuration found for document: INVOICES"],
+  "processed_at": "2025-09-20T12:00:00.000Z"
 }
 ```
 
-## 🗄️ Base de Datos
+### Archivos Demasiado Grandes
 
-### Tabla Principal: `document_consolidado`
+El sistema maneja automáticamente archivos grandes usando división de páginas sin errores para el usuario.
 
-La configuración de documentos se maneja desde la tabla `document_consolidado`:
+## 🔍 Debug y Troubleshooting
 
-| Campo | Descripción |
-|-------|-------------|
-| `id` | ID único del documento |
-| `document_name` | Nombre del documento (ej: "LOP.pdf") |
-| `pmc_field` | Campo consolidado de respuesta (ej: "lop_responses") |
-| `question` | Prompt consolidado con instrucciones completas |
-| `field_names` | JSON array con nombres de campos individuales |
-| `expected_fields_count` | Número de campos esperados |
-| `expected_type` | Tipo de respuesta esperado |
-| `active` | Si está activo (1) o no (0) |
+### Logs Importantes
 
-### Ejemplo de Registro:
-```sql
-INSERT INTO document_consolidado VALUES (
-  1, 
-  'LOP.pdf', 
-  'lop_responses',
-  'Analyze this document and extract the following information in order: determine if there is any language related to liens...',
-  '["mechanics_lien","lop_date1","lop_signed_by_client1",...]',
-  18,
-  'TEXT',
-  1
-);
+- `📋 [VAR-DEBUG]`: Variables de contexto detectadas
+- `✅ [PURE-GEMINI]`: Reemplazos de variables exitosos
+- `🟢/🟡/🔴 [GEMINI-DOC]`: Rutas de procesamiento por tamaño
+- `🎯 [VALIDATION]`: Respuestas consolidadas finales
+
+### Problemas Comunes
+
+1. **Variables vacías**: Verificar que el contexto JSON contenga todos los valores necesarios
+2. **Respuesta "NO" inesperada**: Variable de comparación puede estar vacía (ej: `%insurance_company%`)
+3. **Timeout**: Archivos muy grandes pueden requerir más tiempo de procesamiento
+
+## 📁 Estructura del Proyecto
+
+```
+src/
+├── modules/underwriting/
+│   ├── underwriting.controller.ts    # Endpoint evaluate-gemini
+│   ├── underwriting.service.ts       # Lógica de procesamiento Gemini
+│   └── services/
+│       ├── gemini.service.ts         # Gemini Inline API
+│       └── gemini-file-api.service.ts # Gemini File API + división
+database/
+├── CONFIGURATION.md                  # Configuración detallada
+└── scripts/                         # Scripts de BD
 ```
 
-### Tablas de Evaluación (Legacy):
-- **claim_evaluations**: Resultados históricos de evaluaciones
-- **document_consolidado**: Tabla principal de configuración de documentos
+## 🚀 Deployment
 
-## 🛡️ Seguridad
-
-- **🔐 API Keys**: Nunca incluir keys en código - usar variables de entorno
-- **🔑 Dual Authentication**: OpenAI + Gemini keys deben mantenerse seguras
-- **✅ Validación de Entrada**: Rate limiting y validación en todos endpoints
-- **📊 Logs de Auditoría**: Trazabilidad completa para producción
-- **🚫 No Logging de Contenido**: Los contenidos de documentos no se almacenan en logs
-- **🔒 CORS**: Configurado para orígenes específicos en producción
-
-## ⚡ Performance y Benchmarks
-
-### Tiempos Optimizados de Procesamiento (Sept 2025):
-- **Documentos pequeños** (< 10MB): 5-15 segundos ⚡ *Inline API*
-- **Documentos medianos** (10-150MB): 20-40 segundos ✨ *File API Direct*
-- **Documentos grandes** (> 150MB): 60+ segundos 📄 *Page-based splitting*
-
-**Ejemplo real**: POLICY.pdf (31.43MB) procesa en **30.4 segundos** ✅
-
-### Optimizaciones Activas:
-- ✅ **Thresholds inteligentes** - 10MB/150MB basados en [documentación oficial de Gemini](https://ai.google.dev/gemini-api/docs/document-processing)
-- ✅ **File API Direct** - Sin splitting para archivos medianos (10-150MB)
-- ✅ **Eliminación del bug pdf-lib** - No más inflación de tamaño
-- ✅ **Respuestas consolidadas** - Un documento = una respuesta
-- ✅ **Dual AI validation** con selección inteligente
-- ✅ **Rate limiting adaptativo** con fallbacks automáticos
-
-## Contribución
-
-1. Fork el proyecto
-2. Crear feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push al branch (`git push origin feature/AmazingFeature`)
-5. Abrir Pull Request
-
-## Licencia
-
-Este proyecto está bajo licencia MIT.
-
-## 🆘 Troubleshooting
-
-### Errores Comunes Resueltos ✅
-
-| Error | Causa | Solución Implementada | Estado |
-|-------|-------|----------------------|---------|
-| **Duplicación de Campos** | Double parseConsolidatedResponse en fusion logic | Eliminada llamada redundante en underwriting.service.ts | ✅ **SOLUCIONADO** |
-| **Base64 Log Spam** | Logging completo de file_data | Limpieza en 7 archivos - solo field names | ✅ **SOLUCIONADO** |
-| **RAG Selectivo** | Solo 10 chunks de 49 disponibles | Implementado getAllChunksForSession (100%) | ✅ **SOLUCIONADO** |
-| **Sample Data Contamination** | Datos de prueba contaminando análisis real | Deshabilitado loadSampleDocuments automático | ✅ **SOLUCIONADO** |
-| **Variable Substitution Bug** | Prompt templates mal procesados | Corregido question variable en RAG service | ✅ **SOLUCIONADO** |
-
-### Errores Actuales:
-
-| Error | Causa | Solución |
-|-------|-------|----------|
-| `GEMINI_ERROR` | API key inválida | Verificar `GEMINI_API_KEY` |
-| `TIMEOUT` | Archivo muy grande | Ajustar `LARGE_FILE_TIMEOUT` |
-| `RATE_LIMIT` | Demasiadas requests | Esperar o ajustar RPM límites |
-| `NOT_FOUND` | Documento no configurado | Verificar tabla `document_consolidado` |
-| `CONSOLIDATED_MISMATCH` | Respuesta no coincide con campos | Verificar prompt en DB |
-| ⚠️ **Font Warnings** | PDF.js canvas font loading | Warnings suprimidos - no afectan funcionalidad |
-
-### Optimizaciones Aplicadas 🚀
-
-- **Logging Agrupado**: Chunks procesados cada 10 (10/88, 20/88, etc.)
-- **Base64 Cleanup**: Solo nombres de campos en logs
-- **RAG Comprehensive**: 100% de chunks utilizados
-- **Fusion Logic**: Campo por campo sin duplicaciones
-- **Canvas Warnings**: Interceptados y suprimidos
-- **Vector Storage**: Cache + DB híbrido
-- **Progress Tracking**: Mejor visibilidad de procesamiento
-
-### Comandos Útiles:
+### Docker
 
 ```bash
-# Ver logs en tiempo real (Docker)
-docker logs -f container_name
+# Build
+docker build -t uwia:latest .
 
-# Verificar salud del sistema
-curl http://localhost:5035/api/underwriting/health
-
-# Verificar configuración de documento
-SELECT * FROM document_consolidado WHERE document_name = 'LOP.pdf';
-
-# Verificar chunks en vector storage
-SELECT COUNT(*) FROM document_embeddings WHERE sessionId = 'your-session-id';
-
-# Monitorear memoria y performance
-pm2 monit uwia
+# Run
+docker run -d \
+  -p 5045:5045 \
+  -e GOOGLE_GEMINI_API_KEY=your_key \
+  -e DB_HOST=your_db_host \
+  uwia:latest
 ```
 
-### Debug de Fusion Logic 🔍
-
-Para verificar decisiones campo por campo:
+### Health Check
 
 ```bash
-# Los logs muestran:
-🎯 [FUSION] Field mechanics_lien: GPT='NO' vs Gemini='YES' → Selected: YES (higher confidence)
-🎯 [FUSION] Field lop_date1: GPT='07-18-25' vs Gemini='07-18-25' → Selected: 07-18-25 (consensus)
+curl http://localhost:5045/api/health
 ```
 
-## 📞 Soporte
+### Swagger Documentation
 
-- **Issues**: Crear issue en GitHub con logs detallados
-- **Performance**: Incluir métricas de tiempo y tamaño de archivo
-- **Configuración**: Verificar variables de entorno antes de reportar
+Disponible en: `http://localhost:5045/api/docs`
 
 ---
 
-**🤖 Sistema Enterprise**: GPT-4o + Gemini 2.5 Pro  
-**📊 Respuestas Consolidadas**: Un documento = una respuesta  
-**⚡ Performance**: Optimizado para documentos de hasta 100MB  
-**🔒 Seguridad**: Enterprise-grade logging y validación
+**Versión**: 2025-09-20 | **Status**: Producción ✅ | **API**: 100% Gemini 🤖
