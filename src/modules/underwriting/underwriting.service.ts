@@ -1886,10 +1886,23 @@ export class UnderwritingService {
 
     // ALWAYS return a single consolidated response (even for multiple fields)
     // The prompt explicitly asks for semicolon-separated values in ONE response
+
+    // Clean response to ensure proper string format
+    let cleanResponse = String(response || 'NOT_FOUND').trim();
+
+    // Clean common unwanted units/text for specific field types
+    if (pmcField === 'roof_responses') {
+      // Remove units, commas, decimals for roof area - keep only numbers
+      cleanResponse = cleanResponse.replace(/[^\d]/g, '') || 'NOT_FOUND';
+    } else if (pmcField === 'weather_responses') {
+      // Remove "mph" and clean wind speed responses
+      cleanResponse = cleanResponse.replace(/\s*mph\s*/gi, '').replace(/\s+/g, ' ').trim();
+    }
+
     fields.push({
       pmc_field: pmcField,
       question: question,  // Full prompt question
-      answer: response,    // Complete semicolon-separated response
+      answer: cleanResponse,    // Complete cleaned semicolon-separated response
       confidence: 0.85,
       processing_method: 'gemini_pure'
     });
@@ -2095,18 +2108,30 @@ export class UnderwritingService {
     const answeredFields = result.answer !== 'NOT_FOUND' ? (prompt.expectedFieldsCount || 1) : 0;
 
     // ✅ RESPUESTA CONSOLIDADA: Una sola respuesta por archivo
+    // Ensure answer is always a string and clean it
+    let cleanAnswer = String(result.answer || 'NOT_FOUND').trim();
+
+    // Clean common unwanted units/text for specific field types
+    if (prompt.pmcField === 'roof_responses') {
+      // Remove units, commas, decimals for roof area - keep only numbers
+      cleanAnswer = cleanAnswer.replace(/[^\d]/g, '') || 'NOT_FOUND';
+    } else if (prompt.pmcField === 'weather_responses') {
+      // Remove "mph" and clean wind speed responses
+      cleanAnswer = cleanAnswer.replace(/\s*mph\s*/gi, '').replace(/\s+/g, ' ').trim();
+    }
+
     return {
       fields: [{
         pmc_field: prompt.pmcField,
         question: prompt.question,
-        answer: result.answer, // Respuesta consolidada (ej: "08-18-25" o "YES;08-14-25;YES;...")
+        answer: cleanAnswer, // Respuesta consolidada limpia como string
         confidence: result.confidence,
         processing_time_ms: processingTime,
         processing_method: result.method,
         error: null
       }],
       totalFields: prompt.expectedFieldsCount || 1,
-      answeredFields: result.answer !== 'NOT_FOUND' ? 1 : 0 // Una respuesta consolidada
+      answeredFields: cleanAnswer !== 'NOT_FOUND' ? 1 : 0 // Una respuesta consolidada
     };
   }
 
