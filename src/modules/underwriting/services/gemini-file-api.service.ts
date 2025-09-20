@@ -537,8 +537,8 @@ export class GeminiFileApiService {
         // Validar que el chunk no exceda límites de Gemini (45MB conservador)
         if (chunkSizeMB > 45) {
           this.logger.warn(`⚠️ [PAGE-SPLIT] Chunk ${chunkSizeMB.toFixed(2)}MB excede límite, usando Inline API`);
-          const chunkResult = await this.processWithInlineApi(chunkBuffer, prompt, expectedType);
-          chunkResult.method = 'inline_api_fallback';
+          const chunkResult = await this.processWithInlineApi(chunkBuffer, prompt, expectedType, Date.now());
+          chunkResult.method = 'inline-api-direct';
           chunkResults.push(chunkResult);
         } else {
           // Procesar chunk sin recursión para evitar loops infinitos
