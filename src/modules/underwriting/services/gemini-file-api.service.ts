@@ -834,9 +834,14 @@ export class GeminiFileApiService {
     } else if (prompt.includes('Extract the following 18 data points')) {
       expectedFieldCount = 18;
       documentType = 'LOP';
+    } else if (prompt.includes(';')) {
+      // Para cualquier otro documento con respuesta semicolon-separated
+      // Estimar campos basándose en la primera respuesta
+      expectedFieldCount = responses[0] ? responses[0].split(';').length : 1;
+      documentType = 'OTHER_MULTI_FIELD';
     }
 
-    this.logger.log(`📊 [CONSOLIDATION] Merging ${responses.length} responses for ${documentType} with ${expectedFieldCount} fields`);
+    this.logger.log(`📊 [CONSOLIDATION] Merging ${responses.length} chunks for ${documentType} with ${expectedFieldCount} fields`);
 
     // Dividir todas las respuestas en campos
     const allFields: string[][] = responses.map(resp => resp.split(';'));
@@ -849,18 +854,17 @@ export class GeminiFileApiService {
         .map(fields => fields[fieldIndex] || 'NOT_FOUND')
         .filter(value => value && value.trim() !== '');
 
-      // Logging para campos problemáticos de POLICY
-      if (documentType === 'POLICY' && (fieldIndex === 4 || fieldIndex === 6)) {
-        const fieldName = fieldIndex === 4 ? 'policy_covers_type_job' : 'policy_covers_dol';
-        this.logger.log(`🔍 [CONSOLIDATION] Field ${fieldIndex + 1} (${fieldName}) values from chunks: ${JSON.stringify(fieldValues)}`);
+      // Logging detallado para todos los campos booleanos (YES/NO)
+      const hasYesNo = fieldValues.some(v => ['YES', 'NO'].includes(v.trim().toUpperCase()));
+      if (hasYesNo && responses.length > 1) {
+        this.logger.log(`🔍 [CONSOLIDATION] Field ${fieldIndex + 1} values from ${responses.length} chunks: ${JSON.stringify(fieldValues)}`);
       }
 
       // Priorizar valores que no sean NOT_FOUND, NO, o vacíos
       const bestValue = this.selectBestFieldValue(fieldValues);
 
-      if (documentType === 'POLICY' && (fieldIndex === 4 || fieldIndex === 6)) {
-        const fieldName = fieldIndex === 4 ? 'policy_covers_type_job' : 'policy_covers_dol';
-        this.logger.log(`✅ [CONSOLIDATION] Field ${fieldIndex + 1} (${fieldName}) selected: "${bestValue}"`);
+      if (hasYesNo && responses.length > 1) {
+        this.logger.log(`✅ [CONSOLIDATION] Field ${fieldIndex + 1} selected: "${bestValue}" from options: ${fieldValues.join(', ')}`);
       }
 
       mergedFields.push(bestValue);
@@ -877,14 +881,17 @@ export class GeminiFileApiService {
       return 'NOT_FOUND';
     }
 
-    // Para campos YES/NO, si algún chunk dice YES, tomar YES
-    // Esto es crítico para policy_covers_type_job y policy_covers_dol
+    // Para campos YES/NO en CUALQUIER documento grande dividido en chunks:
+    // Si algún chunk dice YES, tomar YES (principio de evidencia positiva)
+    // Aplica a POLICY, LOP, o cualquier documento grande que requiera división
     const hasYes = values.some(v => v && v.trim().toUpperCase() === 'YES');
     const hasNo = values.some(v => v && v.trim().toUpperCase() === 'NO');
 
     if (hasYes && hasNo) {
       // Si hay conflicto entre YES y NO, priorizar YES
-      // Ya que diferentes páginas pueden tener información parcial
+      // Razón: En documentos grandes, la información positiva (cobertura, firma, etc.)
+      // puede estar en cualquier página. Si al menos un chunk encontró evidencia
+      // positiva (YES), eso prevalece sobre chunks que no la encontraron (NO)
       return 'YES';
     }
 
