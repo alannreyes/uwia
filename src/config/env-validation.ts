@@ -43,9 +43,9 @@ export class EnvValidation {
     }
 
     // Validar tamaño máximo de archivo
-    const maxFileSize = process.env.MAX_FILE_SIZE;
-    if (maxFileSize && isNaN(parseInt(maxFileSize))) {
-      errors.push(`MAX_FILE_SIZE debe ser un número válido, recibido: ${maxFileSize}`);
+    const maxFileSizeEnv = process.env.MAX_FILE_SIZE;
+    if (maxFileSizeEnv && isNaN(parseInt(maxFileSizeEnv))) {
+      errors.push(`MAX_FILE_SIZE debe ser un número válido, recibido: ${maxFileSizeEnv}`);
     }
 
     // Validar NODE_ENV

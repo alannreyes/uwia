@@ -350,7 +350,7 @@ export class UnderwritingController {
           answered_fields: 0
         },
         errors: [`File ${file.originalname} (${fileSizeMB.toFixed(2)}MB) exceeds maximum size limit of ${maxSizeMB}MB`],
-        processed_at: new Date().toISOString()
+        processed_at: new Date()
       };
     }
 
