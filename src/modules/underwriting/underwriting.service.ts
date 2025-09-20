@@ -1802,6 +1802,10 @@ export class UnderwritingService {
 
     // Replace variables in prompt
     let question = prompt.question || prompt.prompt || prompt.consolidated_prompt;
+
+    // Log all variables before replacement
+    this.logger.log(`📋 [PURE-GEMINI] Variables before replacement: ${JSON.stringify(variables)}`);
+
     for (const [placeholder, value] of Object.entries(variables)) {
       if (question.includes(placeholder)) {
         question = question.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
