@@ -82,6 +82,8 @@ export class UnderwritingService {
   public getVariableMapping(dto: any, contextData: any): Record<string, string> {
     this.logger.log(`🔍 [VAR-DEBUG] Getting variable mapping...`);
     this.logger.log(`🔧 [DEPLOY-TEST] Clean logging active: file_data excluded from logs`);
+    this.logger.log(`📋 [VAR-DEBUG] DTO keys: ${dto ? Object.keys(dto).join(', ') : 'empty'}`);
+    this.logger.log(`📋 [VAR-DEBUG] Context keys: ${contextData ? Object.keys(contextData).join(', ') : 'empty'}`);
 
     // Compact logging - only log if context is empty
     if (!contextData || Object.keys(contextData).length === 0) {
@@ -102,11 +104,20 @@ export class UnderwritingService {
       '%cause_of_loss%': contextData?.cause_of_loss || dto.cause_of_loss || '',
     };
 
-    // Only log variables if debugging is needed
+    // Log variables for debugging
     const hasEmptyVars = Object.values(mapping).some(v => v === '');
     if (hasEmptyVars) {
       this.logger.warn(`⚠️ [VAR-DEBUG] Some variables are empty`);
     }
+
+    // Log variable values (excluding empty ones)
+    const nonEmptyVars = Object.entries(mapping).filter(([k, v]) => v !== '');
+    if (nonEmptyVars.length > 0) {
+      this.logger.log(`📋 [VAR-DEBUG] Variables found: ${nonEmptyVars.map(([k, v]) => `${k}="${v}"`).join(', ')}`);
+    } else {
+      this.logger.warn(`⚠️ [VAR-DEBUG] No variables have values!`);
+    }
+
     return mapping;
   }
 
@@ -1791,10 +1802,9 @@ export class UnderwritingService {
 
     // Replace variables in prompt
     let question = prompt.question || prompt.prompt || prompt.consolidated_prompt;
-    for (const [key, value] of Object.entries(variables)) {
-      const placeholder = `%${key}%`;
+    for (const [placeholder, value] of Object.entries(variables)) {
       if (question.includes(placeholder)) {
-        question = question.replace(new RegExp(placeholder, 'g'), String(value));
+        question = question.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
         this.logger.log(`✅ [PURE-GEMINI] Replaced ${placeholder} with "${value}"`);
       }
     }
@@ -2122,7 +2132,7 @@ export class UnderwritingService {
       const variables = this.getVariableMapping(body, context);
       for (const [placeholder, value] of Object.entries(variables)) {
         if (value) {
-          question = question.replace(new RegExp(placeholder, 'g'), value);
+          question = question.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
         }
       }
 
