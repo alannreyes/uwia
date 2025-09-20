@@ -827,11 +827,16 @@ export class GeminiFileApiService {
   private mergeFieldBasedResponses(responses: string[], prompt: string): string {
     // Determinar número de campos esperados
     let expectedFieldCount = 1;
+    let documentType = 'UNKNOWN';
     if (prompt.includes('Extract the following 7 data points')) {
       expectedFieldCount = 7;
+      documentType = 'POLICY';
     } else if (prompt.includes('Extract the following 18 data points')) {
       expectedFieldCount = 18;
+      documentType = 'LOP';
     }
+
+    this.logger.log(`📊 [CONSOLIDATION] Merging ${responses.length} responses for ${documentType} with ${expectedFieldCount} fields`);
 
     // Dividir todas las respuestas en campos
     const allFields: string[][] = responses.map(resp => resp.split(';'));
@@ -844,8 +849,20 @@ export class GeminiFileApiService {
         .map(fields => fields[fieldIndex] || 'NOT_FOUND')
         .filter(value => value && value.trim() !== '');
 
+      // Logging para campos problemáticos de POLICY
+      if (documentType === 'POLICY' && (fieldIndex === 4 || fieldIndex === 6)) {
+        const fieldName = fieldIndex === 4 ? 'policy_covers_type_job' : 'policy_covers_dol';
+        this.logger.log(`🔍 [CONSOLIDATION] Field ${fieldIndex + 1} (${fieldName}) values from chunks: ${JSON.stringify(fieldValues)}`);
+      }
+
       // Priorizar valores que no sean NOT_FOUND, NO, o vacíos
       const bestValue = this.selectBestFieldValue(fieldValues);
+
+      if (documentType === 'POLICY' && (fieldIndex === 4 || fieldIndex === 6)) {
+        const fieldName = fieldIndex === 4 ? 'policy_covers_type_job' : 'policy_covers_dol';
+        this.logger.log(`✅ [CONSOLIDATION] Field ${fieldIndex + 1} (${fieldName}) selected: "${bestValue}"`);
+      }
+
       mergedFields.push(bestValue);
     }
 
@@ -860,7 +877,18 @@ export class GeminiFileApiService {
       return 'NOT_FOUND';
     }
 
-    // Prioridad: valores con datos > YES/NO > NOT_FOUND
+    // Para campos YES/NO, si algún chunk dice YES, tomar YES
+    // Esto es crítico para policy_covers_type_job y policy_covers_dol
+    const hasYes = values.some(v => v && v.trim().toUpperCase() === 'YES');
+    const hasNo = values.some(v => v && v.trim().toUpperCase() === 'NO');
+
+    if (hasYes && hasNo) {
+      // Si hay conflicto entre YES y NO, priorizar YES
+      // Ya que diferentes páginas pueden tener información parcial
+      return 'YES';
+    }
+
+    // Prioridad normal: valores con datos > YES > NO > NOT_FOUND
     const prioritizedValues = values.sort((a, b) => {
       const scoreA = this.getFieldValueScore(a);
       const scoreB = this.getFieldValueScore(b);
