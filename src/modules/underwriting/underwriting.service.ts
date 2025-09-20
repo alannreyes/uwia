@@ -1979,6 +1979,12 @@ export class UnderwritingService {
     const processingTime = Date.now() - startTime;
     this.logger.log(`✅ [GEMINI-SINGLE] Completed ${document_name} in ${processingTime}ms`);
 
+    // Log consolidated answer for easy validation
+    if (result.fields && result.fields.length > 0) {
+      const answer = result.fields[0].answer;
+      this.logger.log(`📋 [VALIDATION] ${document_name}.pdf → "${answer}"`);
+    }
+
     return {
       record_id,
       status: 'success',

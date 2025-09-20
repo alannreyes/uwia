@@ -346,7 +346,19 @@ export class UnderwritingController {
     };
 
     // Process with pure Gemini (single document)
-    return await this.underwritingService.processWithPureGemini(file, dto);
+    const result = await this.underwritingService.processWithPureGemini(file, dto);
+
+    // Log consolidated answer for easy validation
+    if (result.results && Object.keys(result.results).length > 0) {
+      const documentKey = Object.keys(result.results)[0];
+      const fields = result.results[documentKey];
+      if (fields && fields.length > 0) {
+        const answer = fields[0].answer;
+        this.logger.log(`🎯 [VALIDATION] ${documentKey} → "${answer}"`);
+      }
+    }
+
+    return result;
   }
 
   private extractDocumentsFromBody(body: any): Array<{name: string, base64: string, size: number}> {
