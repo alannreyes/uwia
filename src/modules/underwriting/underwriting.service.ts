@@ -1809,7 +1809,7 @@ export class UnderwritingService {
       result = await this.processWithGeminiInlineApi(buffer, question, document_name);
     } else if (fileSizeMB <= 50) {
       // Use Gemini File API
-      this.logger.log(`🟡 [PURE-GEMINI] Using Gemini File API (20-50MB)`);
+      this.logger.log(`🟡 [PURE-GEMINI] Using Gemini File API (1-50MB)`);
       result = await this.processWithGeminiFileApiDirect(buffer, question, document_name);
     } else {
       // Use Gemini File API with splitting
@@ -2063,13 +2063,13 @@ export class UnderwritingService {
     let result: any;
 
     // ✅ GEMINI-ONLY ROUTING - 3 PATHS PER DOCUMENT
-    if (fileSizeMB <= 20) {
-      // 🟢 PATH 1: Gemini Inline API (0-20MB)
-      this.logger.log(`🟢 [GEMINI-DOC] ${doc.name}: Inline API (${fileSizeMB.toFixed(2)}MB ≤ 20MB)`);
+    if (fileSizeMB < 1) {
+      // 🟢 PATH 1: Gemini Inline API (0-1MB ultra-conservative)
+      this.logger.log(`🟢 [GEMINI-DOC] ${doc.name}: Inline API (${fileSizeMB.toFixed(2)}MB < 1MB)`);
       result = await this.processWithGeminiInlineApi(fileBuffer, prompt.question, doc.name);
 
     } else if (fileSizeMB <= 50) {
-      // 🟡 PATH 2: Gemini File API (20-50MB)
+      // 🟡 PATH 2: Gemini File API (1-50MB)
       this.logger.log(`🟡 [GEMINI-DOC] ${doc.name}: File API (${fileSizeMB.toFixed(2)}MB ≤ 50MB)`);
       result = await this.processWithGeminiFileApiDirect(fileBuffer, prompt.question, `${doc.name}.pdf`);
 
@@ -2177,7 +2177,7 @@ export class UnderwritingService {
     this.logger.log(`🔴 [GEMINI-SPLIT] Large file detected: ${fileSizeMB.toFixed(2)}MB`);
 
     // Use GeminiFileApiService which has proper page-based splitting for >50MB files
-    // This automatically handles: <20MB->Inline, 20-50MB->FileAPI, >50MB->PageSplit
+    // This automatically handles: <1MB->Inline, 1-50MB->FileAPI, >50MB->PageSplit
     this.logger.log(`🔄 [GEMINI-SPLIT] Using GeminiFileApiService with automatic routing and page-based splitting`);
 
     try {
