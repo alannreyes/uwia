@@ -185,12 +185,20 @@ export class UnderwritingController {
       try {
         // Log del tamaño del archivo
         const fileSizeMB = (uploadedFile.size / 1048576).toFixed(2);
-        this.logger.log(`Processing file: ${uploadedFile.originalname} (${fileSizeMB}MB)`);
-        
-        // Validación adicional de tamaño (aunque Multer ya lo maneja)
         const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 52428800;
+        const maxSizeMB = (maxSize / 1048576).toFixed(2);
+
+        this.logger.log(`📥 File received: ${uploadedFile.originalname} (${fileSizeMB}MB)`);
+        this.logger.log(`📏 [FILE-LIMIT] Current limit: ${maxSize} bytes (${maxSizeMB}MB) - File size: ${uploadedFile.size} bytes (${fileSizeMB}MB)`);
+
         if (uploadedFile.size > maxSize) {
-          throw new Error(`File too large: ${fileSizeMB}MB exceeds ${(maxSize/1048576).toFixed(2)}MB limit`);
+          // Log elegante informando del salto del archivo
+          this.logger.warn(`⚠️  [FILE-SKIP] ${uploadedFile.originalname} (${fileSizeMB}MB) exceeds limit of ${maxSizeMB}MB`);
+          this.logger.warn(`📋 [FILE-SKIP] To increase limit, modify environment variable: MAX_FILE_SIZE=${maxSize}`);
+          this.logger.warn(`🔄 [FILE-SKIP] Continuing processing without this file - responses will be empty`);
+
+          // Continuar sin el archivo en lugar de fallar
+          throw new Error(`SKIP_FILE_SIZE_LIMIT`);
         }
         
         fileBase64 = uploadedFile.buffer.toString('base64');
@@ -202,10 +210,15 @@ export class UnderwritingController {
           this.logger.log(`Document name extracted from file: ${document_name}`);
         }
       } catch (error) {
-        this.logger.error(`❌ Error processing file ${uploadedFile.originalname}:`, error.message);
-        // Continuar sin el archivo en lugar de fallar completamente
-        this.logger.warn(`⚠️ Continuing without file data due to processing error`);
-        fileBase64 = undefined;
+        if (error.message === 'SKIP_FILE_SIZE_LIMIT') {
+          // Error específico de límite de tamaño - ya se loggeó elegantemente arriba
+          fileBase64 = undefined;
+        } else {
+          // Otros errores de procesamiento
+          this.logger.error(`❌ Error processing file ${uploadedFile.originalname}:`, error.message);
+          this.logger.warn(`⚠️ Continuing without file data due to processing error`);
+          fileBase64 = undefined;
+        }
       }
     }
 
@@ -314,7 +327,32 @@ export class UnderwritingController {
     }
 
     const fileSizeMB = file.size / (1024 * 1024);
+    const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 52428800;
+    const maxSizeMB = (maxSize / 1048576).toFixed(2);
+
     this.logger.log(`📥 File received: ${file.originalname} (${fileSizeMB.toFixed(2)}MB)`);
+    this.logger.log(`📏 [FILE-LIMIT] Current limit: ${maxSize} bytes (${maxSizeMB}MB) - File size: ${file.size} bytes (${fileSizeMB.toFixed(2)}MB)`);
+
+    // Validación de límite de archivo (igual que en evaluate-claim)
+    if (file.size > maxSize) {
+      this.logger.warn(`⚠️  [FILE-SKIP] ${file.originalname} (${fileSizeMB.toFixed(2)}MB) exceeds limit of ${maxSizeMB}MB`);
+      this.logger.warn(`📋 [FILE-SKIP] To increase limit, modify environment variable: MAX_FILE_SIZE=${maxSize}`);
+      this.logger.warn(`🔄 [FILE-SKIP] File will not be processed - returning error response`);
+
+      return {
+        record_id: body.record_id || 'unknown',
+        status: 'error',
+        results: {},
+        summary: {
+          total_documents: 1,
+          processed_documents: 0,
+          total_fields: 0,
+          answered_fields: 0
+        },
+        errors: [`File ${file.originalname} (${fileSizeMB.toFixed(2)}MB) exceeds maximum size limit of ${maxSizeMB}MB`],
+        processed_at: new Date().toISOString()
+      };
+    }
 
     // Extract context (same as evaluate-claim)
     let context = body.context;

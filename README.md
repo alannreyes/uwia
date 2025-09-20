@@ -143,9 +143,35 @@ El sistema genera logs especiales para validación rápida:
 }
 ```
 
-### Archivos Demasiado Grandes
+### Archivos que Exceden el Límite de Tamaño
 
-El sistema maneja automáticamente archivos grandes usando división de páginas sin errores para el usuario.
+El sistema maneja elegantemente archivos que exceden `MAX_FILE_SIZE`:
+
+**Logs informativos**:
+```log
+⚠️  [FILE-SKIP] archivo_grande.pdf (180MB) exceeds limit of 150MB
+📋 [FILE-SKIP] To increase limit, modify environment variable: MAX_FILE_SIZE=157286400
+🔄 [FILE-SKIP] Continuing processing without this file - responses will be empty
+```
+
+**Respuesta estructurada**:
+```json
+{
+  "record_id": "175568",
+  "status": "success",
+  "results": {
+    "LARGE_DOC.pdf": [{
+      "answer": "NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND",
+      "confidence": 0,
+      "error": "No PDF content provided (file may have exceeded size limit or upload failed)"
+    }]
+  }
+}
+```
+
+### Archivos Grandes (División Automática)
+
+Para archivos entre límite y 150MB, el sistema usa división automática por páginas sin errores.
 
 ## 🔍 Debug y Troubleshooting
 

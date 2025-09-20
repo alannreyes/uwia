@@ -35,6 +35,8 @@
 - **Corrupción de PDFs**: División por páginas en lugar de bytes
 - **Variables vacías**: Debug logs y validación mejorada
 - **Formato inconsistente**: Respuestas siempre como strings limpios
+- **Consolidación de chunks**: Lógica mejorada para campos YES/NO en documentos grandes
+- **Manejo de límites de archivo**: Graceful degradation para archivos que exceden MAX_FILE_SIZE
 
 ### 📋 Documentos Soportados
 

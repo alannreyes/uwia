@@ -21,9 +21,13 @@
 - **GEMINI_RETRY_DELAY**: Demora entre reintentos en ms (2000)
 
 ### Procesamiento de Archivos
-- **MAX_FILE_SIZE**: Tamaño máximo de archivo en bytes (67108864 = 64MB)
+- **MAX_FILE_SIZE**: Tamaño máximo de archivo en bytes (157286400 = 150MB recomendado)
 - **ENABLE_PDF_SPLITTING**: Habilitar división automática de PDFs grandes (true)
 - **MAX_PAGES_PER_CHUNK**: Páginas máximas por fragmento al dividir (50)
+
+### Manejo de Archivos Grandes
+- **GRACEFUL_SKIP_OVERSIZED**: Continuar sin archivo si excede límite (true)
+- **LOG_FILE_SKIP_DETAILS**: Logging detallado para archivos saltados (true)
 
 ## Características de Seguridad
 

@@ -615,7 +615,12 @@ export class UnderwritingService {
           // Si solo hay file_data sin document_name, no podemos determinar el documento
           throw new Error('document_name is required when sending file_data');
         } else {
-          throw new Error('No document provided in request');
+          // No hay datos de archivo - puede ser por límite de tamaño u otro motivo
+          this.logger.warn(`⚠️ [NO-FILE-DATA] No file data provided for document: ${dto.document_name}`);
+          this.logger.warn(`🔄 [NO-FILE-DATA] Generating empty responses for document structure`);
+
+          // Continuar con pdfContent = null para generar respuestas vacías
+          pdfContent = null;
         }
       }
 
@@ -918,7 +923,7 @@ export class UnderwritingService {
       let processedPrompt = this.replaceVariablesInPrompt(documentPrompt.question, variables);
 
       if (!pdfContent) {
-        this.logger.warn(`No PDF content provided for ${documentName}`);
+        this.logger.warn(`📄 [EMPTY-RESPONSE] No PDF content provided for ${documentName} - generating empty structured response`);
         const notFoundAnswers = Array(documentPrompt.fieldNames.length).fill('NOT_FOUND').join(';');
         return [{
           pmc_field: documentPrompt.pmcField,
@@ -926,7 +931,7 @@ export class UnderwritingService {
           answer: notFoundAnswers,
           confidence: 0,
           processing_time_ms: 0,
-          error: 'No PDF content provided'
+          error: 'No PDF content provided (file may have exceeded size limit or upload failed)'
         }];
       }
 

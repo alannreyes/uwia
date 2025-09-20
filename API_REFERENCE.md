@@ -13,7 +13,7 @@ Procesa un documento PDF individual usando Google Gemini AI y retorna respuestas
 
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
-| `file` | File | ✅ | Archivo PDF a procesar (máx 64MB) |
+| `file` | File | ✅ | Archivo PDF a procesar (límite configurable via `MAX_FILE_SIZE`) |
 | `record_id` | String | ✅ | ID único del registro |
 | `document_name` | String | ✅ | Nombre del documento (LOP, POLICY, CERTIFICATE, etc.) |
 | `context` | JSON String | ✅ | Variables de contexto para reemplazo en prompts |
@@ -150,14 +150,54 @@ Procesa un documento PDF individual usando Google Gemini AI y retorna respuestas
 |-------------------|------------------------|-----------------|
 | < 1MB | Gemini Inline API | Más rápido, ideal para documentos pequeños |
 | 1MB - 50MB | Gemini File API | Balanceado, para documentos medianos |
-| > 50MB | File API + División | División automática por páginas |
+| 50MB - MAX_FILE_SIZE | File API + División | División automática por páginas |
+| > MAX_FILE_SIZE | Respuesta Vacía | Logs informativos + respuesta estructurada NOT_FOUND |
+
+## Manejo de Archivos Grandes
+
+### Archivos Dentro del Límite (50MB - MAX_FILE_SIZE)
+
+El sistema automáticamente divide archivos grandes en chunks por páginas:
+
+```log
+🔴 [GEMINI-SPLIT] Large file detected: 92.96MB
+🔄 [GEMINI-SPLIT] Using GeminiFileApiService with automatic routing and page-based splitting
+📊 [CONSOLIDATION] Merging 3 chunks for POLICY with 7 fields
+```
+
+### Archivos que Exceden MAX_FILE_SIZE
+
+El sistema maneja elegantemente archivos que superan el límite configurado:
+
+**Logs informativos**:
+```log
+⚠️  [FILE-SKIP] documento.pdf (180MB) exceeds limit of 150MB
+📋 [FILE-SKIP] To increase limit, modify environment variable: MAX_FILE_SIZE=157286400
+🔄 [FILE-SKIP] Continuing processing without this file - responses will be empty
+```
+
+**Respuesta JSON**:
+```json
+{
+  "record_id": "175568",
+  "status": "success",
+  "results": {
+    "LARGE_DOC.pdf": [{
+      "pmc_field": "document_responses",
+      "answer": "NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND;NOT_FOUND",
+      "confidence": 0,
+      "error": "No PDF content provided (file may have exceeded size limit or upload failed)"
+    }]
+  }
+}
+```
 
 ## Códigos de Error
 
 | Código | Mensaje | Descripción |
 |--------|---------|-------------|
 | `no_prompt_config` | "No prompt configuration found for document: {name}" | Documento no configurado en base de datos |
-| `file_too_large` | "File exceeds maximum size limit" | Archivo supera límite de 64MB |
+| `file_size_limit` | "File exceeds maximum size limit" | Archivo supera límite configurado en `MAX_FILE_SIZE` |
 | `invalid_context` | "Invalid or missing context JSON" | Contexto malformado o ausente |
 | `processing_failed` | "Gemini processing failed" | Error en procesamiento AI |
 
