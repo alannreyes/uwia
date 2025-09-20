@@ -509,9 +509,16 @@ export class GeminiFileApiService {
   ): Promise<GeminiFileApiResult> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const totalPages = pdfDoc.getPageCount();
-    const pagesPerChunk = 20; // Dividir en chunks de 20 páginas para mantener bajo 25MB
+    const fileSizeMB = pdfBuffer.length / (1024 * 1024);
 
-    this.logger.log(`📑 [PAGE-SPLIT] Dividiendo ${totalPages} páginas en chunks de ${pagesPerChunk} páginas`);
+    // Calcular páginas por chunk dinámicamente para mantener chunks bajo 40MB
+    // Estimación conservadora: si 92MB = 24 páginas, entonces ~4MB por página
+    const avgMBPerPage = fileSizeMB / totalPages;
+    const targetChunkSizeMB = 35; // Objetivo conservador para evitar límites
+    const pagesPerChunk = Math.max(1, Math.floor(targetChunkSizeMB / avgMBPerPage));
+
+    this.logger.log(`📑 [PAGE-SPLIT] Dividiendo ${totalPages} páginas en chunks de ~${pagesPerChunk} páginas (${avgMBPerPage.toFixed(2)}MB/página)`);
+    this.logger.log(`📊 [PAGE-SPLIT] Target: ${targetChunkSizeMB}MB por chunk para archivo de ${fileSizeMB.toFixed(2)}MB`);
 
     const chunkResults: GeminiFileApiResult[] = [];
 
@@ -527,9 +534,17 @@ export class GeminiFileApiService {
 
         this.logger.log(`📦 [PAGE-SPLIT] Chunk creado: ${chunkSizeMB.toFixed(2)}MB`);
 
-        // Procesar chunk sin recursión para evitar loops infinitos
-        const chunkResult = await this.processChunkDirectly(chunkBuffer, prompt, expectedType, startPage + 1, endPage + 1);
-        chunkResults.push(chunkResult);
+        // Validar que el chunk no exceda límites de Gemini (45MB conservador)
+        if (chunkSizeMB > 45) {
+          this.logger.warn(`⚠️ [PAGE-SPLIT] Chunk ${chunkSizeMB.toFixed(2)}MB excede límite, usando Inline API`);
+          const chunkResult = await this.processWithInlineApi(chunkBuffer, prompt, expectedType);
+          chunkResult.method = 'inline_api_fallback';
+          chunkResults.push(chunkResult);
+        } else {
+          // Procesar chunk sin recursión para evitar loops infinitos
+          const chunkResult = await this.processChunkDirectly(chunkBuffer, prompt, expectedType, startPage + 1, endPage + 1);
+          chunkResults.push(chunkResult);
+        }
 
       } catch (chunkError) {
         this.logger.error(`❌ [PAGE-SPLIT] Error procesando páginas ${startPage + 1}-${endPage + 1}: ${chunkError.message}`);
