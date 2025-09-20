@@ -85,3 +85,4 @@ development.env.backup
 *.env.local
 GOOGLE_GEMINI_OFFICIAL_THRESHOLDS.md
 gemini.pdf
+POLICY.pdf
