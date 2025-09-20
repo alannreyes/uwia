@@ -1669,7 +1669,7 @@ export class UnderwritingService {
       const buffer = file.buffer;
 
       try {
-        if (fileSizeMB < 5) {
+        if (fileSizeMB < 1) {
           this.logger.log(`🟢 [GEMINI-BATCH] ${document_name}: Using Inline API`);
           result = await this.processWithGeminiInlineApi(buffer, question, document_name);
         } else if (fileSizeMB <= 50) {
@@ -1803,9 +1803,9 @@ export class UnderwritingService {
     let result: any;
     const buffer = file.buffer;
 
-    if (fileSizeMB < 5) {
-      // Use Gemini Inline API (conservative limit to avoid token overflow)
-      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<5MB)`);
+    if (fileSizeMB < 1) {
+      // Use Gemini Inline API (ultra-conservative limit to avoid token overflow)
+      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<1MB)`);
       result = await this.processWithGeminiInlineApi(buffer, question, document_name);
     } else if (fileSizeMB <= 50) {
       // Use Gemini File API
