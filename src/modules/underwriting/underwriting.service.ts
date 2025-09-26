@@ -1685,11 +1685,9 @@ export class UnderwritingService {
       const buffer = file.buffer;
 
       try {
-        if (fileSizeMB < 1) {
-          this.logger.log(`🟢 [GEMINI-BATCH] ${document_name}: Using Inline API`);
-          result = await this.processWithGeminiInlineApi(buffer, question, document_name);
-        } else if (fileSizeMB <= 50) {
-          this.logger.log(`🟡 [GEMINI-BATCH] ${document_name}: Using File API`);
+        if (fileSizeMB <= 50) {
+          // Simplified: File API for all files up to 50MB
+          this.logger.log(`🟢 [GEMINI-BATCH] ${document_name}: Using File API (0-50MB)`);
           result = await this.processWithGeminiFileApiDirect(buffer, question, document_name);
         } else {
           this.logger.log(`🔴 [GEMINI-BATCH] ${document_name}: Using File API with splitting`);
@@ -1818,20 +1816,16 @@ export class UnderwritingService {
       }
     }
 
-    // Route based on file size
+    // Simplified routing: Only 2 methods (File API for all sizes)
     let result: any;
     const buffer = file.buffer;
 
-    if (fileSizeMB < 1) {
-      // Use Gemini Inline API (ultra-conservative limit to avoid token overflow)
-      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini Inline API (<1MB)`);
-      result = await this.processWithGeminiInlineApi(buffer, question, document_name);
-    } else if (fileSizeMB <= 50) {
-      // Use Gemini File API
-      this.logger.log(`🟡 [PURE-GEMINI] Using Gemini File API (1-50MB)`);
+    if (fileSizeMB <= 50) {
+      // Use Gemini File API for all files up to 50MB (including small files <1MB)
+      this.logger.log(`🟢 [PURE-GEMINI] Using Gemini File API (0-50MB)`);
       result = await this.processWithGeminiFileApiDirect(buffer, question, document_name);
     } else {
-      // Use Gemini File API with splitting
+      // Use Gemini File API with splitting for large files
       this.logger.log(`🔴 [PURE-GEMINI] Using Gemini File API with splitting (>50MB)`);
       const expectedFields = prompt.expected_fields_count || prompt.field_names?.length || 1;
       result = await this.processWithGeminiFileApiSplit(buffer, question, document_name, expectedFields);
@@ -2100,19 +2094,14 @@ export class UnderwritingService {
     const fileSizeMB = doc.size / (1024 * 1024);
     let result: any;
 
-    // ✅ GEMINI-ONLY ROUTING - 3 PATHS PER DOCUMENT
-    if (fileSizeMB < 1) {
-      // 🟢 PATH 1: Gemini Inline API (0-1MB ultra-conservative)
-      this.logger.log(`🟢 [GEMINI-DOC] ${doc.name}: Inline API (${fileSizeMB.toFixed(2)}MB < 1MB)`);
-      result = await this.processWithGeminiInlineApi(fileBuffer, prompt.question, doc.name);
-
-    } else if (fileSizeMB <= 50) {
-      // 🟡 PATH 2: Gemini File API (1-50MB)
-      this.logger.log(`🟡 [GEMINI-DOC] ${doc.name}: File API (${fileSizeMB.toFixed(2)}MB ≤ 50MB)`);
+    // ✅ GEMINI-ONLY ROUTING - SIMPLIFIED TO 2 PATHS
+    if (fileSizeMB <= 50) {
+      // 🟢 PATH 1: Gemini File API for all files up to 50MB
+      this.logger.log(`🟢 [GEMINI-DOC] ${doc.name}: File API (${fileSizeMB.toFixed(2)}MB ≤ 50MB)`);
       result = await this.processWithGeminiFileApiDirect(fileBuffer, prompt.question, `${doc.name}.pdf`);
 
     } else {
-      // 🔴 PATH 3: Gemini File API with Split (>50MB)
+      // 🔴 PATH 2: Gemini File API with Split (>50MB)
       this.logger.log(`🔴 [GEMINI-DOC] ${doc.name}: File API + Split (${fileSizeMB.toFixed(2)}MB > 50MB)`);
       result = await this.processWithGeminiFileApiSplit(fileBuffer, prompt.question, `${doc.name}.pdf`, prompt.expectedFieldsCount);
     }
@@ -2186,6 +2175,9 @@ export class UnderwritingService {
     }
   }
 
+  // DEPRECATED: Inline API no longer used - all files now use File API for consistency
+  // Kept for reference only - can be removed in future cleanup
+  /*
   private async processWithGeminiInlineApi(buffer: Buffer, prompt: string, documentName: string) {
     this.logger.log(`🟢 [GEMINI-INLINE] Processing with Inline API`);
 
@@ -2203,6 +2195,7 @@ export class UnderwritingService {
       method: 'gemini_inline_api'
     };
   }
+  */
 
   private async processWithGeminiFileApiDirect(buffer: Buffer, prompt: string, fileName: string) {
     this.logger.log(`🟡 [GEMINI-FILE-API] Processing with File API`);
