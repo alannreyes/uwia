@@ -59,8 +59,8 @@ export class GeminiFileApiService {
     try {
       this.geminiClient = new GoogleGenerativeAI(apiKey);
       this.fileManager = new GoogleAIFileManager(apiKey);
-      this.model = this.geminiClient.getGenerativeModel({ 
-        model: 'gemini-1.5-pro',
+      this.model = this.geminiClient.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 8192,
