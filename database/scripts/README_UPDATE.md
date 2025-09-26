@@ -12,7 +12,7 @@ Este script actualiza la base de datos con la configuración real para los archi
 
 ### Opción 1: Desde MySQL cliente
 ```bash
-mysql -h automate_mysql -u mysql -p27d9IyP3Tyg19WUL8a6T axioma < database/scripts/05_update_real_data.sql
+mysql -h automate_mysql -u mysql -pYOUR_PASSWORD_HERE axioma < database/scripts/05_update_real_data.sql
 ```
 
 ### Opción 2: Desde phpMyAdmin
