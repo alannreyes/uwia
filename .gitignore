@@ -37,6 +37,10 @@ CREDENCIALES_PRIVADAS.txt
 **/secrets/
 **/credentials/
 config/production.json
+
+# Database scripts with real credentials
+database/scripts/*_with_password.md
+database/scripts/*_real_*.md
 config/staging.json
 
 # Test files and logs
