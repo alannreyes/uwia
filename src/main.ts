@@ -3,11 +3,12 @@ import { ValidationPipe, LogLevel } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { EnvValidation } from './config/env-validation';
+import { GlobalFileLoggerService } from './common/services/global-file-logger.service';
 
 async function bootstrap() {
   // Validar variables de entorno al iniciar
   EnvValidation.validate();
-  
+
   // Configurar nivel de logging basado en LOG_LEVEL
   const getLogLevels = (): LogLevel[] => {
     const level = process.env.LOG_LEVEL?.toLowerCase() || 'log';
@@ -26,6 +27,10 @@ async function bootstrap() {
     rawBody: true,
     logger: getLogLevels(),
   });
+
+  // Configurar el logger global que captura logs a archivo
+  const globalLogger = app.get(GlobalFileLoggerService);
+  app.useLogger(globalLogger);
   
   // Configurar timeout del servidor a 8 minutos
   const server = app.getHttpServer();

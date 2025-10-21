@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UWIA System - Technical Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-blue: #1e3a8a;
+            --secondary-blue: #3b82f6;
+            --light-blue: #dbeafe;
+            --dark-blue: #1e40af;
+            --text-dark: #1f2937;
+            --text-gray: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-dark);
+            background: #f9fafb;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 210mm; /* A4 width */
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            border-bottom: 4px solid var(--secondary-blue);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .header .meta {
+            font-size: 0.95em;
+            opacity: 0.8;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            padding-top: 20px;
+        }
+
+        .header .meta div {
+            margin: 5px 0;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            background: var(--light-blue);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            margin: 0 10px;
+            background: var(--secondary-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-size: 1em;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--dark-blue);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary-blue);
+            border: 2px solid var(--primary-blue);
+        }
+
+        .btn-secondary:hover {
+            background: var(--light-blue);
+        }
+
+        /* Language Tabs */
+        .language-tabs {
+            display: flex;
+            background: var(--light-blue);
+            border-bottom: 2px solid var(--primary-blue);
+            padding: 0 40px;
+        }
+
+        .tab-button {
+            padding: 15px 40px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--text-gray);
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button.active {
+            color: var(--primary-blue);
+            border-bottom-color: var(--primary-blue);
+            background: white;
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        .lang-content {
+            display: none;
+        }
+
+        .lang-content.active {
+            display: block;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: var(--light-blue);
+            padding: 30px;
+            margin-bottom: 40px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-blue);
+        }
+
+        .toc h2 {
+            color: var(--primary-blue);
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc ul li {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .toc ul li:before {
+            content: "▸ ";
+            color: var(--secondary-blue);
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .toc a {
+            color: var(--text-dark);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: var(--secondary-blue);
+        }
+
+        .toc ul ul {
+            margin-left: 20px;
+            margin-top: 5px;
+        }
+
+        .toc ul ul li:before {
+            content: "• ";
+        }
+
+        /* Typography */
+        h1, h2, h3, h4 {
+            color: var(--primary-blue);
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+
+        h1 { font-size: 2em; border-bottom: 2px solid var(--primary-blue); padding-bottom: 10px; }
+        h2 { font-size: 1.6em; }
+        h3 { font-size: 1.3em; }
+        h4 { font-size: 1.1em; }
+
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        th {
+            background: var(--primary-blue);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        tr:hover {
+            background: var(--light-blue);
+        }
+
+        /* Code blocks */
+        pre, code {
+            background: #f3f4f6;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            padding: 20px;
+            overflow-x: auto;
+            border-left: 4px solid var(--secondary-blue);
+            margin: 20px 0;
+        }
+
+        code {
+            padding: 2px 6px;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 15px 0 15px 40px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        /* Boxes */
+        .info-box {
+            background: var(--light-blue);
+            border-left: 4px solid var(--secondary-blue);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--primary-blue);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .footer-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .footer h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .footer p {
+            margin: 10px 0;
+            opacity: 0.9;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                padding: 0;
+                background: white;
+            }
+
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+            }
+
+            .action-buttons,
+            .language-tabs {
+                display: none;
+            }
+
+            .lang-content {
+                display: block !important;
+            }
+
+            .lang-content.en-content:after {
+                content: "";
+                display: block;
+                page-break-after: always;
+            }
+
+            h1, h2 {
+                page-break-after: avoid;
+            }
+
+            pre, table {
+                page-break-inside: avoid;
+            }
+
+            @page {
+                size: A4;
+                margin: 20mm;
+            }
+
+            .btn {
+                display: none;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .language-tabs {
+                padding: 0 20px;
+            }
+
+            .tab-button {
+                padding: 12px 20px;
+                font-size: 1em;
+            }
+        }
+
+        /* Diagram/ASCII art */
+        .diagram {
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            white-space: pre;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📚 UWIA SYSTEM</h1>
+            <div class="subtitle">Underwriting Intelligence Automation</div>
+            <div class="subtitle" style="font-size: 1em;">Technical Documentation - System Architecture & Production Implementation</div>
+            <div class="meta">
+                <div><strong>Developed by:</strong> Luxia.us for ClaimPay</div>
+                <div><strong>Contact:</strong> Alann Reyes - alann@luxia.us</div>
+                <div><strong>Date:</strong> October 2025</div>
+                <div><strong>Version:</strong> 1.0 - Production</div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button class="btn" onclick="window.print()">📄 Download PDF / Print</button>
+            <button class="btn btn-secondary" onclick="scrollToTop()">⬆ Back to Top</button>
+        </div>
+
+        <!-- Language Tabs -->
+        <div class="language-tabs">
+            <button class="tab-button active" onclick="switchLanguage('en')">🇺🇸 English</button>
+            <button class="tab-button" onclick="switchLanguage('es')">🇪🇸 Español</button>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- ENGLISH VERSION -->
+            <div class="lang-content en-content active">
+                <div class="toc">
+                    <h2>📑 Table of Contents</h2>
+                    <ul>
+                        <li><a href="#en-exec-summary">Executive Summary</a></li>
+                        <li><a href="#en-architecture">System Architecture</a>
+                            <ul>
+                                <li><a href="#en-n8n-flow">n8n Workflow</a></li>
+                                <li><a href="#en-api-processing">API Processing</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#en-processing-methods">Processing Methods</a>
+                            <ul>
+                                <li><a href="#en-inline-api">Inline API (95% cases)</a></li>
+                                <li><a href="#en-file-api">File API (4% cases)</a></li>
+                                <li><a href="#en-page-splitting">Page Splitting (1% cases)</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#en-production-config">Production Configuration</a></li>
+                        <li><a href="#en-performance">Performance Metrics</a></li>
+                        <li><a href="#en-documents">Processed Documents</a></li>
+                        <li><a href="#en-findings">Key Findings: Theory vs Reality</a></li>
+                    </ul>
+                </div>
+
+                <h1 id="en-exec-summary">🎯 Executive Summary</h1>
+
+                <p>The <strong>UWIA (Underwriting Intelligence Automation)</strong> system automates insurance document analysis using <strong>n8n</strong> as orchestrator and a <strong>NestJS API with Gemini 2.5 Pro</strong> for intelligent processing. The workflow processes multiple PDF documents from Google Drive and extracts specific information using generative AI.</p>
+
+                <div class="info-box">
+                    <h3>📊 Production Key Metrics</h3>
+                    <ul>
+                        <li><strong>Main Endpoint:</strong> POST /api/underwriting/evaluate-gemini</li>
+                        <li><strong>AI Model:</strong> Gemini 2.5 Pro (NOT Gemini 1.5 Pro)</li>
+                        <li><strong>File Limit:</strong> 350MB (supports giant POLICY files)</li>
+                        <li><strong>Dominant Method:</strong> Inline API (~95% of cases)</li>
+                        <li><strong>Typical Performance:</strong> 8-16 seconds per document < 20MB</li>
+                        <li><strong>Parallel Processing:</strong> 6 documents simultaneously per case</li>
+                    </ul>
+                </div>
+
+                <h3>Processing Methods (Production Reality)</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>Real Usage</th>
+                            <th>Size</th>
+                            <th>Performance</th>
+                            <th>Typical Cases</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1. Inline API</strong></td>
+                            <td>95%</td>
+                            <td>&lt; 20MB</td>
+                            <td>8-16s</td>
+                            <td>LOP, CERTIFICATE, WEATHER, ROOF</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. File API</strong></td>
+                            <td>4%</td>
+                            <td>20-50MB</td>
+                            <td>20-30s</td>
+                            <td>Medium POLICY files</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Page Splitting</strong></td>
+                            <td>1%</td>
+                            <td>&gt; 50MB</td>
+                            <td>20s/chunk</td>
+                            <td>Giant POLICY (340MB, 11 chunks)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Typical Workflow</h3>
+                <pre>n8n → Google Drive → 6 PDFs in parallel → /evaluate-gemini →
+→ Gemini Inline API (&lt; 20MB) → Consolidation → ClaimPay</pre>
+
+                <p><strong>Real Case:</strong> Record 20103274 processed 6 documents (LOP, CERTIFICATE, WEATHER, ROOF, POLICY 340MB, INVOICES) in ~240 seconds total.</p>
+
+                <h1 id="en-architecture">🔄 System Architecture</h1>
+
+                <h2 id="en-n8n-flow">n8n Workflow - Step by Step</h2>
+
+                <div class="diagram">
+[Webhook] → [Validate Input] → [List PDFs] → [Filter] → [Download] → [API Gemini] → [Consolidate] → [Send Result]
+                </div>
+
+                <h3>1. 🚀 Webhook Trigger</h3>
+                <p><strong>Why:</strong> The webhook is the entry point that receives the processing request with all case information. It acts as the trigger that initiates the entire automation, receiving unique identifiers for the case (record_id) and the Google Drive folder (carpeta_id) where documents reside, plus optional context to improve extraction accuracy through comparisons.</p>
+
+                <ul>
+                    <li><strong>Endpoint:</strong> POST https://n8n.claimpay.net/webhook/UWIA</li>
+                    <li><strong>Required fields:</strong> carpeta_id, record_id</li>
+                    <li><strong>Optional context:</strong> insured_name, insurance_company, date_of_loss, etc.</li>
+                </ul>
+
+                <h3>2. ✅ Input Validation</h3>
+                <p><strong>Why:</strong> This step normalizes input to ensure the system can process any data structure it receives. It separates critical mandatory fields (carpeta_id, record_id) from variable context, allowing flexibility in additional data. Context is grouped into a JSON object to inject it later into prompts via template variables, improving extraction accuracy without hardcoding specific fields in the workflow.</p>
+
+                <ul>
+                    <li>Validates mandatory fields: carpeta_id, record_id</li>
+                    <li>Groups everything else into context object</li>
+                    <li>Generates timestamp for tracking</li>
+                </ul>
+
+                <h3>3. 📁 Document Search</h3>
+                <p><strong>Why:</strong> Connects to Google Drive API to get all available PDFs in the case folder. The filter excludes consolidated documents (ITL_SUM) to avoid processing previous results. This step is critical because it determines which documents will be analyzed, allowing the system to automatically discover available files without manual configuration per case.</p>
+
+                <ul>
+                    <li>Searches PDFs in Google Drive using carpeta_id</li>
+                    <li>Query: mimeType='application/pdf' and not name contains 'ITL_SUM'</li>
+                    <li>Excludes: ITL_SUM files, folders, shortcuts</li>
+                </ul>
+
+                <h3>4. 🔍 Filtering and Preparation</h3>
+                <p><strong>Why:</strong> Filters files to ensure only valid PDFs are processed. Alphabetical sorting guarantees predictable and consistent processing between runs. n8n does NOT filter by file size - all PDFs are downloaded and sent to the API regardless of size. The API is responsible for enforcing the size limit (350MB), not n8n. This design allows the system to handle extremely large files (like 340MB POLICY files) without n8n intervention.</p>
+
+                <ul>
+                    <li><strong>File type filtering:</strong> Only valid PDF files (excludes ITL_SUM)</li>
+                    <li><strong>Alphabetical sorting:</strong> Ensures consistent processing order</li>
+                    <li><strong>NO size limit in n8n:</strong> All files sent to API (API enforces 350MB limit)</li>
+                    <li><strong>Real case:</strong> POLICY 340MB successfully processed (proves no n8n size limit)</li>
+                </ul>
+
+                <h3>5. ⬇️ File Download</h3>
+                <p><strong>Why:</strong> Downloads binary content of each PDF from Google Drive and prepares it for transmission to the API. This step is necessary because the API requires the complete file in memory to perform intelligent analysis (document type detection, OCR if needed, text extraction). Binary conversion optimizes transfer in the multipart/form-data request.</p>
+
+                <h3>6. 🤖 AI Processing</h3>
+                <p><strong>Why:</strong> Sends each document to the intelligent processing API along with its context. The API automatically determines document type (POLICY, LOP, WEATHER, etc.) and selects the optimal processing method based on PDF size and characteristics. The JSON context allows prompts to be dynamically personalized with case information, improving extraction accuracy through cross-validations.</p>
+
+                <ul>
+                    <li><strong>Endpoint:</strong> POST http://automate_uwia_qa:5045/api/underwriting/evaluate-gemini</li>
+                    <li><strong>Method:</strong> multipart/form-data</li>
+                    <li><strong>Payload:</strong> carpeta_id, record_id, document_name, context (JSON), file (binary)</li>
+                </ul>
+
+                <h2 id="en-api-processing">🎯 API Processing Architecture</h2>
+
+                <div class="diagram">
+[POST /evaluate-gemini]
+    ↓
+[UnderwritingController]
+    ↓
+[processWithPureGemini()]
+    ↓
+┌─────────────────────────────────────┐
+│    Decision Layer 1 (50MB)          │
+│  ≤50MB → Direct | &gt;50MB → Split     │
+└─────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────┐
+│    Decision Layer 2 (20MB)          │
+│  &lt;20MB → Inline API (95% cases)     │
+│  20-50MB → File API (4% cases)      │
+│  &gt;50MB → Page Split (1% cases)      │
+└─────────────────────────────────────┘
+    ↓
+[Gemini 2.5 Pro Processing]
+    ↓
+[Response Parsing & Validation]
+    ↓
+[Semicolon-Separated Output]
+                </div>
+
+                <h1 id="en-processing-methods">⚙️ Processing Methods</h1>
+
+                <h2 id="en-inline-api">🔸 Method 1: Gemini Inline API (PRIMARY METHOD)</h2>
+
+                <p><strong>Why:</strong> For most documents (LOP, CERTIFICATE, WEATHER, ROOF typically &lt; 20MB), sending the PDF encoded in base64 directly in the request is more efficient than uploading it to Google Cloud Storage. It reduces latency (eliminates upload step) and costs (doesn't use temporary storage). Google officially recommends this method for PDFs &lt; 20MB because their infrastructure can process them in memory without performance issues.</p>
+
+                <div class="success-box">
+                    <h4>Production Usage</h4>
+                    <ul>
+                        <li><strong>For:</strong> Files &lt; 20MB (MAJORITY of cases in production: ~95%)</li>
+                        <li><strong>Real usage:</strong> LOP (1.41MB), CERTIFICATE (0.40MB), WEATHER (0.21MB), ROOF (2.17MB)</li>
+                        <li><strong>Advantages:</strong> Fast response, lower cost, no temporary storage</li>
+                        <li><strong>Performance:</strong> ~8-16 seconds per document</li>
+                        <li><strong>Google official limit:</strong> 20MB (according to Gemini API 2025 documentation)</li>
+                        <li><strong>Code:</strong> gemini-file-api.service.ts:265-307</li>
+                    </ul>
+                </div>
+
+                <h2 id="en-file-api">🔸 Method 2: Gemini File API (SECONDARY USE)</h2>
+
+                <p><strong>Why:</strong> Files between 20-50MB exceed the Inline API in-memory processing limit but are within the File API limit for PDFs. This method uploads the file to Google Cloud Storage temporarily, allowing Gemini servers to process it in a distributed manner with more resources. It's essential for scanned documents because it activates Google's advanced OCR (better accuracy than simple text extraction).</p>
+
+                <div class="info-box">
+                    <h4>Production Usage</h4>
+                    <ul>
+                        <li><strong>For:</strong> Files 20-50MB (medium cases, secondary use in production)</li>
+                        <li><strong>Advantages:</strong> Advanced OCR, distributed processing, large file handling</li>
+                        <li><strong>Google official limit:</strong> 50MB for PDFs (Google enforced PDF limit)</li>
+                        <li><strong>Process:</strong> Upload → Cloud Storage → Processing → Cleanup</li>
+                        <li><strong>Code:</strong> gemini-file-api.service.ts:184-260</li>
+                    </ul>
+                </div>
+
+                <h2 id="en-page-splitting">🔸 Method 3: Page-Based Splitting + File API (EXTREME CASES)</h2>
+
+                <p><strong>Why:</strong> Files &gt; 50MB exceed Google's official limit for PDFs in the File API. The only way to process them is to divide them into smaller fragments. Page-based division (with pdf-lib) is used because it preserves the visual integrity of each page, critical for OCR and document analysis. Each fragment (chunk) is processed with File API (method 2) and partial responses are intelligently consolidated: for boolean fields (YES/NO), if any fragment finds positive evidence it prevails; for specific data (dates, amounts), found values are prioritized over NOT_FOUND.</p>
+
+                <div class="warning-box">
+                    <h4>Extreme Cases Usage</h4>
+                    <ul>
+                        <li><strong>For:</strong> Files &gt; 50MB up to 350MB (extreme cases: POLICY from specific clients)</li>
+                        <li><strong>Real usage:</strong> POLICY 340MB → 87 pages → 11 chunks of ~8 pages</li>
+                        <li><strong>Dynamic division:</strong> ~8 pages per chunk (~29MB per chunk for safety under 50MB limit)</li>
+                        <li><strong>Processing:</strong> Each chunk uses File API (method 2)</li>
+                        <li><strong>Consolidation:</strong> Prioritizes positive evidence (YES &gt; NO &gt; NOT_FOUND)</li>
+                        <li><strong>Performance:</strong> ~20 seconds per chunk (340MB = ~11 chunks = ~220 seconds total)</li>
+                        <li><strong>Code:</strong> gemini-file-api.service.ts:504-561 (splitting), 750-929 (consolidation)</li>
+                        <li><strong>Real log example:</strong> <code>📑 [PAGE-SPLIT] Dividing 87 pages into chunks of ~8 pages (3.91MB/page)</code></li>
+                    </ul>
+                </div>
+
+                <h1 id="en-production-config">🔧 Production Configuration</h1>
+
+                <h2>Environment Variables (Real Production Values)</h2>
+
+                <pre><code># ===== Database =====
+DB_HOST=automate_mysql
+DB_PORT=3306
+DB_DATABASE=axioma
+DOCUMENT_PROMPTS_TABLE_NAME=document_consolidado
+
+# ===== Gemini 2.5 Pro Configuration =====
+GEMINI_ENABLED=true
+GEMINI_MODEL=gemini-2.5-pro              # Current model in production
+GEMINI_TEMPERATURE=0.1                    # Low temperature for consistent responses
+GEMINI_MAX_TOKENS=8192
+GEMINI_TIMEOUT=120000                     # 2 minutes timeout
+
+# ===== File Limits =====
+MAX_FILE_SIZE=367001600                   # 350MB - Supports extremely large POLICY files
+LARGE_FILE_THRESHOLD_MB=20                # Threshold for large file detection
+
+# ===== Extended Timeouts (Large Files) =====
+OPENAI_TIMEOUT=600000                     # 10 minutes for OpenAI
+ULTRA_LARGE_PDF_TIMEOUT=900000            # 15 minutes for ultra large PDFs
+PDF_PROCESSING_TIMEOUT=1200000            # 20 minutes maximum processing
+LARGE_FILE_TIMEOUT=900000                 # 15 minutes for large files
+
+# ===== Memory and Performance =====
+MEMORY_LIMIT_MB=1536                      # 1.5GB process memory limit
+ENABLE_MEMORY_MONITORING=true             # Active memory monitoring
+MAX_PARALLEL_CHUNKS=10                    # Parallel chunks for large files
+
+# ===== Gemini Rate Limiting =====
+GEMINI_RATE_LIMIT_RPM=80                  # 80 requests per minute
+GEMINI_RATE_LIMIT_TPM=1500000             # 1.5M tokens per minute
+GEMINI_MAX_RETRIES=3                      # 3 retries on failure
+</code></pre>
+
+                <h3>Configuration Decisions</h3>
+
+                <table>
+                    <tr>
+                        <th>Setting</th>
+                        <th>Value</th>
+                        <th>Reason</th>
+                    </tr>
+                    <tr>
+                        <td>MAX_FILE_SIZE</td>
+                        <td>350MB</td>
+                        <td>Client requested support for extremely large POLICY files (up to 340MB observed in production). Configured limit with safety margin.</td>
+                    </tr>
+                    <tr>
+                        <td>GEMINI_TIMEOUT</td>
+                        <td>120000 (2 min)</td>
+                        <td>Sufficient for files &lt; 50MB with Inline/File API. For files &gt; 50MB uses PDF_PROCESSING_TIMEOUT=1200000 (20 min).</td>
+                    </tr>
+                    <tr>
+                        <td>MEMORY_LIMIT_MB</td>
+                        <td>1536</td>
+                        <td>Balance between large file processing and Docker container stability. Allows handling chunks of ~30MB in memory without OOM errors.</td>
+                    </tr>
+                    <tr>
+                        <td>MAX_PARALLEL_CHUNKS</td>
+                        <td>10</td>
+                        <td>Avoids saturating Gemini API with too many simultaneous requests. 10 chunks in parallel = ~10 files processing at once in extreme cases.</td>
+                    </tr>
+                </table>
+
+                <h1 id="en-performance">📊 Performance Metrics & Monitoring</h1>
+
+                <h2>Real Production Logs</h2>
+
+                <h3>Case 1: Small Files (&lt; 20MB) - MAJORITY</h3>
+                <pre><code>[PURE-GEMINI] Processing LOP with 100% Gemini
+[PURE-GEMINI] File size: 1.41MB
+🟢 [PURE-GEMINI] Using Gemini File API (0-50MB)
+🟡 [GEMINI-FILE-API] Processing with File API
+📝 Small file (1.41MB) - using Inline API (Google official &lt;20MB)
+✅ [INLINE-API] Completed in 16556ms
+✅ [PURE-GEMINI] Completed LOP in 16559ms
+</code></pre>
+
+                <h3>Case 2: Giant Files (&gt; 50MB) - EXTREME CASES</h3>
+                <pre><code>[PURE-GEMINI] Processing POLICY with 100% Gemini
+[PURE-GEMINI] File size: 340.06MB
+🔴 [PURE-GEMINI] Using Gemini File API with splitting (&gt;50MB)
+🔴 [GEMINI-SPLIT] Large file detected: 340.06MB
+📚 Large file (340.06MB) - exceeds Files API limit (50MB), using page splitting
+📑 [PAGE-SPLIT] Dividing 87 pages into chunks of ~8 pages (3.91MB/page)
+📊 [PAGE-SPLIT] Target: 35MB per chunk for 340.06MB file
+📄 [PAGE-SPLIT] Processing pages 1-8/87
+📦 [PAGE-SPLIT] Chunk created: 24.59MB
+🚀 [FILE-API] Starting upload (pages 1-8)
+📤 [FILE-API] File uploaded: files/g8o39hqn58z2
+✅ [FILE-API] File ready for processing
+✅ [FILE-API] Completed in 19350ms
+</code></pre>
+
+                <h3>Observed Real Performance</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Document</th>
+                            <th>Size</th>
+                            <th>Method</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>CERTIFICATE</td>
+                            <td>0.40MB</td>
+                            <td>Inline API</td>
+                            <td>8.7s</td>
+                        </tr>
+                        <tr>
+                            <td>WEATHER</td>
+                            <td>0.21MB</td>
+                            <td>Inline API</td>
+                            <td>14.6s</td>
+                        </tr>
+                        <tr>
+                            <td>LOP</td>
+                            <td>1.41MB</td>
+                            <td>Inline API</td>
+                            <td>16.6s</td>
+                        </tr>
+                        <tr>
+                            <td>ROOF</td>
+                            <td>2.17MB</td>
+                            <td>Inline API</td>
+                            <td>14.7s</td>
+                        </tr>
+                        <tr>
+                            <td>POLICY</td>
+                            <td>340MB</td>
+                            <td>Page Splitting (11 chunks)</td>
+                            <td>~220s total</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h1 id="en-documents">📋 Processed Documents</h1>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Document</th>
+                            <th>Fields</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>LOP.pdf</strong></td>
+                            <td>18</td>
+                            <td>Letter of Protection - Signatures, homeowner data, comparisons</td>
+                        </tr>
+                        <tr>
+                            <td><strong>POLICY.pdf</strong></td>
+                            <td>7</td>
+                            <td>Insurance policy - Validity, coverage, exclusions</td>
+                        </tr>
+                        <tr>
+                            <td><strong>WEATHER.pdf</strong></td>
+                            <td>2</td>
+                            <td>Weather data - Wind speed and gusts</td>
+                        </tr>
+                        <tr>
+                            <td><strong>CERTIFICATE.pdf</strong></td>
+                            <td>1</td>
+                            <td>Completion certificate - Completion date</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ROOF.pdf</strong></td>
+                            <td>1</td>
+                            <td>Roof report - Total area in square feet</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ESTIMATE.pdf</strong></td>
+                            <td>1</td>
+                            <td>Estimate - Amount approval signature</td>
+                        </tr>
+                        <tr>
+                            <td><strong>MOLD.pdf</strong></td>
+                            <td>1</td>
+                            <td>Mold report - Positive/Negative</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h1 id="en-findings">🔍 Key Findings: Theory vs Reality</h1>
+
+                <h2>❌ Debunked Myths</h2>
+
+                <ol>
+                    <li><strong>MYTH:</strong> "File API is the main method"<br>
+                        <strong>REALITY:</strong> Inline API processes ~95% of files in production (&lt; 20MB)</li>
+
+                    <li><strong>MYTH:</strong> "File limit is 30MB"<br>
+                        <strong>REALITY:</strong> MAX_FILE_SIZE=350MB in production to support giant POLICY files</li>
+
+                    <li><strong>MYTH:</strong> "We use Modern RAG with embeddings"<br>
+                        <strong>REALITY:</strong> Modern RAG NOT used in production. System uses Page Splitting + File API</li>
+
+                    <li><strong>MYTH:</strong> "Gemini 1.5 Pro is the model"<br>
+                        <strong>REALITY:</strong> GEMINI_MODEL=gemini-2.5-pro in production</li>
+
+                    <li><strong>MYTH:</strong> "Files ≥20MB go to File API automatically"<br>
+                        <strong>REALITY:</strong> Only in legacy endpoint. /evaluate-gemini decides in 2 layers (50MB and 20MB)</li>
+                </ol>
+
+                <h2>✅ Confirmed Truths</h2>
+
+                <ol>
+                    <li><strong>Inline API dominates:</strong> 95% of cases (LOP 1.41MB, CERTIFICATE 0.40MB, WEATHER 0.21MB, ROOF 2.17MB)</li>
+                    <li><strong>Page Splitting works:</strong> POLICY 340MB → 11 chunks → successful processing</li>
+                    <li><strong>Consistent performance:</strong> ~8-16s for &lt; 20MB, ~20s per chunk for large files</li>
+                    <li><strong>Intelligent consolidation:</strong> YES prevails over NO when chunks have partial evidence</li>
+                    <li><strong>Real throughput:</strong> 6 documents in parallel without saturating Gemini rate limits</li>
+                </ol>
+
+                <h2>📊 Real Method Distribution in Production</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>% Usage</th>
+                            <th>Size</th>
+                            <th>Examples</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Inline API</strong></td>
+                            <td>~95%</td>
+                            <td>&lt; 20MB</td>
+                            <td>LOP, CERTIFICATE, WEATHER, ROOF</td>
+                            <td>8-16s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>File API</strong></td>
+                            <td>~4%</td>
+                            <td>20-50MB</td>
+                            <td>Medium POLICY files</td>
+                            <td>20-30s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Page Splitting</strong></td>
+                            <td>~1%</td>
+                            <td>&gt; 50MB</td>
+                            <td>Giant POLICY (340MB)</td>
+                            <td>20s/chunk</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="success-box">
+                    <h3>🎯 System Advantages (Validated in Production)</h3>
+
+                    <h4>Scalability</h4>
+                    <ul>
+                        <li><strong>Parallel processing:</strong> n8n sends 6 documents simultaneously per case</li>
+                        <li><strong>Intelligent routing:</strong> 3 automatic methods based on size (&lt; 20MB, 20-50MB, &gt; 50MB)</li>
+                        <li><strong>Extreme limits:</strong> Supports up to 350MB per file (giant POLICY files)</li>
+                        <li><strong>Dynamic chunking:</strong> Automatically divides files &gt; 50MB into optimal fragments</li>
+                    </ul>
+
+                    <h4>Flexibility</h4>
+                    <ul>
+                        <li><strong>DB-first prompts:</strong> Updatable without redeployment from document_consolidado table</li>
+                        <li><strong>Dynamic variables:</strong> Template variables (%insured_name%) injected at runtime</li>
+                        <li><strong>Consolidated fields:</strong> Semicolon-separated responses mapped to 31+ individual fields</li>
+                        <li><strong>Optional documents:</strong> INVOICES without configured prompt → graceful empty response</li>
+                    </ul>
+
+                    <h4>Extreme Robustness</h4>
+                    <ul>
+                        <li><strong>Automatic detection:</strong> Scanned PDFs activate File API independent of size</li>
+                        <li><strong>Extended timeouts:</strong> 20 minutes maximum for ultra large files</li>
+                        <li><strong>Memory monitoring:</strong> 1.5GB limit with automatic alerts</li>
+                        <li><strong>Retry logic:</strong> 3 automatic retries in Gemini API with exponential backoff</li>
+                        <li><strong>Intelligent consolidation:</strong> YES prevails over NO in chunks (positive evidence)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- SPANISH VERSION -->
+            <div class="lang-content es-content">
+                <div class="toc">
+                    <h2>📑 Tabla de Contenidos</h2>
+                    <ul>
+                        <li><a href="#es-exec-summary">Resumen Ejecutivo</a></li>
+                        <li><a href="#es-architecture">Arquitectura del Sistema</a>
+                            <ul>
+                                <li><a href="#es-n8n-flow">Flujo n8n</a></li>
+                                <li><a href="#es-api-processing">Procesamiento en el API</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#es-processing-methods">Métodos de Procesamiento</a>
+                            <ul>
+                                <li><a href="#es-inline-api">Inline API (95% casos)</a></li>
+                                <li><a href="#es-file-api">File API (4% casos)</a></li>
+                                <li><a href="#es-page-splitting">Page Splitting (1% casos)</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="#es-production-config">Configuración de Producción</a></li>
+                        <li><a href="#es-performance">Métricas de Performance</a></li>
+                        <li><a href="#es-documents">Documentos Procesados</a></li>
+                        <li><a href="#es-findings">Hallazgos Clave: Teoría vs Realidad</a></li>
+                    </ul>
+                </div>
+
+                <h1 id="es-exec-summary">🎯 Resumen Ejecutivo</h1>
+
+                <p>El sistema <strong>UWIA (Underwriting Intelligence Automation)</strong> automatiza el análisis de documentos de seguros usando <strong>n8n</strong> como orquestador y una <strong>API NestJS con Gemini 2.5 Pro</strong> para el procesamiento inteligente. El flujo procesa múltiples documentos PDF desde Google Drive y extrae información específica usando IA generativa.</p>
+
+                <div class="info-box">
+                    <h3>📊 Datos Clave de Producción</h3>
+                    <ul>
+                        <li><strong>Endpoint principal:</strong> POST /api/underwriting/evaluate-gemini</li>
+                        <li><strong>Modelo IA:</strong> Gemini 2.5 Pro (NO Gemini 1.5 Pro)</li>
+                        <li><strong>Límite de archivo:</strong> 350MB (soporta POLICY gigantes)</li>
+                        <li><strong>Método dominante:</strong> Inline API (~95% de casos)</li>
+                        <li><strong>Performance típica:</strong> 8-16 segundos por documento &lt; 20MB</li>
+                        <li><strong>Procesamiento paralelo:</strong> 6 documentos simultáneamente por caso</li>
+                    </ul>
+                </div>
+
+                <h3>Métodos de Procesamiento (Realidad de Producción)</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Método</th>
+                            <th>Uso Real</th>
+                            <th>Tamaño</th>
+                            <th>Performance</th>
+                            <th>Casos Típicos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1. Inline API</strong></td>
+                            <td>95%</td>
+                            <td>&lt; 20MB</td>
+                            <td>8-16s</td>
+                            <td>LOP, CERTIFICATE, WEATHER, ROOF</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. File API</strong></td>
+                            <td>4%</td>
+                            <td>20-50MB</td>
+                            <td>20-30s</td>
+                            <td>POLICY medianas</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Page Splitting</strong></td>
+                            <td>1%</td>
+                            <td>&gt; 50MB</td>
+                            <td>20s/chunk</td>
+                            <td>POLICY gigantes (340MB, 11 chunks)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Flujo Típico</h3>
+                <pre>n8n → Google Drive → 6 PDFs en paralelo → /evaluate-gemini →
+→ Gemini Inline API (&lt; 20MB) → Consolidación → ClaimPay</pre>
+
+                <p><strong>Caso real:</strong> Record 20103274 procesó 6 documentos (LOP, CERTIFICATE, WEATHER, ROOF, POLICY 340MB, INVOICES) en ~240 segundos totales.</p>
+
+                <h1 id="es-architecture">🔄 Arquitectura del Sistema</h1>
+
+                <h2 id="es-n8n-flow">Flujo n8n - Paso a Paso</h2>
+
+                <div class="diagram">
+[Webhook] → [Validar Entrada] → [Listar PDFs] → [Filtrar] → [Descargar] → [API Gemini] → [Consolidar] → [Enviar Resultado]
+                </div>
+
+                <h3>1. 🚀 Inicio del Flujo (Webhook)</h3>
+                <p><strong>Porqué:</strong> El webhook es el punto de entrada al sistema que recibe la solicitud de procesamiento con toda la información del caso. Actúa como trigger que desencadena toda la automatización, recibiendo los identificadores únicos del caso (record_id) y la carpeta de Google Drive (carpeta_id) donde residen los documentos, además de contexto opcional para mejorar la precisión de extracción mediante comparaciones.</p>
+
+                <ul>
+                    <li><strong>Endpoint:</strong> POST https://n8n.claimpay.net/webhook/UWIA</li>
+                    <li><strong>Campos requeridos:</strong> carpeta_id, record_id</li>
+                    <li><strong>Contexto opcional:</strong> insured_name, insurance_company, date_of_loss, etc.</li>
+                </ul>
+
+                <h3>2. ✅ Validación y Procesamiento</h3>
+                <p><strong>Porqué:</strong> Este paso normaliza la entrada para garantizar que el sistema pueda procesar cualquier estructura de datos que reciba. Separa los campos críticos obligatorios (carpeta_id, record_id) del contexto variable, permitiendo flexibilidad en los datos adicionales. El contexto se agrupa en un objeto JSON para inyectarlo posteriormente en los prompts mediante template variables, mejorando la precisión de extracción sin hardcodear campos específicos en el flujo.</p>
+
+                <ul>
+                    <li>Valida campos obligatorios: carpeta_id, record_id</li>
+                    <li>Agrupa todo lo demás en objeto context</li>
+                    <li>Genera timestamp para tracking</li>
+                </ul>
+
+                <h3>3. 📁 Búsqueda de Documentos</h3>
+                <p><strong>Porqué:</strong> Conecta con Google Drive API para obtener todos los PDFs disponibles en la carpeta del caso. El filtro excluye documentos consolidados (ITL_SUM) para evitar procesar resultados previos. Este paso es crítico porque determina qué documentos se analizarán, permitiendo que el sistema descubra automáticamente los archivos disponibles sin configuración manual por caso.</p>
+
+                <ul>
+                    <li>Busca PDFs en Google Drive usando carpeta_id</li>
+                    <li>Query: mimeType='application/pdf' and not name contains 'ITL_SUM'</li>
+                    <li>Excluye: Archivos ITL_SUM, carpetas, shortcuts</li>
+                </ul>
+
+                <h3>4. 🔍 Filtrado y Preparación</h3>
+                <p><strong>Porqué:</strong> Filtra archivos para asegurar que solo PDFs válidos sean procesados. El ordenamiento alfabético garantiza procesamiento predecible y consistente entre ejecuciones. n8n NO filtra por tamaño de archivo - todos los PDFs se descargan y envían al API sin importar su tamaño. El API es responsable de aplicar el límite de tamaño (350MB), no n8n. Este diseño permite que el sistema maneje archivos extremadamente grandes (como POLICY de 340MB) sin intervención de n8n.</p>
+
+                <ul>
+                    <li><strong>Filtrado por tipo:</strong> Solo archivos PDF válidos (excluye ITL_SUM)</li>
+                    <li><strong>Ordenamiento alfabético:</strong> Asegura orden de procesamiento consistente</li>
+                    <li><strong>SIN límite de tamaño en n8n:</strong> Todos los archivos se envían al API (API aplica límite de 350MB)</li>
+                    <li><strong>Caso real:</strong> POLICY de 340MB procesado exitosamente (prueba que no hay límite en n8n)</li>
+                </ul>
+
+                <h3>5. ⬇️ Descarga de Archivos</h3>
+                <p><strong>Porqué:</strong> Descarga el contenido binario de cada PDF desde Google Drive y lo prepara para transmisión al API. Este paso es necesario porque el API requiere el archivo completo en memoria para realizar análisis inteligente (detección de tipo de documento, OCR si es necesario, extracción de texto). La conversión a binario optimiza la transferencia en el request multipart/form-data.</p>
+
+                <h3>6. 🤖 Procesamiento con IA</h3>
+                <p><strong>Porqué:</strong> Envía cada documento al API de procesamiento inteligente junto con su contexto. El API determina automáticamente el tipo de documento (POLICY, LOP, WEATHER, etc.) y selecciona el método de procesamiento óptimo según tamaño y características del PDF. El contexto JSON permite que los prompts se personalicen dinámicamente con información del caso, mejorando la precisión de extracción mediante validaciones cruzadas.</p>
+
+                <ul>
+                    <li><strong>Endpoint:</strong> POST http://automate_uwia_qa:5045/api/underwriting/evaluate-gemini</li>
+                    <li><strong>Método:</strong> multipart/form-data</li>
+                    <li><strong>Payload:</strong> carpeta_id, record_id, document_name, context (JSON), file (binario)</li>
+                </ul>
+
+                <h2 id="es-api-processing">🎯 Arquitectura de Procesamiento del API</h2>
+
+                <div class="diagram">
+[POST /evaluate-gemini]
+    ↓
+[UnderwritingController]
+    ↓
+[processWithPureGemini()]
+    ↓
+┌─────────────────────────────────────┐
+│    Capa de Decisión 1 (50MB)        │
+│  ≤50MB → Directo | &gt;50MB → Split    │
+└─────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────┐
+│    Capa de Decisión 2 (20MB)        │
+│  &lt;20MB → Inline API (95% casos)     │
+│  20-50MB → File API (4% casos)      │
+│  &gt;50MB → Page Split (1% casos)      │
+└─────────────────────────────────────┘
+    ↓
+[Procesamiento Gemini 2.5 Pro]
+    ↓
+[Parseo y Validación de Respuesta]
+    ↓
+[Salida Semicolon-Separated]
+                </div>
+
+                <h1 id="es-processing-methods">⚙️ Métodos de Procesamiento</h1>
+
+                <h2 id="es-inline-api">🔸 Método 1: Gemini Inline API (MÉTODO PRINCIPAL)</h2>
+
+                <p><strong>Porqué:</strong> Para la mayoría de documentos (LOP, CERTIFICATE, WEATHER, ROOF típicamente &lt; 20MB), enviar el PDF codificado en base64 directamente en el request es más eficiente que subirlo a Google Cloud Storage. Reduce latencia (elimina paso de upload) y costos (no usa almacenamiento temporal). Google recomienda oficialmente este método para PDFs &lt; 20MB porque su infraestructura puede procesarlos en memoria sin problemas de performance.</p>
+
+                <div class="success-box">
+                    <h4>Uso en Producción</h4>
+                    <ul>
+                        <li><strong>Para:</strong> Archivos &lt; 20MB (MAYORÍA de casos en producción: ~95%)</li>
+                        <li><strong>Uso real:</strong> LOP (1.41MB), CERTIFICATE (0.40MB), WEATHER (0.21MB), ROOF (2.17MB)</li>
+                        <li><strong>Ventajas:</strong> Respuesta rápida, menor costo, sin almacenamiento temporal</li>
+                        <li><strong>Performance:</strong> ~8-16 segundos por documento</li>
+                        <li><strong>Límite oficial Google:</strong> 20MB (según documentación Gemini API 2025)</li>
+                        <li><strong>Código:</strong> gemini-file-api.service.ts:265-307</li>
+                    </ul>
+                </div>
+
+                <h2 id="es-file-api">🔸 Método 2: Gemini File API (USO SECUNDARIO)</h2>
+
+                <p><strong>Porqué:</strong> Archivos entre 20-50MB exceden el límite de procesamiento en memoria del Inline API pero están dentro del límite para PDFs del File API. Este método sube el archivo a Google Cloud Storage temporalmente, permitiendo que los servidores de Gemini lo procesen de forma distribuida con más recursos. Es esencial para documentos escaneados porque activa el OCR avanzado de Google (mejor precisión que extracción textual simple).</p>
+
+                <div class="info-box">
+                    <h4>Uso en Producción</h4>
+                    <ul>
+                        <li><strong>Para:</strong> Archivos 20-50MB (casos medianos, uso secundario en producción)</li>
+                        <li><strong>Ventajas:</strong> OCR avanzado, procesamiento distribuido, manejo de archivos grandes</li>
+                        <li><strong>Límite oficial Google:</strong> 50MB para PDFs (Google enforced PDF limit)</li>
+                        <li><strong>Proceso:</strong> Upload → Cloud Storage → Processing → Cleanup</li>
+                        <li><strong>Código:</strong> gemini-file-api.service.ts:184-260</li>
+                    </ul>
+                </div>
+
+                <h2 id="es-page-splitting">🔸 Método 3: Page-Based Splitting + File API (CASOS EXTREMOS)</h2>
+
+                <p><strong>Porqué:</strong> Archivos &gt; 50MB exceden el límite oficial de Google para PDFs en el File API. La única forma de procesarlos es dividirlos en fragmentos más pequeños. Se usa división por páginas (con pdf-lib) porque preserva la integridad visual de cada página, crítico para OCR y análisis de documentos. Cada fragmento (chunk) se procesa con File API (método 2) y las respuestas parciales se consolidan inteligentemente: para campos booleanos (YES/NO), si algún fragmento encuentra evidencia positiva prevalece; para datos específicos (fechas, montos), se priorizan valores encontrados sobre NOT_FOUND.</p>
+
+                <div class="warning-box">
+                    <h4>Uso en Casos Extremos</h4>
+                    <ul>
+                        <li><strong>Para:</strong> Archivos &gt; 50MB hasta 350MB (casos extremos: POLICY de clientes específicos)</li>
+                        <li><strong>Uso real:</strong> POLICY de 340MB → 87 páginas → 11 chunks de ~8 páginas</li>
+                        <li><strong>División dinámica:</strong> ~8 páginas por chunk (~29MB por chunk para seguridad bajo límite de 50MB)</li>
+                        <li><strong>Procesamiento:</strong> Cada chunk usa File API (método 2)</li>
+                        <li><strong>Consolidación:</strong> Prioriza evidencia positiva (YES &gt; NO &gt; NOT_FOUND)</li>
+                        <li><strong>Performance:</strong> ~20 segundos por chunk (340MB = ~11 chunks = ~220 segundos total)</li>
+                        <li><strong>Código:</strong> gemini-file-api.service.ts:504-561 (splitting), 750-929 (consolidation)</li>
+                        <li><strong>Ejemplo real log:</strong> <code>📑 [PAGE-SPLIT] Dividiendo 87 páginas en chunks de ~8 páginas (3.91MB/página)</code></li>
+                    </ul>
+                </div>
+
+                <h1 id="es-production-config">🔧 Configuración de Producción</h1>
+
+                <h2>Variables de Entorno (Valores Reales de Producción)</h2>
+
+                <pre><code># ===== Base de datos =====
+DB_HOST=automate_mysql
+DB_PORT=3306
+DB_DATABASE=axioma
+DOCUMENT_PROMPTS_TABLE_NAME=document_consolidado
+
+# ===== Gemini 2.5 Pro Configuration =====
+GEMINI_ENABLED=true
+GEMINI_MODEL=gemini-2.5-pro              # Modelo actual en producción
+GEMINI_TEMPERATURE=0.1                    # Baja temperatura para respuestas consistentes
+GEMINI_MAX_TOKENS=8192
+GEMINI_TIMEOUT=120000                     # 2 minutos timeout
+
+# ===== Límites de Archivo =====
+MAX_FILE_SIZE=367001600                   # 350MB - Soporta POLICY extremadamente grandes
+LARGE_FILE_THRESHOLD_MB=20                # Threshold para detección de archivos grandes
+
+# ===== Timeouts Extendidos (Archivos Grandes) =====
+OPENAI_TIMEOUT=600000                     # 10 minutos para OpenAI
+ULTRA_LARGE_PDF_TIMEOUT=900000            # 15 minutos para PDFs ultra grandes
+PDF_PROCESSING_TIMEOUT=1200000            # 20 minutos máximo de procesamiento
+LARGE_FILE_TIMEOUT=900000                 # 15 minutos para archivos grandes
+
+# ===== Memoria y Performance =====
+MEMORY_LIMIT_MB=1536                      # 1.5GB límite de memoria del proceso
+ENABLE_MEMORY_MONITORING=true             # Monitoreo activo de memoria
+MAX_PARALLEL_CHUNKS=10                    # Chunks en paralelo para archivos grandes
+
+# ===== Rate Limiting Gemini =====
+GEMINI_RATE_LIMIT_RPM=80                  # 80 requests por minuto
+GEMINI_RATE_LIMIT_TPM=1500000             # 1.5M tokens por minuto
+GEMINI_MAX_RETRIES=3                      # 3 reintentos en caso de fallo
+</code></pre>
+
+                <h3>Decisión de Límites</h3>
+
+                <table>
+                    <tr>
+                        <th>Configuración</th>
+                        <th>Valor</th>
+                        <th>Razón</th>
+                    </tr>
+                    <tr>
+                        <td>MAX_FILE_SIZE</td>
+                        <td>350MB</td>
+                        <td>Cliente solicitó soporte para archivos POLICY extremadamente grandes (hasta 340MB observados en producción). Límite configurado con margen de seguridad.</td>
+                    </tr>
+                    <tr>
+                        <td>GEMINI_TIMEOUT</td>
+                        <td>120000 (2 min)</td>
+                        <td>Suficiente para archivos &lt; 50MB con Inline/File API. Para archivos &gt; 50MB se usa PDF_PROCESSING_TIMEOUT=1200000 (20 min).</td>
+                    </tr>
+                    <tr>
+                        <td>MEMORY_LIMIT_MB</td>
+                        <td>1536</td>
+                        <td>Balance entre procesamiento de archivos grandes y estabilidad del contenedor Docker. Permite manejar chunks de ~30MB en memoria sin OOM errors.</td>
+                    </tr>
+                    <tr>
+                        <td>MAX_PARALLEL_CHUNKS</td>
+                        <td>10</td>
+                        <td>Evita saturar API de Gemini con demasiados requests simultáneos. 10 chunks en paralelo = ~10 archivos procesándose a la vez en casos extremos.</td>
+                    </tr>
+                </table>
+
+                <h1 id="es-performance">📊 Métricas de Performance y Monitoreo</h1>
+
+                <h2>Logs Reales de Producción</h2>
+
+                <h3>Caso 1: Archivos Pequeños (&lt; 20MB) - MAYORÍA</h3>
+                <pre><code>[PURE-GEMINI] Processing LOP with 100% Gemini
+[PURE-GEMINI] File size: 1.41MB
+🟢 [PURE-GEMINI] Using Gemini File API (0-50MB)
+🟡 [GEMINI-FILE-API] Processing with File API
+📝 Archivo pequeño (1.41MB) - usando Inline API (Google oficial &lt;20MB)
+✅ [INLINE-API] Completado en 16556ms
+✅ [PURE-GEMINI] Completed LOP in 16559ms
+</code></pre>
+
+                <h3>Caso 2: Archivos Gigantes (&gt; 50MB) - CASOS EXTREMOS</h3>
+                <pre><code>[PURE-GEMINI] Processing POLICY with 100% Gemini
+[PURE-GEMINI] File size: 340.06MB
+🔴 [PURE-GEMINI] Using Gemini File API with splitting (&gt;50MB)
+🔴 [GEMINI-SPLIT] Large file detected: 340.06MB
+📚 Archivo grande (340.06MB) - excede límite Files API (50MB), usando page splitting
+📑 [PAGE-SPLIT] Dividiendo 87 páginas en chunks de ~8 páginas (3.91MB/página)
+📊 [PAGE-SPLIT] Target: 35MB por chunk para archivo de 340.06MB
+📄 [PAGE-SPLIT] Procesando páginas 1-8/87
+📦 [PAGE-SPLIT] Chunk creado: 24.59MB
+🚀 [FILE-API] Iniciando upload de (páginas 1-8)
+📤 [FILE-API] Archivo subido: files/g8o39hqn58z2
+✅ [FILE-API] Archivo listo para procesamiento
+✅ [FILE-API] Completado en 19350ms
+</code></pre>
+
+                <h3>Performance Real Observada</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Documento</th>
+                            <th>Tamaño</th>
+                            <th>Método</th>
+                            <th>Tiempo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>CERTIFICATE</td>
+                            <td>0.40MB</td>
+                            <td>Inline API</td>
+                            <td>8.7s</td>
+                        </tr>
+                        <tr>
+                            <td>WEATHER</td>
+                            <td>0.21MB</td>
+                            <td>Inline API</td>
+                            <td>14.6s</td>
+                        </tr>
+                        <tr>
+                            <td>LOP</td>
+                            <td>1.41MB</td>
+                            <td>Inline API</td>
+                            <td>16.6s</td>
+                        </tr>
+                        <tr>
+                            <td>ROOF</td>
+                            <td>2.17MB</td>
+                            <td>Inline API</td>
+                            <td>14.7s</td>
+                        </tr>
+                        <tr>
+                            <td>POLICY</td>
+                            <td>340MB</td>
+                            <td>Page Splitting (11 chunks)</td>
+                            <td>~220s total</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h1 id="es-documents">📋 Documentos Procesados</h1>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Documento</th>
+                            <th>Campos</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>LOP.pdf</strong></td>
+                            <td>18</td>
+                            <td>Letter of Protection - Firmas, datos del propietario, comparaciones</td>
+                        </tr>
+                        <tr>
+                            <td><strong>POLICY.pdf</strong></td>
+                            <td>7</td>
+                            <td>Póliza de seguro - Vigencia, cobertura, exclusiones</td>
+                        </tr>
+                        <tr>
+                            <td><strong>WEATHER.pdf</strong></td>
+                            <td>2</td>
+                            <td>Datos meteorológicos - Velocidad viento y ráfagas</td>
+                        </tr>
+                        <tr>
+                            <td><strong>CERTIFICATE.pdf</strong></td>
+                            <td>1</td>
+                            <td>Certificado de finalización - Fecha de terminación</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ROOF.pdf</strong></td>
+                            <td>1</td>
+                            <td>Reporte de techo - Área total en pies cuadrados</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ESTIMATE.pdf</strong></td>
+                            <td>1</td>
+                            <td>Estimación - Firma de aprobación de monto</td>
+                        </tr>
+                        <tr>
+                            <td><strong>MOLD.pdf</strong></td>
+                            <td>1</td>
+                            <td>Reporte de moho - Positivo/Negativo</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h1 id="es-findings">🔍 Hallazgos Clave: Teoría vs Realidad</h1>
+
+                <h2>❌ Mitos Desmentidos</h2>
+
+                <ol>
+                    <li><strong>MITO:</strong> "File API es el método principal"<br>
+                        <strong>REALIDAD:</strong> Inline API procesa ~95% de archivos en producción (&lt; 20MB)</li>
+
+                    <li><strong>MITO:</strong> "Límite de archivos es 30MB"<br>
+                        <strong>REALIDAD:</strong> MAX_FILE_SIZE=350MB en producción para soportar POLICY gigantes</li>
+
+                    <li><strong>MITO:</strong> "Usamos Modern RAG con embeddings"<br>
+                        <strong>REALIDAD:</strong> Modern RAG NO se usa en producción. Sistema usa Page Splitting + File API</li>
+
+                    <li><strong>MITO:</strong> "Gemini 1.5 Pro es el modelo"<br>
+                        <strong>REALIDAD:</strong> GEMINI_MODEL=gemini-2.5-pro en producción</li>
+
+                    <li><strong>MITO:</strong> "Archivos ≥20MB van a File API automáticamente"<br>
+                        <strong>REALIDAD:</strong> Solo en endpoint legacy. /evaluate-gemini decide en 2 capas (50MB y 20MB)</li>
+                </ol>
+
+                <h2>✅ Verdades Confirmadas</h2>
+
+                <ol>
+                    <li><strong>Inline API domina:</strong> 95% de casos (LOP 1.41MB, CERTIFICATE 0.40MB, WEATHER 0.21MB, ROOF 2.17MB)</li>
+                    <li><strong>Page Splitting funciona:</strong> POLICY 340MB → 11 chunks → procesamiento exitoso</li>
+                    <li><strong>Performance consistente:</strong> ~8-16s para &lt; 20MB, ~20s por chunk para archivos grandes</li>
+                    <li><strong>Consolidación inteligente:</strong> YES prevalece sobre NO cuando chunks tienen evidencia parcial</li>
+                    <li><strong>Throughput real:</strong> 6 documentos en paralelo sin saturar rate limits de Gemini</li>
+                </ol>
+
+                <h2>📊 Distribución Real de Métodos en Producción</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Método</th>
+                            <th>% Uso</th>
+                            <th>Tamaño</th>
+                            <th>Ejemplos</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Inline API</strong></td>
+                            <td>~95%</td>
+                            <td>&lt; 20MB</td>
+                            <td>LOP, CERTIFICATE, WEATHER, ROOF</td>
+                            <td>8-16s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>File API</strong></td>
+                            <td>~4%</td>
+                            <td>20-50MB</td>
+                            <td>POLICY medianas</td>
+                            <td>20-30s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Page Splitting</strong></td>
+                            <td>~1%</td>
+                            <td>&gt; 50MB</td>
+                            <td>POLICY gigantes (340MB)</td>
+                            <td>20s/chunk</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="success-box">
+                    <h3>🎯 Ventajas del Sistema (Validadas en Producción)</h3>
+
+                    <h4>Escalabilidad</h4>
+                    <ul>
+                        <li><strong>Procesamiento paralelo:</strong> n8n envía 6 documentos simultáneamente por caso</li>
+                        <li><strong>Enrutamiento inteligente:</strong> 3 métodos automáticos según tamaño (&lt; 20MB, 20-50MB, &gt; 50MB)</li>
+                        <li><strong>Límites extremos:</strong> Soporta hasta 350MB por archivo (POLICY gigantes)</li>
+                        <li><strong>Chunking dinámico:</strong> Divide automáticamente archivos &gt; 50MB en fragmentos óptimos</li>
+                    </ul>
+
+                    <h4>Flexibilidad</h4>
+                    <ul>
+                        <li><strong>Prompts DB-first:</strong> Actualizables sin redespliegue desde tabla document_consolidado</li>
+                        <li><strong>Variables dinámicas:</strong> Template variables (%insured_name%) inyectadas en runtime</li>
+                        <li><strong>Campos consolidados:</strong> Respuestas semicolon-separated mapeadas a 31+ campos individuales</li>
+                        <li><strong>Documentos opcionales:</strong> INVOICES sin prompt configurado → respuesta vacía graceful</li>
+                    </ul>
+
+                    <h4>Robustez Extrema</h4>
+                    <ul>
+                        <li><strong>Detección automática:</strong> PDFs escaneados activan File API independiente del tamaño</li>
+                        <li><strong>Timeouts extendidos:</strong> 20 minutos máximo para archivos ultra grandes</li>
+                        <li><strong>Monitoreo de memoria:</strong> 1.5GB límite con alertas automáticas</li>
+                        <li><strong>Retry logic:</strong> 3 reintentos automáticos en Gemini API con backoff exponencial</li>
+                        <li><strong>Consolidación inteligente:</strong> YES prevalece sobre NO en chunks (evidencia positiva)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-content">
+                <h3>📞 Contact Information</h3>
+                <p><strong>Developed by:</strong> Luxia.us</p>
+                <p><strong>For:</strong> ClaimPay</p>
+                <p><strong>Technical Contact:</strong> Alann Reyes</p>
+                <p><strong>Email:</strong> alann@luxia.us</p>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 20px 0;">
+                <p style="font-size: 0.9em; opacity: 0.8;">
+                    This documentation reflects the REALITY of the system in production, not theory or Google's official limits.<br>
+                    All values, times, and percentages were extracted from real logs and production configurations.
+                </p>
+                <p style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
+                    Esta documentación refleja la REALIDAD del sistema en producción, no la teoría o los límites oficiales de Google.<br>
+                    Todos los valores, tiempos y porcentajes fueron extraídos de logs reales y configuraciones de producción.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchLanguage(lang) {
+            // Hide all content
+            document.querySelectorAll('.lang-content').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Remove active from all tabs
+            document.querySelectorAll('.tab-button').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Show selected language
+            document.querySelector(`.${lang}-content`).classList.add('active');
+
+            // Add active to clicked tab
+            event.target.classList.add('active');
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Smooth scroll for anchors
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

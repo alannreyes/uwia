@@ -2,12 +2,16 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { UnderwritingModule } from './modules/underwriting/underwriting.module';
 import { ChunkingModule } from './modules/underwriting/chunking/chunking.module';
 import { databaseConfig } from './config/database.config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { FileLoggerService } from './common/services/file-logger.service';
+import { LogCleanupService } from './common/services/log-cleanup.service';
+import { GlobalFileLoggerService } from './common/services/global-file-logger.service';
 
 @Module({
   imports: [
@@ -16,12 +20,15 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    
+
+    // Módulo de tareas programadas (cron jobs)
+    ScheduleModule.forRoot(),
+
     // Configuración de base de datos MySQL
     TypeOrmModule.forRootAsync({
       useFactory: databaseConfig,
     }),
-    
+
     // Configuración global de Multer para archivos
     MulterModule.register({
       limits: {
@@ -36,7 +43,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
         }
       },
     }),
-    
+
     // Módulo principal de underwriting
     UnderwritingModule,
 
@@ -45,6 +52,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
   ],
   controllers: [],
   providers: [
+    // Servicios de logging persistente
+    FileLoggerService,
+    LogCleanupService,
+    GlobalFileLoggerService,
+
     // Filtro global de excepciones
     {
       provide: APP_FILTER,

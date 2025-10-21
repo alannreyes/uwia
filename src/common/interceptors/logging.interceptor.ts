@@ -4,14 +4,21 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap, finalize } from 'rxjs/operators';
 import { Request, Response } from 'express';
+import { FileLoggerService } from '../services/file-logger.service';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
+
+  constructor(
+    @Optional() @Inject(FileLoggerService) private readonly fileLoggerService?: FileLoggerService,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const startTime = Date.now();
@@ -21,6 +28,15 @@ export class LoggingInterceptor implements NestInterceptor {
 
     const { method, url, ip } = request;
     const userAgent = request.get('User-Agent') || 'Unknown';
+
+    // Extraer record_id del body si existe
+    const recordId = this.extractRecordId(request);
+
+    // Iniciar captura de logs si tenemos record_id y fileLoggerService
+    if (recordId && this.fileLoggerService) {
+      this.fileLoggerService.startCapture(recordId);
+      this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}`);
+    }
 
     // Log de request entrante
     this.logger.log(
@@ -42,7 +58,7 @@ export class LoggingInterceptor implements NestInterceptor {
           const endTime = Date.now();
           const duration = endTime - startTime;
           const statusCode = response.statusCode;
-          
+
           // Log de response exitosa
           this.logger.log(
             `← ${method} ${url} ${statusCode} - ${duration}ms`
@@ -60,13 +76,60 @@ export class LoggingInterceptor implements NestInterceptor {
           const endTime = Date.now();
           const duration = endTime - startTime;
           const statusCode = error.status || 500;
-          
+
           // Log de error
           this.logger.error(
             `← ${method} ${url} ${statusCode} - ${duration}ms - Error: ${error.message}`
           );
         },
       }),
+      finalize(async () => {
+        // Finalizar captura de logs cuando termine el request (éxito o error)
+        if (recordId && this.fileLoggerService && this.fileLoggerService.isCapturing()) {
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+
+          this.logger.log(`📝 Finalizando captura de logs (${duration}ms)`);
+
+          try {
+            const filename = await this.fileLoggerService.finishCapture();
+            if (filename) {
+              this.logger.log(`💾 Logs guardados en: ${filename}`);
+            }
+          } catch (error) {
+            this.logger.error(`❌ Error guardando logs: ${error.message}`);
+          }
+        }
+      }),
     );
+  }
+
+  /**
+   * Extrae el record_id del request body
+   * @param request - Request de Express
+   * @returns record_id o null si no existe
+   */
+  private extractRecordId(request: Request): string | null {
+    try {
+      // Intentar obtener de request.body
+      if (request.body && request.body.record_id) {
+        return String(request.body.record_id);
+      }
+
+      // Intentar obtener de form-data (multipart/form-data)
+      if ((request as any).fields && (request as any).fields.record_id) {
+        return String((request as any).fields.record_id);
+      }
+
+      // Intentar obtener de query params
+      if (request.query && request.query.record_id) {
+        return String(request.query.record_id);
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.warn(`⚠️ Error extrayendo record_id: ${error.message}`);
+      return null;
+    }
   }
 }
