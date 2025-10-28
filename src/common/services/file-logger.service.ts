@@ -132,6 +132,24 @@ export class FileLoggerService {
   }
 
   /**
+   * Actualiza el document_name del contexto actual si existe
+   * @param documentName - Nombre del documento a establecer
+   * @returns true si se actualizó, false si no hay contexto activo
+   */
+  updateDocumentName(documentName: string): boolean {
+    const context = this.asyncLocalStorage.getStore();
+    if (!context) {
+      return false;
+    }
+
+    // Actualizar el documentName directamente en el contexto
+    context.documentName = documentName;
+    this.baseLogger.log(`📝 Document name actualizado: ${documentName}`);
+
+    return true;
+  }
+
+  /**
    * Obtiene información del contexto actual
    * @returns Información del contexto o null
    */

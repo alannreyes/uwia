@@ -68,6 +68,14 @@ export class LoggingInterceptor implements NestInterceptor {
               const docInfo = documentName ? ` (${documentName})` : '';
               this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}${docInfo}`);
             }
+          } else if (!documentName) {
+            // Si ya tenemos recordId pero no documentName, reintentar solo documentName
+            documentName = this.extractDocumentName(request);
+
+            // Si ahora encontramos documentName, actualizar el contexto
+            if (documentName && this.fileLoggerService && this.fileLoggerService.isCapturing()) {
+              this.fileLoggerService.updateDocumentName(documentName);
+            }
           }
 
           const endTime = Date.now();
