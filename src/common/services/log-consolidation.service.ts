@@ -96,7 +96,7 @@ export class LogConsolidationService {
     attempt: number = 1
   ): Promise<void> {
     const maxAttempts = 3;
-    const retryDelay = attempt === 1 ? 10000 : 30000; // 10s inicial, 30s reintentos
+    const retryDelay = 10000; // 10s por intento (total: 30s)
 
     this.logger.log(`🔄 [CONSOLIDATE] Intento ${attempt}/${maxAttempts} para record ${recordId}`);
 
