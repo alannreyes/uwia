@@ -29,13 +29,15 @@ export class LoggingInterceptor implements NestInterceptor {
     const { method, url, ip } = request;
     const userAgent = request.get('User-Agent') || 'Unknown';
 
-    // Intentar extraer record_id (headers y query siempre disponibles, body puede no estarlo)
+    // Intentar extraer record_id y document_name (headers y query siempre disponibles, body puede no estarlo)
     let recordId = this.extractRecordId(request);
+    let documentName = this.extractDocumentName(request);
 
     // Iniciar captura de logs si tenemos record_id y fileLoggerService
     if (recordId && this.fileLoggerService) {
-      this.fileLoggerService.startCapture(recordId);
-      this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}`);
+      this.fileLoggerService.startCapture(recordId, documentName);
+      const docInfo = documentName ? ` (${documentName})` : '';
+      this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}${docInfo}`);
     }
 
     // Log de request entrante
@@ -55,14 +57,16 @@ export class LoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: (data) => {
-          // Reintentar extraer record_id si no se encontró antes (después de que Multer procese)
+          // Reintentar extraer record_id y document_name si no se encontraron antes (después de que Multer procese)
           if (!recordId) {
             recordId = this.extractRecordId(request);
+            documentName = this.extractDocumentName(request);
 
             // Iniciar captura de logs si ahora encontramos record_id
             if (recordId && this.fileLoggerService && !this.fileLoggerService.isCapturing()) {
-              this.fileLoggerService.startCapture(recordId);
-              this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}`);
+              this.fileLoggerService.startCapture(recordId, documentName);
+              const docInfo = documentName ? ` (${documentName})` : '';
+              this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}${docInfo}`);
             }
           }
 
@@ -147,6 +151,42 @@ export class LoggingInterceptor implements NestInterceptor {
       return null;
     } catch (error) {
       this.logger.warn(`⚠️ Error extrayendo record_id: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Extrae el document_name del request
+   * Intenta múltiples fuentes en orden de prioridad
+   * @param request - Request de Express
+   * @returns document_name o null si no existe
+   */
+  private extractDocumentName(request: Request): string | null {
+    try {
+      // PRIORIDAD 1: Header (siempre disponible inmediatamente)
+      const headerDocName = request.get('x-document-name') || request.get('document-name');
+      if (headerDocName) {
+        return String(headerDocName);
+      }
+
+      // PRIORIDAD 2: Query params (siempre disponible inmediatamente)
+      if (request.query && request.query.document_name) {
+        return String(request.query.document_name);
+      }
+
+      // PRIORIDAD 3: Request body (puede no estar disponible si es multipart/form-data)
+      if (request.body && request.body.document_name) {
+        return String(request.body.document_name);
+      }
+
+      // PRIORIDAD 4: Form-data fields (después de que Multer procese)
+      if ((request as any).fields && (request as any).fields.document_name) {
+        return String((request as any).fields.document_name);
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.warn(`⚠️ Error extrayendo document_name: ${error.message}`);
       return null;
     }
   }

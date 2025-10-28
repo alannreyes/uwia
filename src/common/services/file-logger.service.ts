@@ -8,6 +8,7 @@ import * as path from 'path';
  */
 interface LogContext {
   recordId: string;
+  documentName?: string;
   timestamp: string;
   logs: string[];
 }
@@ -44,8 +45,9 @@ export class FileLoggerService {
   /**
    * Inicia la captura de logs para un request específico
    * @param recordId - ID del record a procesar
+   * @param documentName - Nombre del documento (opcional, para incluir en nombre de archivo)
    */
-  startCapture(recordId: string): void {
+  startCapture(recordId: string, documentName?: string): void {
     const now = new Date();
 
     // Formato: aammddhhmm (año 2 dígitos, mes, día, hora, minuto)
@@ -59,6 +61,7 @@ export class FileLoggerService {
 
     const context: LogContext = {
       recordId,
+      documentName,
       timestamp,
       logs: [],
     };
@@ -66,7 +69,8 @@ export class FileLoggerService {
     this.asyncLocalStorage.enterWith(context);
 
     // Log inicial (también va al archivo)
-    this.captureLog(`📝 [INICIO CAPTURA] Record ID: ${recordId} | Timestamp: ${timestamp}`);
+    const docInfo = documentName ? ` | Document: ${documentName}` : '';
+    this.captureLog(`📝 [INICIO CAPTURA] Record ID: ${recordId}${docInfo} | Timestamp: ${timestamp}`);
   }
 
   /**
@@ -94,10 +98,12 @@ export class FileLoggerService {
       return null;
     }
 
-    const { recordId, timestamp, logs } = context;
+    const { recordId, documentName, timestamp, logs } = context;
 
-    // Formato del nombre: aammddhhmm_recordid.log
-    const filename = `${timestamp}_${recordId}.log`;
+    // Formato del nombre: aammddhhmm_recordid_DOCUMENTNAME.log
+    // Si no hay documentName, usar formato anterior: aammddhhmm_recordid.log
+    const docSuffix = documentName ? `_${documentName}` : '';
+    const filename = `${timestamp}_${recordId}${docSuffix}.log`;
     const filepath = path.join(this.logsDirectory, filename);
 
     try {
@@ -129,7 +135,7 @@ export class FileLoggerService {
    * Obtiene información del contexto actual
    * @returns Información del contexto o null
    */
-  getContextInfo(): { recordId: string; timestamp: string; logCount: number } | null {
+  getContextInfo(): { recordId: string; documentName?: string; timestamp: string; logCount: number } | null {
     const context = this.asyncLocalStorage.getStore();
     if (!context) {
       return null;
@@ -137,6 +143,7 @@ export class FileLoggerService {
 
     return {
       recordId: context.recordId,
+      documentName: context.documentName,
       timestamp: context.timestamp,
       logCount: context.logs.length,
     };
