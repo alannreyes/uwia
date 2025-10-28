@@ -11,6 +11,7 @@ import { Observable } from 'rxjs';
 import { tap, finalize } from 'rxjs/operators';
 import { Request, Response } from 'express';
 import { FileLoggerService } from '../services/file-logger.service';
+import { LogConsolidationService } from '../services/log-consolidation.service';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -18,6 +19,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
   constructor(
     @Optional() @Inject(FileLoggerService) private readonly fileLoggerService?: FileLoggerService,
+    @Optional() @Inject(LogConsolidationService) private readonly logConsolidationService?: LogConsolidationService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -118,6 +120,19 @@ export class LoggingInterceptor implements NestInterceptor {
             const filename = await this.fileLoggerService.finishCapture();
             if (filename) {
               this.logger.log(`💾 Logs guardados en: ${filename}`);
+
+              // 🆕 SI ES POLICY, DISPARAR CONSOLIDACIÓN AUTOMÁTICA
+              if (documentName && documentName.toUpperCase() === 'POLICY' && this.logConsolidationService) {
+                // Extraer timestamp del nombre del archivo (formato: aammddhhmm_recordid_DOCNAME.log)
+                const timestamp = filename.split('_')[0];
+
+                this.logger.log(`🔄 [POLICY] Documento POLICY finalizado - Iniciando consolidación en 10s...`);
+
+                // Disparar consolidación después de 10 segundos
+                setTimeout(() => {
+                  this.logConsolidationService.consolidateWithRetry(recordId, timestamp, 1);
+                }, 10000);
+              }
             }
           } catch (error) {
             this.logger.error(`❌ Error guardando logs: ${error.message}`);

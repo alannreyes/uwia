@@ -12,6 +12,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { FileLoggerService } from './common/services/file-logger.service';
 import { LogCleanupService } from './common/services/log-cleanup.service';
 import { GlobalFileLoggerService } from './common/services/global-file-logger.service';
+import { LogConsolidationService } from './common/services/log-consolidation.service';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { GlobalFileLoggerService } from './common/services/global-file-logger.se
     FileLoggerService,
     LogCleanupService,
     GlobalFileLoggerService,
+    LogConsolidationService,
 
     // Filtro global de excepciones
     {
