@@ -29,8 +29,8 @@ export class LoggingInterceptor implements NestInterceptor {
     const { method, url, ip } = request;
     const userAgent = request.get('User-Agent') || 'Unknown';
 
-    // Extraer record_id del body si existe
-    const recordId = this.extractRecordId(request);
+    // Intentar extraer record_id (headers y query siempre disponibles, body puede no estarlo)
+    let recordId = this.extractRecordId(request);
 
     // Iniciar captura de logs si tenemos record_id y fileLoggerService
     if (recordId && this.fileLoggerService) {
@@ -55,6 +55,17 @@ export class LoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: (data) => {
+          // Reintentar extraer record_id si no se encontró antes (después de que Multer procese)
+          if (!recordId) {
+            recordId = this.extractRecordId(request);
+
+            // Iniciar captura de logs si ahora encontramos record_id
+            if (recordId && this.fileLoggerService && !this.fileLoggerService.isCapturing()) {
+              this.fileLoggerService.startCapture(recordId);
+              this.logger.log(`📝 Iniciando captura de logs para record_id: ${recordId}`);
+            }
+          }
+
           const endTime = Date.now();
           const duration = endTime - startTime;
           const statusCode = response.statusCode;
@@ -105,25 +116,32 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 
   /**
-   * Extrae el record_id del request body
+   * Extrae el record_id del request
+   * Intenta múltiples fuentes en orden de prioridad
    * @param request - Request de Express
    * @returns record_id o null si no existe
    */
   private extractRecordId(request: Request): string | null {
     try {
-      // Intentar obtener de request.body
+      // PRIORIDAD 1: Header (siempre disponible inmediatamente)
+      const headerRecordId = request.get('x-record-id') || request.get('record-id');
+      if (headerRecordId) {
+        return String(headerRecordId);
+      }
+
+      // PRIORIDAD 2: Query params (siempre disponible inmediatamente)
+      if (request.query && request.query.record_id) {
+        return String(request.query.record_id);
+      }
+
+      // PRIORIDAD 3: Request body (puede no estar disponible si es multipart/form-data)
       if (request.body && request.body.record_id) {
         return String(request.body.record_id);
       }
 
-      // Intentar obtener de form-data (multipart/form-data)
+      // PRIORIDAD 4: Form-data fields (después de que Multer procese)
       if ((request as any).fields && (request as any).fields.record_id) {
         return String((request as any).fields.record_id);
-      }
-
-      // Intentar obtener de query params
-      if (request.query && request.query.record_id) {
-        return String(request.query.record_id);
       }
 
       return null;
